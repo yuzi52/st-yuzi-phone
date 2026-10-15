@@ -1,28 +1,8 @@
 import { t } from '../../i18n/index.js';
 import { escapeHtml } from '../../utils/dom-escape.js';
+import { createRuntimeScope } from '../../runtime-manager.js';
 
-function createDialogRuntime(runtime) {
-    if (runtime && typeof runtime.addEventListener === 'function') return runtime;
-    const cleanups = [];
-    return {
-        addEventListener(target, type, handler, options) {
-            if (!target || typeof target.addEventListener !== 'function' || typeof handler !== 'function') return () => {};
-            target.addEventListener(type, handler, options);
-            const cleanup = () => target.removeEventListener(type, handler, options);
-            cleanups.push(cleanup);
-            return cleanup;
-        },
-        setTimeout(callback, delay) {
-            const id = window.setTimeout(callback, delay);
-            cleanups.push(() => window.clearTimeout(id));
-            return id;
-        },
-        registerCleanup(cleanup) {
-            if (typeof cleanup === 'function') cleanups.push(cleanup);
-            return () => {};
-        },
-    };
-}
+const activeDialogs = new WeakMap();
 
 function normalizeClassTokens(value) {
     if (Array.isArray(value)) {
@@ -47,15 +27,20 @@ function normalizeClassTokens(value) {
  * @param {Object} options 可选弹窗配置
  * @param {string|string[]} options.overlayClassName overlay 额外 class
  * @param {Function} options.onCancel 取消回调
+ * @param {HTMLElement} options.content 可选附加控件，复用现有设置样式
+ * @returns {{ close: Function }} 立即关闭并释放资源
  */
 export function showConfirmDialog(container, title, message, onConfirm, confirmText = t("确认"), cancelText = t("取消"), runtime = null, options = {}) {
-    const runtimeApi = createDialogRuntime(runtime);
+    const runtimeApi = createRuntimeScope('settings-confirm-dialog');
     const candidateMountRoot = container.matches('.phone-app-page')
         ? container
         : (container.querySelector('.phone-app-page') || container.closest('.phone-app-page') || container);
     const mountRoot = candidateMountRoot instanceof HTMLElement ? candidateMountRoot : container;
     const existing = mountRoot.querySelector('.phone-confirm-dialog-overlay');
-    if (existing) existing.remove();
+    if (existing) {
+        activeDialogs.get(existing)?.();
+        existing.remove();
+    }
 
     const overlay = document.createElement('div');
     overlay.className = 'phone-confirm-dialog-overlay';
@@ -70,24 +55,36 @@ export function showConfirmDialog(container, title, message, onConfirm, confirmT
             </div>
         </div>
     `;
+    if (options.content instanceof HTMLElement) {
+        overlay.querySelector('.phone-confirm-dialog-buttons').before(options.content);
+    }
 
+    let closing = false;
     const closeDialog = () => {
+        if (closing || runtimeApi.isDisposed()) return false;
+        closing = true;
         overlay.classList.remove('phone-confirm-dialog-show');
-        runtimeApi.setTimeout(() => overlay.remove(), 200);
+        runtimeApi.setTimeout(runtimeApi.dispose, 200);
+        return true;
     };
 
     runtimeApi.addEventListener(overlay.querySelector('.phone-confirm-dialog-cancel'), 'click', () => {
-        closeDialog();
-        options?.onCancel?.();
+        if (closeDialog()) options?.onCancel?.();
     });
     runtimeApi.addEventListener(overlay.querySelector('.phone-confirm-dialog-confirm'), 'click', () => {
-        closeDialog();
-        onConfirm?.();
+        if (closeDialog()) onConfirm?.();
     });
-    runtimeApi.registerCleanup?.(() => overlay.remove());
+    const unregister = runtime?.registerCleanup?.(runtimeApi.dispose);
+    runtimeApi.registerCleanup(() => {
+        unregister?.();
+        activeDialogs.delete(overlay);
+        overlay.remove();
+    });
+    activeDialogs.set(overlay, runtimeApi.dispose);
 
     mountRoot.appendChild(overlay);
-    runtimeApi.setTimeout(() => overlay.classList.add('phone-confirm-dialog-show'), 10);
+    runtimeApi.setTimeout(() => { if (!closing) overlay.classList.add('phone-confirm-dialog-show'); }, 10);
+    return { close: runtimeApi.dispose };
 }
 
 export function showAlertDialog(container, title, message, confirmText = t("知道了"), runtime = null, options = {}) {

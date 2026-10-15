@@ -7,6 +7,7 @@ import {
 import { escapeHtml, escapeHtmlAttr } from '../../utils/dom-escape.js';
 
 export const SETTINGS_ENTRY_META = {
+    body_dialogue: { glyph: '言', title: '正文对话气泡', description: '正文美化、人物与朗读', tone: 'is-appearance' },
     tts: { glyph: 'TTS', title: 'TTS', get description() { return t("连接、音色仓库与试听"); }, tone: 'is-api' },
     input_shortcuts: { get glyph() { return t("键"); }, get title() { return t("输入快捷键"); }, get description() { return t("自定义酒馆输入框快捷键"); }, tone: 'is-button' },
     logs: { get glyph() { return t("志"); }, get title() { return t("日志"); }, get description() { return t("当前聊天的 QQ 失败记录"); }, tone: 'is-api' },

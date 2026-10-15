@@ -1,4 +1,5 @@
 import { getFreshSillyTavernContext } from '../../integration/context-bridge.js';
+import { withWorldbookWrite, mergeWorldbookChanges } from '../../integration/worldbook-write.js';
 import {
     getCurrentCharacterWorldbooks,
     getWorldbookNames,
@@ -89,6 +90,7 @@ function resolveWorldbookContext(getContext) {
  * the new host context after an async boundary.
  */
 export function createQQV2SillyTavernWorldbookGateway(options = {}) {
+    const loaded = new Map();
     const getContext = typeof options.getContext === 'function'
         ? options.getContext
         : getFreshSillyTavernContext;
@@ -127,12 +129,24 @@ export function createQQV2SillyTavernWorldbookGateway(options = {}) {
             const context = resolveWorldbookContext(getContext);
             const book = await context.loadWorldInfo(bookName(name));
             assertActiveScope(expectedScopeId, captureScopeSession, getActiveScopeId, operationOptions);
+            if (book && options.mergeEntryChanges === true) loaded.set(JSON.stringify([name, expectedScopeId]), structuredClone(book));
             return book;
         },
         async saveBook(name, data, expectedScopeId, operationOptions = {}) {
             assertActiveScope(expectedScopeId, captureScopeSession, getActiveScopeId, operationOptions);
             const context = resolveWorldbookContext(getContext);
-            const result = await context.saveWorldInfo(bookName(name), data, true);
+            const key = JSON.stringify([name, expectedScopeId]);
+            const before = loaded.get(key);
+            const result = await withWorldbookWrite(bookName(name), async () => {
+                assertActiveScope(expectedScopeId, captureScopeSession, getActiveScopeId, operationOptions);
+                const current = before ? await context.loadWorldInfo(bookName(name)) : null;
+                assertActiveScope(expectedScopeId, captureScopeSession, getActiveScopeId, operationOptions);
+                if (before && !current) throw new Error('目标世界书已被删除');
+                const merged = before ? mergeWorldbookChanges(before, data, current) : data;
+                const saved = await context.saveWorldInfo(bookName(name), merged, true);
+                loaded.delete(key);
+                return saved;
+            });
             assertActiveScope(expectedScopeId, captureScopeSession, getActiveScopeId, operationOptions);
             return result;
         },

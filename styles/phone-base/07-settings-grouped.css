@@ -387,6 +387,13 @@ textarea.phone-ios-field {
     outline: var(--yuzi-phone-form-focus-ring-width) solid var(--yuzi-settings-accent);
 }
 
+.phone-ios-stepper[data-settings-repeat] .phone-ios-stepper-btn {
+    touch-action: pan-y;
+    user-select: none;
+    -webkit-user-select: none;
+    -webkit-touch-callout: none;
+}
+
 .phone-ios-slider-row {
     flex: 1;
     min-width: 0;

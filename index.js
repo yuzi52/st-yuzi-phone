@@ -21,6 +21,7 @@ import {
     savePhoneSettingsPatch,
 } from './modules/settings.js';
 import { createInputShortcutsHost } from './modules/integration/input-shortcuts.js';
+import { initializeBodyDialogue, destroyBodyDialogue } from './modules/body-dialogue/runtime.js';
 import { createPhoneSettingsPanel, destroyPhoneSettingsPanel } from './modules/settings-panel.js';
 import { EventManager } from './modules/utils/event-manager.js';
 import { cleanupIntegration } from './modules/integration/cleanup.js';
@@ -490,6 +491,7 @@ async function doInitialize() {
 
     await initializePhoneSettings();
     await initializeQQV2Runtime();
+    await initializeBodyDialogue();
 
     const { settings } = await initializePhoneBootstrapUi({
         migrateLegacyPhoneSettings,
@@ -567,6 +569,7 @@ async function doInitialize() {
             inputShortcutsHost.stop();
             stopPhoneBackgroundServices('initialize-failed');
             destroyQQV2Runtime();
+            destroyBodyDialogue();
             releaseSingletonGuard();
             handleError(error, t("玉子手机初始化失败"));
             // 重置初始化状态，允许重试
@@ -634,6 +637,7 @@ export function destroy() {
         // 2. 销毁手机运行时
         destroyPhoneRuntime();
         destroyQQV2Runtime();
+        destroyBodyDialogue();
 
         // 3. 清理事件监听器
         cleanupIntegration();

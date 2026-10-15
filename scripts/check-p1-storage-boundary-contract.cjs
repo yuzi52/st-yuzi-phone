@@ -5,6 +5,7 @@ const ROOT = process.cwd();
 const MODULES_DIR = path.join(ROOT, 'modules');
 
 const ALLOWED_INDEXED_DB_FILES = new Set([
+    'modules/body-dialogue/repository.js',
     'modules/settings/appearance-asset-repository.js',
     'modules/cache-manager.js',
     'modules/settings-app/services/appearance-settings/appearance-pack-repository.js',

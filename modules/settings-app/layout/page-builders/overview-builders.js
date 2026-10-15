@@ -18,6 +18,7 @@ export function buildSettingsHomePageHtml({
         'image_generation',
         'api_presets',
         'tts',
+        'body_dialogue',
         'ai_instruction_presets',
         'table_content_replacement',
         'fullscreen_overlay',

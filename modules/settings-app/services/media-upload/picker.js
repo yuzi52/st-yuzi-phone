@@ -12,6 +12,7 @@ import {
 export function pickImageFile(callback, options = {}) {
     const maxSizeMB = clampNumber(options.maxSizeMB, 1, 64, 8);
     const onError = typeof options.onError === 'function' ? options.onError : null;
+    const onCancel = typeof options.onCancel === 'function' ? options.onCancel : null;
     const compress = options.compress !== false;
     const maxWidth = clampNumber(options.maxWidth, 128, 4096, 1440);
     const maxHeight = clampNumber(options.maxHeight, 128, 4096, 1440);
@@ -44,6 +45,7 @@ export function pickImageFile(callback, options = {}) {
         const file = input.files?.[0];
         if (!file) {
             cleanup();
+            if (!isDisposed()) onCancel?.();
             return;
         }
 
@@ -75,6 +77,7 @@ export function pickImageFile(callback, options = {}) {
             if (isDisposed()) return;
             if (!croppedDataUrl) {
                 cleanup();
+                onCancel?.();
                 return;
             }
 
@@ -114,5 +117,6 @@ export function pickImageFile(callback, options = {}) {
         }
     });
 
+    addListener(input, 'cancel', () => { cleanup(); if (!isDisposed()) onCancel?.(); });
     input.click();
 }

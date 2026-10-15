@@ -28,6 +28,7 @@ export function mountSettingsLayer(overlay, runtime = null, onClose = null) {
     const cleanups = [];
     let closed = false;
     let disposeLayer = () => {};
+    let unregister = () => {}, frame = null;
 
     const bind = (target, type, listener, options) => {
         if (!target || typeof target.addEventListener !== 'function') return;
@@ -35,6 +36,8 @@ export function mountSettingsLayer(overlay, runtime = null, onClose = null) {
         cleanups.push(() => target.removeEventListener(type, listener, options));
     };
     const finish = () => {
+        unregister();
+        cancelAnimationFrame(frame);
         cleanups.splice(0).reverse().forEach(task => task());
         onClose?.();
         if (opener && typeof opener.focus === 'function' && opener.isConnected) {
@@ -74,9 +77,9 @@ export function mountSettingsLayer(overlay, runtime = null, onClose = null) {
         event.preventDefault();
         close();
     });
-    runtime?.registerCleanup?.(close);
+    unregister = runtime?.registerCleanup?.(close) || (() => {});
 
-    requestAnimationFrame(() => {
+    frame = requestAnimationFrame(() => {
         if (closed) return;
         overlay.classList.add('is-visible');
         const target = overlay.querySelector('[aria-selected="true"]:not(:disabled)') || overlay.querySelector('button:not(:disabled)');

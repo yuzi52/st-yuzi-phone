@@ -532,6 +532,7 @@ export function createQQV2ProductionRuntime(options = {}) {
         });
     };
     const worldbookGateway = options.worldbookGateway || createQQV2SillyTavernWorldbookGateway({
+        mergeEntryChanges: true,
         getContext: () => host.readRawContext?.(),
         captureScopeSession,
     });

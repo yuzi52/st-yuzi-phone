@@ -77,6 +77,68 @@ function syncStepper(stepper, inputEl) {
 export function bindSettingsGroupedControls(container, runtime = null, canInteract = () => true) {
     if (!container || typeof container.addEventListener !== 'function') return () => {};
 
+    const stepSelector = '.phone-ios-stepper[data-settings-stepper] .phone-ios-stepper-btn';
+    let hold = null, repeatTimer = null, suppressedClick = null;
+    const step = (button, commit = true) => {
+        if (!canInteract() || !container.contains(button) || button.disabled) return null;
+        const stepper = button.closest('.phone-ios-stepper');
+        const input = findById(container, stepper.dataset.settingsStepper);
+        if (!input || input.disabled) return null;
+        const amount = (Number(stepper.dataset.step) || 1) * (Number(button.dataset.direction) || 0);
+        const next = Math.min(Number(input.max), Math.max(Number(input.min), (Number(input.value) || 0) + amount));
+        const value = String(Math.round(next * 1000) / 1000);
+        if (input.value === value) return null;
+        input.value = value;
+        syncStepper(stepper, input);
+        dispatch(input, ...(commit ? ['input', 'change'] : ['input']));
+        return input;
+    };
+    // Opt-in: input previews each repeat; change commits once when the gesture ends.
+    const finishHold = (cancelled = false) => {
+        if (!hold) return;
+        clearTimeout(repeatTimer); repeatTimer = null;
+        const current = hold; hold = null;
+        document.removeEventListener('pointerup', onPointerEnd, true);
+        document.removeEventListener('pointercancel', onPointerEnd, true);
+        document.removeEventListener('pointermove', onPointerMove, true);
+        document.removeEventListener('visibilitychange', onVisibility);
+        window.removeEventListener('blur', finishHold);
+        if (current.input || cancelled) suppressedClick = { button: current.button, until: Date.now() + 700 };
+        if (current.input) dispatch(current.input, 'change');
+    };
+    const onPointerEnd = event => { if (event.pointerId === hold?.pointerId) finishHold(event.type === 'pointercancel'); };
+    const onVisibility = () => { if (document.hidden) finishHold(true); };
+    const onPointerMove = event => {
+        if (!hold || event.pointerId !== hold.pointerId) return;
+        const rect = hold.button.getBoundingClientRect();
+        if (Math.hypot(event.clientX - hold.x, event.clientY - hold.y) > 10
+            || event.clientX < rect.left || event.clientX > rect.right || event.clientY < rect.top || event.clientY > rect.bottom) finishHold(true);
+    };
+    const repeat = () => {
+        if (!hold) return;
+        if (!canInteract() || !hold.button.isConnected) { finishHold(true); return; }
+        const input = step(hold.button, false);
+        if (!hold || !input) return;
+        hold.input = input;
+        repeatTimer = setTimeout(repeat, 90);
+    };
+    const onPointerDown = event => {
+        if (hold || event.button !== 0 || event.isPrimary === false || !canInteract()) return;
+        const button = event.target?.closest?.(stepSelector);
+        if (!button || !container.contains(button) || button.disabled || !button.closest('[data-settings-repeat]')) return;
+        suppressedClick = null;
+        hold = { button, pointerId: event.pointerId, x: event.clientX, y: event.clientY, input: null };
+        document.addEventListener('pointerup', onPointerEnd, true);
+        document.addEventListener('pointercancel', onPointerEnd, true);
+        document.addEventListener('pointermove', onPointerMove, { capture: true, passive: true });
+        document.addEventListener('visibilitychange', onVisibility);
+        window.addEventListener('blur', finishHold);
+        repeatTimer = setTimeout(repeat, 350);
+    };
+    const onContextMenu = event => {
+        if (hold && hold.button.contains(event.target)) event.preventDefault();
+    };
+
     container.querySelectorAll('.phone-ios-seg[data-settings-seg]').forEach((seg) => {
         const selectEl = findById(container, seg.dataset.settingsSeg);
         if (selectEl) syncSegment(seg, selectEl);
@@ -120,17 +182,12 @@ export function bindSettingsGroupedControls(container, runtime = null, canIntera
             return;
         }
 
-        const stepButton = event.target?.closest?.('.phone-ios-stepper[data-settings-stepper] .phone-ios-stepper-btn');
-        if (stepButton && container.contains(stepButton) && !stepButton.disabled) {
-            const stepper = stepButton.closest('.phone-ios-stepper');
-            const inputEl = findById(container, stepper.dataset.settingsStepper);
-            if (!inputEl || inputEl.disabled) return;
-            const step = Number(stepper.dataset.step) || 1;
-            const direction = Number(stepButton.dataset.direction) || 0;
-            const next = Math.min(Number(inputEl.max), Math.max(Number(inputEl.min), (Number(inputEl.value) || 0) + direction * step));
-            inputEl.value = String(Math.round(next * 1000) / 1000);
-            syncStepper(stepper, inputEl);
-            dispatch(inputEl, 'input', 'change');
+        const stepButton = event.target?.closest?.(stepSelector);
+        if (stepButton && container.contains(stepButton)) {
+            if (event.detail !== 0 && suppressedClick?.button === stepButton && Date.now() <= suppressedClick.until) {
+                suppressedClick = null; event.preventDefault(); return;
+            }
+            step(stepButton);
         }
     };
 
@@ -138,11 +195,18 @@ export function bindSettingsGroupedControls(container, runtime = null, canIntera
         if (!event.target?.id) return;
         const stepper = container.querySelector(`.phone-ios-stepper[data-settings-stepper="${CSS.escape(event.target.id)}"]`);
         if (stepper) syncStepper(stepper, event.target);
+        const seg = container.querySelector(`.phone-ios-seg[data-settings-seg="${CSS.escape(event.target.id)}"]`);
+        if (seg) syncSegment(seg, event.target);
     };
+    container.addEventListener('pointerdown', onPointerDown);
+    container.addEventListener('contextmenu', onContextMenu);
     container.addEventListener('click', onClick);
     container.addEventListener('input', onInput);
     container.addEventListener('change', onInput);
     return () => {
+        finishHold();
+        container.removeEventListener('pointerdown', onPointerDown);
+        container.removeEventListener('contextmenu', onContextMenu);
         container.removeEventListener('click', onClick);
         container.removeEventListener('input', onInput);
         container.removeEventListener('change', onInput);

@@ -1,5 +1,34 @@
 # 小手机 UI 变量
 
+## 正文对话气泡
+
+入口是设置中的单个二级页；人物管理、美化参数、模块提示词使用原页展开，语气标记在朗读展开区内再次独立展开。标题与右侧启用开关互不代替；关闭模块仍可编辑文案。人物新建／编辑、素材选择与数值精确输入复用 `showSettingsSheet()`；删除人物、导入人物确认复用居中 `showConfirmDialog()`，取消删除返回原编辑草稿。头像裁剪复用既有居中 `pickImageFile()`／`openImageCropDialog()`。选择、步进器、分段控件继续使用隐藏原生字段和 `bindSettingsGroupedControls()`，没有新的控件皮肤。
+
+| 类名／变量 | 用途 |
+| --- | --- |
+| `.yuzi-body-settings` / `.yuzi-body-module-*` | 分组列表中的展开容器，消费现有设置页间距、颜色、字体 token |
+| `.yuzi-body-segment-row` | 用户位置、头像形状与装饰引号复用公共分段控件；窄屏允许换行，无独立配色或尺寸 token |
+| `.yuzi-body-prompt-editor` / `.yuzi-body-prompt-actions` | 共享提示词草稿、恢复默认与显式保存；未保存内容不进入注入预览 |
+| `.yuzi-body-dialogue` / `.yuzi-body-avatar` / `.yuzi-body-stack` / `.yuzi-body-bubble` | 正文显示专用节点；不覆盖酒馆其他正文或现有组件的样式 |
+| `.yuzi-body-dialogue.is-editorial` / `.yuzi-body-quote` | 非气泡排版、名字首字装饰与末尾／成对引号 |
+| `.yuzi-body-original` | 双语上方的整句原文；共用对白颜色与字体，字号为正文的 `0.55em`、透明度 `0.65`，可自然换行；气泡与非气泡共用，不做逐字注音 |
+| `.yuzi-body-lines` / `.yuzi-body-bubble.is-paired-bilingual` | 双语原文与译文共用内容区；成对引号模式以左右引号包住上下两行，播放按钮留在右侧；气泡与末尾引号保持原排版 |
+| `.yuzi-body-play` | 对白尾部播放、暂停与合成状态；仅点击发起请求 |
+| `--yuzi-body-default-bubble/text/name` | 默认对白配色，在 `00-theme-modes.css` 登记深浅模式 |
+| `--yuzi-body-preview-background` / `--yuzi-body-avatar-background/foreground` | 预览底色与首字占位头像配色，同样跟随全局主题 |
+| `--yuzi-body-font-size/name-size/line-height/width/spacing/avatar-size/avatar-radius/radius/quote-size` | 由已归一化的用户参数写入正文节点，局部生效 |
+| `--yuzi-body-name-color/text-color/bubble-color/quote-color` | 用户显式颜色覆盖；空值继续使用主题默认值 |
+
+正文和设置页样例共用 `createDialogueView()`；QQ 头像框校准与气泡装饰复用 `decorateQQAvatar()`、`decorateQQBubble()`。样例不调用 TTS、不写聊天，设置页不建立自己的状态栏。图片资料面板按接近可见区申请图片，最多四个并发读取；关闭面板释放临时 Blob URL。
+
+人物编辑与精确数值弹层通过 `className: 'phone-settings-page'` 接入既有输入框主题隔离。普通参数保存局部更新控件和样例，人物列表加载不重建页面；字号、颜色、位置、头像形状与装饰引号更新已有正文节点，不重新读取图片或打断朗读。长按实时预览、结束提交，纯外观调整不触发世界书同步。公共弹层关闭时即时注销页面清理回调；确认框与提示条在退出动画结束、被替换或离页时释放自身计时器、事件与父页面注册。
+
+双语模式位于头像与姓名、正文朗读之间，默认关闭，复用模块展开、公共 switch、提示词草稿及恢复默认／保存。朗读展开区的“朗读双语”默认关闭，双语关闭时沿用公共禁用态；开启只读上方原文。双语配对只增加一层原文小字，共用同一人物装饰和尾部播放按钮；分别保留原文、译文与换行的恢复位置，只临时隐藏已消费的空原生容器，关闭后恢复，不改聊天数据。纯朗读来源切换不重建正文节点。
+
+人物编辑的“语言”紧跟音色行，复用 `.phone-ios-row`、`.phone-ios-inline-input` 与既有弹层主题隔离，空值显示“默认”，不使用下拉框。人物语言按卡保存，实际注入预览与世界书共用同一拼接函数：内置双语／姓名默认组合合并为一段，非默认人物语言位于语气标记之前；总开关或双语关闭、或头像与朗读均关闭时不追加人物语言，仍保留人物资料。
+
+人物管理展开区的“导入人物配置”与“导出全部人物配置”沿用 `.phone-ios-row.is-action`。导出直接下载当前角色卡的全部人物，不提供人物选择页；导入确认复用居中 `showConfirmDialog()`，有同名人物时通过可选 `content` 控件插槽放置默认关闭的公共 switch“覆盖同名人物”，确认和取消使用公共弹窗按钮。取消选文件、替换选择和离页均清理临时文件控件与页面注册；切换角色卡立即关闭旧确认框，导入整批成功后只集中刷新一次。
+
 主界面与后续系统 App 的公共视觉变量清单。实现 UI 前先读本文和 [`../styles/phone-base/00-phone-tokens.css`](../styles/phone-base/00-phone-tokens.css)；Figma 只提供视觉参考，业务数据、路由和交互仍沿用现有模块。
 
 视觉来源：Figma `02_设计画板` 的 `主界面`（`195:3524`），内屏基准为 `402 x 874`。
@@ -175,6 +204,8 @@ Dock 仍消费现有四个运行时入口；隐藏可视标签不等于删除名
 | 裁剪框 | `openImageCropDialog()`（`pickImageFile` 调用） | 居中卡片弹窗，画布底色 `--yuzi-phone-crop-stage-background` |
 
 控件桥规则：分组控件只换外观，数据仍走隐藏的原生 `select` / `input`。选择行用 `[data-settings-select="<select id>"]`，分段控件用 `.phone-ios-seg[data-settings-seg="<select id>"]`，步进器用 `.phone-ios-stepper[data-settings-stepper="<input id>"]`；页面调用 `bindSettingsGroupedControls(container, runtime)` 后，既有服务继续按原 id 监听 `change` / `input`。
+
+步进器可按页在 `.phone-ios-stepper` 上添加 `[data-settings-repeat]` 启用长按：短按仍派发 `input` + `change`；长按 350ms 后每 90ms 调整一次，仅派发 `input` 供局部预览，手势结束统一派发一次 `change` 保存。松手、取消、移出、失焦、切后台或控件销毁均停止，达到上下限不再递增；允许纵向滚动，不在每步重建控件。当前仅正文对话气泡页启用，其余页面维持原行为。
 
 QQ 当前用户与 NPC 编辑资料页共用 `.yuzi-qq-profile-editor-list`，按「形象 / 资料 / 背景」组织 `.phone-ios-group`；文字字段使用 `.phone-ios-inline-input`，字色使用绑定隐藏 `select` 的 `.phone-ios-seg`。资产行使用 `.yuzi-qq-profile-asset-thumb`（`.is-round` 为头像、`.is-tall` 为背景），颜色在编辑页作用域内映射到 QQ token，不改公共控件或资料展示页。头像、资料背景的整行菜单同时提供图片资料选择和原图上传；头像框、气泡复用同一选图面板，有值只显示缩略图，空值保留「未设置」，不新增素材名称字段。分组标题与卡片外边缘对齐，分隔线统一使用公共细线的半高度绘制。
 

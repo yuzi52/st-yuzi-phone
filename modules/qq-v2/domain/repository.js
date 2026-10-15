@@ -1804,6 +1804,7 @@ export function createQQV2Repository(options = {}) {
                     person.avatarAssetId = saveAsset(conversation, contact.avatar);
                     person.profileBackgroundAssetId = saveAsset(conversation, contact.profileBackground);
                     conversation.backgroundAssetId = saveAsset(conversation, contact.chatBackground);
+                    assignPersonAppearance(state, person, random);
                     scope.people[person.personId] = person;
                     scope.conversations[conversation.conversationId] = conversation;
                     return copy({ person, conversation });

@@ -781,7 +781,35 @@ export interface BottomVisualizationSettings {
     height: number;
 }
 
+export interface BodyDialogueSettings {
+    enabled: boolean;
+    avatar: boolean;
+    voice: boolean;
+    tone: boolean;
+    bubble: boolean;
+    bilingual: boolean;
+    readOriginal: boolean;
+    layers: number;
+    align: 'left' | 'right';
+    avatarShape: 'round' | 'rounded' | 'square';
+    quote: 'tail' | 'pair';
+    fontSize: number;
+    nameSize: number;
+    lineHeight: number;
+    width: number;
+    spacing: number;
+    avatarSize: number;
+    radius: number;
+    quoteSize: number;
+    nameColor: string;
+    textColor: string;
+    bubbleColor: string;
+    quoteColor: string;
+    prompts: { base: string; name: string; bilingual: string; tone: string };
+}
+
 export interface PhoneSettings {
+    bodyDialogue: BodyDialogueSettings;
     bottomVisualization: BottomVisualizationSettings;
     bottomVisualizationNavImage: string | null;
     bottomVisualizationPanelImage: string | null;
@@ -1009,6 +1037,7 @@ export interface SettingsModule {
 }
 
 export type SettingsPageMode =
+    | 'body_dialogue'
     | 'logs'
     | 'home'
     | 'appearance'

@@ -1,4 +1,5 @@
 import { normalizeBottomVisualization } from '../bottom-visualization/settings.js';
+import { normalizeBodyDialogue } from '../body-dialogue/config.js';
 import { t } from '../i18n/index.js';
 import { normalizeInputShortcutsSettings } from '../input-shortcuts/config.js';
 import { normalizeFullscreenOverlaySettings } from '../fullscreen-overlay/settings.js';
@@ -123,6 +124,7 @@ export const APPEARANCE_FONT_LIBRARY_LIMITS = Object.freeze({
 });
 
 export const defaultSettings = {
+    bodyDialogue: normalizeBodyDialogue(),
     bottomVisualization: normalizeBottomVisualization(),
     bottomVisualizationNavImage: null,
     bottomVisualizationPanelImage: null,
@@ -694,6 +696,7 @@ export function normalizeAppearanceResourcePoolSettings(raw) {
 }
 
 export function validateSetting(key, value) {
+    if (key === 'bodyDialogue') return { valid: true, value: normalizeBodyDialogue(value) };
     if (REMOVED_SETTING_KEYS.has(key)) {
         return { valid: true, value: undefined, removed: true };
     }
@@ -795,6 +798,7 @@ export function validateSetting(key, value) {
 export function validateSettings(settings) {
     const validated = {
         ...defaultSettings,
+        bodyDialogue: normalizeBodyDialogue(),
         bottomVisualization: normalizeBottomVisualization(),
         inputShortcuts: normalizeInputShortcutsSettings(),
         fullscreenOverlay: normalizeFullscreenOverlaySettings(),

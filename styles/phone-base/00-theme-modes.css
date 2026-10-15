@@ -47,6 +47,12 @@ html[data-yuzi-phone-theme='light'],
     --yuzi-theme-group-fill-strong: rgba(58, 55, 49, 0.16);
     --yuzi-theme-group-seg-active: #FFFFFF;
     --yuzi-theme-group-danger: #A05A5A;
+    --yuzi-body-default-bubble: #FFFFFF;
+    --yuzi-body-default-text: #253047;
+    --yuzi-body-default-name: #AA526C;
+    --yuzi-body-preview-background: #EAF0F7;
+    --yuzi-body-avatar-background: #DCE6F2;
+    --yuzi-body-avatar-foreground: #597491;
 
 }
 
@@ -92,6 +98,12 @@ html[data-yuzi-phone-theme='dark'],
     --yuzi-theme-group-fill-strong: rgba(230, 227, 219, 0.2);
     --yuzi-theme-group-seg-active: #3A3D3B;
     --yuzi-theme-group-danger: #D08A8A;
+    --yuzi-body-default-bubble: #34343B;
+    --yuzi-body-default-text: #EEEEF4;
+    --yuzi-body-default-name: #EDA6BC;
+    --yuzi-body-preview-background: #1D2028;
+    --yuzi-body-avatar-background: #424F63;
+    --yuzi-body-avatar-foreground: #C1D2EA;
 
 }
 
