@@ -14,6 +14,8 @@ import { bindBottomScrollChain } from './scroll-chain.js';
 import { createBottomLayout } from './layout.js';
 import { createBottomContentRenderer } from './content-renderer.js';
 import { createBottomEditSession } from './edit-session.js';
+import { createBottomDeleteSession } from './delete-session.js';
+import { showConfirmDialog } from '../settings-app/ui/confirm-dialog.js';
 import { resizeDetailTextarea } from '../table-viewer/detail-edit-field.js';
 import { showInlineToast } from '../table-viewer/shared-ui.js';
 import { escapeHtml as html } from '../utils/dom-escape.js';
@@ -32,15 +34,19 @@ export function createBottomVisualization() {
     const launch = root.querySelector('.yuzi-bottom-launch');
     let active = '', lastEdge = 'review', collapsed = false;
     let raw = null, config;
-    let renderedSheet = '', renderedEditing = false;
+    let renderedSheet = '', renderedMode = 'view';
     const scrolls = new Map();
     const editor = createBottomEditSession(() => !scope.isDisposed());
     scope.registerCleanup(editor.cancel);
+    const deletion = createBottomDeleteSession(() => !scope.isDisposed());
+    let deleteDialog = null;
+    const cancelDelete = () => { deleteDialog?.dispose(); deleteDialog = null; deletion.cancel(); };
+    scope.registerCleanup(cancelDelete);
     document.body.append(root);
     scope.registerCleanup(() => root.remove());
     const options = createBottomOptions(scope);
     bindBottomScrollChain(scope, [panel, dock]);
-    const closePanel = () => { active = ''; editor.cancel(); };
+    const closePanel = () => { active = ''; editor.cancel(); cancelDelete(); };
     const layout = createBottomLayout(scope, root, () => { closePanel(); render(); }, () => render(true));
     const beautify = createBottomContentRenderer(content, { onChange: () => render(true) });
     scope.registerCleanup(() => beautify.dispose());
@@ -49,38 +55,42 @@ export function createBottomVisualization() {
     }
     function render(preserveScroll = false) {
         if (!config) return;
-        scrolls.set(`${renderedSheet}:${renderedEditing}`, captureScroll());
-        const scroll = preserveScroll || active !== renderedSheet || editor.active !== renderedEditing
-            ? scrolls.get(`${active}:${editor.active}`) : null;
+        const mode = editor.active ? 'edit' : deletion.active ? 'delete' : 'view';
+        const busy = editor.saving || deletion.deleting;
+        scrolls.set(`${renderedSheet}:${renderedMode}`, captureScroll());
+        const scroll = preserveScroll || active !== renderedSheet || mode !== renderedMode
+            ? scrolls.get(`${active}:${mode}`) : null;
         const descending = config.sortDescendingBySheet[active] === true;
         const edge = config.position === 'edge';
-        const table = active && active !== 'review' ? buildTableContent(raw, active, descending, editor) : null;
+        const table = active && active !== 'review' ? buildTableContent(raw, active, descending, editor, deletion) : null;
         if (active && active !== 'review' && !table) closePanel();
-        const beautified = beautify.update(editor.active ? '' : active, raw);
+        const beautified = beautify.update(editor.active || deletion.active ? '' : active, raw);
         if (lastEdge !== 'review' && !raw?.[lastEdge]) lastEdge = 'review';
         nav.hidden = edge ? !active : collapsed;
         bar.hidden = edge || !collapsed;
         launch.hidden = !edge || !!active;
         const railTop = preserveScroll ? nav.querySelector('.yuzi-bottom-tabs')?.scrollTop || 0 : 0;
         nav.innerHTML = `<div class="yuzi-bottom-tabs">${buildNavigation(raw, active)}</div><div class="yuzi-bottom-controls">${controls()}</div>`;
-        nav.querySelectorAll('[data-sheet]').forEach(button => { button.disabled = editor.saving; });
+        nav.querySelectorAll('[data-sheet]').forEach(button => { button.disabled = busy; });
         nav.querySelector('.yuzi-bottom-tabs').scrollTop = railTop;
         panel.hidden = !active;
         const area = layout.region();
         content.dataset.review = String(active === 'review');
         content.dataset.editing = String(editor.active);
-        panel.setAttribute('aria-busy', String(editor.saving));
+        panel.setAttribute('aria-busy', String(busy));
         const resize = ['edge', 'side'].includes(area) ? '' : iconButton('resize', t('长按调整高度'), 'M8 9h8M8 15h8');
         const editButtons = editor.active
             ? `<div class="yuzi-bottom-edit-actions">${iconButton('save', editor.saving ? t('保存中...') : t('保存所有修改'), 'm5 12 4 4L19 6', editor.saving)}${iconButton('cancel-edit', t('退出编辑'), 'm6 6 12 12M6 18 18 6')}</div>`
-            : table ? iconButton('edit', t('进入编辑'), 'm16 3 5 5-12 12-6 1 1-6L16 3M14 5l5 5') : '';
-        panel.querySelector('header').innerHTML = `<div><strong>${html(table?.title || t('审核'))}</strong>${table ? `<small>${t`共 ${table.count} 项`}${editor.active ? ` · ${t('编辑中')}` : ''}</small>` : ''}</div><div class="yuzi-bottom-controls">${table && !beautified ? iconButton('sort', descending ? t('倒序') : t('正序'), 'M7 20V4m-4 4 4-4 4 4M17 4v16m-4-4 4 4 4-4', editor.saving) : ''}${editButtons}${resize}${iconButton('close', t('关闭'), 'm6 6 12 12M6 18 18 6')}</div>`;
+            : deletion.active ? iconButton('cancel-delete', t('完成'), 'm5 12 4 4L19 6', busy)
+                : table ? iconButton('edit', t('进入编辑'), 'm16 3 5 5-12 12-6 1 1-6L16 3M14 5l5 5') + iconButton('delete', t('进入删除模式'), 'M3 6h18M9 6V3h6v3M5 6l1 15h12l1-15M10 10v7M14 10v7') : '';
+        const deleteActions = deletion.active ? `<div class="yuzi-bottom-delete-actions"><button type="button" class="phone-ios-mini-btn" data-action="select-all-delete"${busy ? ' disabled' : ''}>${t('全选')}</button><button type="button" class="phone-ios-mini-btn" data-action="clear-delete"${busy ? ' disabled' : ''}>${t('清空')}</button><button type="button" class="phone-ios-mini-btn is-danger" data-action="delete-selected"${busy || !deletion.count ? ' disabled' : ''}>${busy ? t('删除中...') : t`删 ${deletion.count}`}</button></div>` : '';
+        panel.querySelector('header').innerHTML = `<div><strong>${html(table?.title || t('审核'))}</strong>${table ? `<small>${t`共 ${table.count} 项`}${editor.active ? ` · ${t('编辑中')}` : ''}</small>` : ''}</div><div class="yuzi-bottom-controls">${table && !beautified ? iconButton('sort', descending ? t('倒序') : t('正序'), 'M7 20V4m-4 4 4-4 4 4M17 4v16m-4-4 4 4 4-4', busy) : ''}${editButtons}${resize}${iconButton('close', t('关闭'), 'm6 6 12 12M6 18 18 6', busy)}</div>${deleteActions}`;
         if (!beautified) content.innerHTML = table ? table.html : active === 'review' ? `<div class="yuzi-bottom-review tur-page tur-content">${buildTableUpdateReviewContentHtml(getReviewState(), { readOnly: true })}</div>` : '';
         layout.update(config);
         content.querySelectorAll('textarea[data-input-col]').forEach(resizeDetailTextarea);
         content.scrollTop = scroll?.top || 0; content.scrollLeft = scroll?.left || 0;
         if (scroll) content.querySelectorAll('[data-row]').forEach(node => { node.scrollTop = scroll.cards.get(node.dataset.row) || 0; });
-        renderedSheet = active; renderedEditing = editor.active;
+        renderedSheet = active; renderedMode = mode;
     }
     function refresh() {
         const settings = getPhoneSettings();
@@ -88,6 +98,8 @@ export function createBottomVisualization() {
         config = settings.bottomVisualization;
         raw = getTableData();
         const interrupted = editor.sync(raw);
+        const deleteInterrupted = deletion.sync(raw);
+        if (deleteInterrupted) { deleteDialog?.dispose(); deleteDialog = null; }
         applyPhoneThemeMode(settings.phoneThemeMode);
         applyAppearanceFontLibrary();
         for (const surface of [root, dock]) {
@@ -110,21 +122,50 @@ export function createBottomVisualization() {
         render(true);
         options.update(raw, settings);
         if (interrupted && active) showInlineToast(panel, t('表格已更新，已退出编辑'), true);
+        if (deleteInterrupted && active) showInlineToast(panel, t('表格已更新，请重新选择要删除的条目'), true);
     }
     const handleClick = async event => {
         const button = event.target.closest('button');
         if (!button || !event.currentTarget.contains(button)) return;
+        if (deletion.deleting || button.disabled) return;
+        if (deletion.active && button.dataset.action === 'toggle-delete-row' && content.contains(button)) {
+            deletion.toggle(Number(button.dataset.rowIndex)); render(true); return;
+        }
         if (content.contains(button)) return;
         if (button.dataset.action === 'resize') return;
         if (button.dataset.action === 'settings') { openBottomSettings(scope); return; }
-        if (button.disabled) return;
         if (button.dataset.sheet) {
             if (editor.saving) return;
+            cancelDelete();
             active = active === button.dataset.sheet ? '' : button.dataset.sheet;
             if (!active) editor.cancel();
             if (active && config.position === 'edge') lastEdge = active;
         }
         if (button.dataset.action === 'edit') editor.begin(raw);
+        if (button.dataset.action === 'delete') {
+            raw = getTableData(); deletion.begin(raw, active);
+        }
+        if (button.dataset.action === 'cancel-delete') cancelDelete();
+        if (button.dataset.action === 'select-all-delete') { deletion.selectAll(); render(true); return; }
+        if (button.dataset.action === 'clear-delete') { deletion.clear(); render(true); return; }
+        if (button.dataset.action === 'delete-selected') {
+            if (deleteDialog || !deletion.count) return;
+            deleteDialog = createRuntimeScope('bottom-delete-confirm');
+            const confirmation = deleteDialog;
+            const release = scope.registerCleanup(() => confirmation.dispose());
+            confirmation.registerCleanup(release);
+            showConfirmDialog(panel, t('批量删除条目'), t`确认删除当前选中的 ${deletion.count} 条记录吗？此操作无法撤销。`, async () => {
+                confirmation.dispose(); deleteDialog = null;
+                const promise = deletion.remove();
+                render(true);
+                const result = await promise;
+                if (scope.isDisposed()) return;
+                raw = getTableData(); render(true);
+                if (result.status === 'updated') showInlineToast(panel, t('表格已更新，请重新选择要删除的条目'), true);
+                if (result.status === 'finished') showInlineToast(panel, result.message || t('删除失败'), !result.ok || result.refreshed === false);
+            }, t('删除'), t('取消'), confirmation, { onCancel: () => { confirmation.dispose(); deleteDialog = null; } });
+            return;
+        }
         if (button.dataset.action === 'cancel-edit') { editor.cancel(); raw = getTableData(); }
         if (button.dataset.action === 'save') {
             const promise = editor.save();

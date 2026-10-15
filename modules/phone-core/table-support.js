@@ -153,7 +153,7 @@ export async function deleteSheetRows(sheetKey, rowIndexes = [], options = {}) {
         };
     }
 
-    const result = await deleteTableRowsBatch(tableName, normalizedRowIndexes);
+    const result = await deleteTableRowsBatch(tableName, normalizedRowIndexes, options);
     const resultDeletedRowIndexes = Array.isArray(result.deletedRowIndexes) ? result.deletedRowIndexes : [];
     const resultFailedRowIndexes = Array.isArray(result.failedRowIndexes) ? result.failedRowIndexes : [];
     const resultAttemptedRowIndexes = Array.isArray(result.attemptedRowIndexes)

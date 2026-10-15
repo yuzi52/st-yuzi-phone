@@ -217,6 +217,7 @@ export default {
     "删除已选资源": "Delete selected resources",
     "表情仓库": "Sticker library",
     "进入删除模式": "Enter selection mode",
+    "表格已更新，请重新选择要删除的条目": "The table has changed. Select the entries to delete again.",
     "选择表情": "Select sticker",
     "选择图片": "Select image",
     "上传图片": "Upload image",

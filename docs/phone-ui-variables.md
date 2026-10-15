@@ -208,6 +208,8 @@ QQ 当前用户与 NPC 编辑资料页共用 `.yuzi-qq-profile-editor-list`，�
 
 ## 已确认边界
 
+底部可视化的删除管理沿用 `.phone-ios-mini-btn`（危险动作加 `.is-danger`）与 `showConfirmDialog()` 的 `.phone-confirm-dialog-*` 公共确认框；`.yuzi-bottom-delete-actions` 只负责工具栏换行，使用导航第二行间距 token。选中态通过 `aria-pressed` 显示，消费公共强调色和焦点描边，不增加一套弹层或配色。
+
 - 不实现 Figma 搜索胶囊，也不保留无效占位按钮。
 - 剧情时间、天气、日程状态卡保留在应用图标上方，使用本文登记的旧版玻璃材质。
 - 主屏删除白色 Home Indicator；它不属于新的全局视觉规范。

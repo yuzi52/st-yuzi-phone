@@ -166,7 +166,15 @@ export function remapTableLockStateAfterRowDelete(sheetKey, deletedRowIndex) {
     }
 }
 
-export function remapTableLockStateAfterRowsDelete(sheetKey, deletedRowIndexes = []) {
+function sameLockState(left, right) {
+    const canonical = value => {
+        const state = normalizeLockState(value);
+        return JSON.stringify({ rows: state.rows.sort((a, b) => a - b), cols: state.cols.sort((a, b) => a - b), cells: state.cells.sort() });
+    };
+    return canonical(left) === canonical(right);
+}
+
+export function remapTableLockStateAfterRowsDelete(sheetKey, deletedRowIndexes = [], options = {}) {
     const api = getDB();
     if (!api || typeof api.getTableLockState !== 'function' || typeof api.setTableLockState !== 'function') {
         return false;
@@ -174,7 +182,13 @@ export function remapTableLockStateAfterRowsDelete(sheetKey, deletedRowIndexes =
 
     try {
         const current = api.getTableLockState(sheetKey);
-        const next = remapLockStateAfterRowsDelete(current, deletedRowIndexes);
+        const next = remapLockStateAfterRowsDelete(options.beforeState ?? current, deletedRowIndexes);
+        if (options.beforeState) {
+            // Newer database APIs already remap locks. Never shift their result twice,
+            // or overwrite an unrelated lock change made while the mutation settled.
+            if (sameLockState(current, next)) return true;
+            if (!sameLockState(current, options.beforeState)) return false;
+        }
         return isLockWriteSuccess(api.setTableLockState(sheetKey, next, { merge: false }));
     } catch (error) {
         logger.warn({
