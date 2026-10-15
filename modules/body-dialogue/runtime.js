@@ -3,7 +3,7 @@ import { getFreshSillyTavernContext } from '../integration/context-bridge.js';
 import { onEvent, EventTypes } from '../integration/event-bridge.js';
 import { showNotification } from '../integration/toast-bridge.js';
 import { getQQV2Facade } from '../qq-v2/runtime/default-runtime.js';
-import { normalizeBodyDialogue, selectBodyDialogueFloors, composeBodyDialoguePrompt, bodyDialogueSpeech, bodyDialogueUsesPersonLanguages } from './config.js';
+import { normalizeBodyDialogue, selectBodyDialogueFloors, composeBodyDialoguePrompt, bodyDialogueSpeech, bodyDialogueSpeechControls, bodyDialogueUsesPersonLanguages } from './config.js';
 import { bodyDialogueRepository as repository } from './repository.js';
 import { createBodyDialogueProjection } from './worldbook.js';
 import { renderDialogueFloor, isDialogueProseMutation } from './renderer.js';
@@ -76,8 +76,8 @@ function applySettings() {
     const keys = Object.keys(next).filter(key => key !== 'prompts' && previous[key] !== next[key]);
     const structural = keys.some(key => ['enabled', 'avatar', 'voice', 'bubble', 'bilingual'].includes(key));
     if (structural) { configVersion++; voice?.stop(); }
-    else if (keys.includes('readOriginal') && next.bilingual) voice?.stop();
-    if (keys.some(key => !['tone', 'readOriginal'].includes(key))) schedule();
+    else if (keys.includes('prosody') || (keys.includes('readOriginal') && next.bilingual)) voice?.stop();
+    if (keys.some(key => !['tone', 'readOriginal', 'prosody', 'punctuation'].includes(key))) schedule();
     const projectionChanged = previous.enabled !== next.enabled || composeBodyDialoguePrompt(previous) !== composeBodyDialoguePrompt(next)
         || bodyDialogueUsesPersonLanguages(previous) !== bodyDialogueUsesPersonLanguages(next);
     if (projectionChanged) projectionVersion++;
@@ -139,6 +139,7 @@ async function refresh() {
                 config, people, userName: scope.userName,
                 onPlay: (dialogue, person, button) => voice.play({ ...scope, floor: index, fingerprint, dialogue, person, button,
                     speechText: bodyDialogueSpeech(dialogue, effectiveConfig()),
+                    speechControls: bodyDialogueSpeechControls(dialogue, effectiveConfig()),
                     isCurrent: () => currentScope() && effectiveConfig().enabled && effectiveConfig().voice && retained.get(index)?.fingerprint === fingerprint }),
             });
             dirtyRoots.delete(root);

@@ -1,5 +1,6 @@
 import { t } from '../../i18n/index.js';
 import { normalizeQQV2OpenAIBaseUrl } from '../api-endpoint-policy.js';
+import { normalizeQQVoiceSpeechControls } from './speech-controls.js';
 
 export const QQ_VOICE_DEFAULT_BASE_URL = 'https://api.fish.audio';
 export const QQ_VOICE_DEFAULT_MODEL = 's2.1-pro-free';
@@ -65,6 +66,7 @@ export function buildQQVoiceSynthesisRequest(input = {}) {
     const voiceId = asText(input.voiceId, 256);
     const apiKey = asText(input.apiKey, 8192);
     const text = String(input.text ?? '');
+    const controls = input.speechControls ? normalizeQQVoiceSpeechControls(input.speechControls) : null;
     if (!apiKey || /[\r\n]/u.test(apiKey)) throw new QQV2VoiceError(t("请先填写语音 API Key"), 'voice_api_key_missing');
     if (!voiceId) throw new QQV2VoiceError(t("请先填写音色 ID"), 'voice_id_missing');
     if (!text.trim()) throw new QQV2VoiceError(t("语音文本为空"), 'voice_text_empty');
@@ -87,7 +89,8 @@ export function buildQQVoiceSynthesisRequest(input = {}) {
                 'Content-Type': 'application/json',
                 ...(input.headers && typeof input.headers === 'object' ? input.headers : {}),
             }),
-            body: JSON.stringify({ text, reference_id: voiceId, format: 'mp3', latency: 'normal' }),
+            body: JSON.stringify({ text, reference_id: voiceId, format: 'mp3', latency: 'normal',
+                ...(controls ? { prosody: { speed: controls.speed }, temperature: controls.temperature } : {}) }),
         }),
     });
 }

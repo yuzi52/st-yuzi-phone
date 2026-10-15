@@ -6,6 +6,7 @@ import { getQQV2RuntimeStatus } from '../qq-v2/runtime/default-runtime.js';
 import { showNotification } from '../integration/toast-bridge.js';
 import { bodyDialogueRepository as repository } from './repository.js';
 import { readDialogueVoiceConnection } from './resources.js';
+import { normalizeQQVoiceSpeechControls } from '../qq-v2/voice/speech-controls.js';
 
 export async function dialogueDigest(value) {
     if (globalThis.crypto?.subtle) {
@@ -39,7 +40,7 @@ export function createBodyDialogueVoice() {
     };
     return {
         stop,
-        async play({ card, chat, floor, fingerprint, dialogue, speechText = dialogue.text, person, button, isCurrent }) {
+        async play({ card, chat, floor, fingerprint, dialogue, speechText = dialogue.text, speechControls = null, person, button, isCurrent }) {
             if (current?.button === button && current.loading) return;
             if (!person?.voice?.voiceId) { showNotification('请先在正文人物管理中创建该人物并选择音色', 'info'); return; }
             const same = current?.button === button;
@@ -55,7 +56,9 @@ export function createBodyDialogueVoice() {
                 const connection = await readDialogueVoiceConnection();
                 if (!valid()) return;
                 const signature = await dialogueDigest(JSON.stringify(connection.settings));
-                const id = 'audio:' + await dialogueDigest(JSON.stringify([chat, floor, fingerprint, dialogue.start, speechText, person.voice.voiceId, signature]));
+                const controls = speechControls ? normalizeQQVoiceSpeechControls(speechControls) : null;
+                const id = 'audio:' + await dialogueDigest(JSON.stringify([chat, floor, fingerprint, dialogue.start, speechText, person.voice.voiceId, signature,
+                    ...(controls ? [controls] : [])]));
                 if (!valid()) return;
                 current.id = id;
                 current.loading = true; update();
@@ -64,7 +67,8 @@ export function createBodyDialogueVoice() {
                 if (!media) {
                     const text = prepareQQVoiceText(speechText).text;
                     attempt.apiKey = connection.apiKey; attempt.model = connection.settings.model; attempt.stage = 'request';
-                    media = await synthesizeQQVoice({ ...connection.settings, apiKey: connection.apiKey, voiceId: person.voice.voiceId, text, signal: controller.signal });
+                    media = await synthesizeQQVoice({ ...connection.settings, apiKey: connection.apiKey, voiceId: person.voice.voiceId,
+                        text, speechControls: controls, signal: controller.signal });
                     if (!valid()) return;
                     await repository.putAudio({ id, card, chat, floor, fingerprint, personId: person.id, voiceId: person.voice.voiceId, signature }, media.blob);
                     if (!valid()) { await repository.pruneAudio(chat, entry => entry.id !== id); return; }

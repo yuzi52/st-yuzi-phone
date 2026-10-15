@@ -786,6 +786,8 @@ export interface BodyDialogueSettings {
     avatar: boolean;
     voice: boolean;
     tone: boolean;
+    prosody: boolean;
+    punctuation: boolean;
     bubble: boolean;
     bilingual: boolean;
     readOriginal: boolean;
@@ -805,7 +807,7 @@ export interface BodyDialogueSettings {
     textColor: string;
     bubbleColor: string;
     quoteColor: string;
-    prompts: { base: string; name: string; bilingual: string; tone: string };
+    prompts: { base: string; name: string; bilingual: string; tone: string; prosody: string; punctuation: string };
 }
 
 export interface PhoneSettings {

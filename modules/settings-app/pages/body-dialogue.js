@@ -39,7 +39,8 @@ export function createBodyDialoguePage({ container, state, render, pageRuntime }
     const promptEditor = (key, owner) => {
         const dirty = drafts[key] !== config.prompts[key];
         const id = `yuzi-body-prompt-${owner}`;
-        const label = { name: '姓名规则 · 头像与朗读共用', base: '基础提示词', bilingual: '双语提示词', tone: '语气标记提示词' }[key];
+        const label = { name: '姓名规则 · 头像与朗读共用', base: '基础提示词', bilingual: '双语提示词', tone: '语气标记提示词',
+            prosody: '语速与表现力提示词', punctuation: '标点表达提示词' }[key];
         return `<div class="yuzi-body-prompt-editor"><label class="phone-ios-field-label" for="${id}">${label}</label>
             <textarea class="phone-ios-field" id="${id}" data-body-prompt="${key}">${esc(drafts[key])}</textarea>
             <div class="yuzi-body-prompt-actions"><button type="button" class="phone-ios-mini-btn" data-body-restore="${key}">恢复默认</button>
@@ -144,7 +145,10 @@ export function createBodyDialoguePage({ container, state, render, pageRuntime }
                 + disclosure('bilingual', '双语模式', promptEditor('bilingual', 'bilingual'), 'bilingual')
                 + disclosure('voice', '正文朗读', promptEditor('name', 'voice')
                     + `<label class="phone-ios-row${config.bilingual ? '' : ' is-disabled'}"><span class="phone-ios-row-label">朗读双语</span>${switchControl('readOriginal', config.readOriginal, '朗读双语', !config.bilingual)}</label><p class="phone-ios-group-footer">开启读上方原文，关闭读下方译文。</p>`
-                    + disclosure('tone', '语气标记', promptEditor('tone', 'tone'), 'tone') + '<p class="phone-ios-group-footer">共用设置 → TTS 的当前连接，点击对白尾部播放。</p>', 'voice'))}
+                    + disclosure('tone', '语气标记', promptEditor('tone', 'tone'), 'tone')
+                    + disclosure('prosody', '语速与表现力', promptEditor('prosody', 'prosody'), 'prosody')
+                    + disclosure('punctuation', '标点表达', promptEditor('punctuation', 'punctuation'), 'punctuation')
+                    + '<p class="phone-ios-group-footer">共用设置 → TTS 的当前连接，点击对白尾部播放。</p>', 'voice'))}
             ${section('人物', disclosure('people', '人物管理', ''))}
             <p class="phone-ios-group-footer" data-body-scope></p>
             ${section('美化', '<div class="yuzi-body-preview" data-body-preview></div>' + disclosure('style', '美化参数', style))}

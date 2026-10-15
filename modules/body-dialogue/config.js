@@ -1,24 +1,64 @@
-import { QQ_VOICE_PROMPT_RULE } from '../qq-v2/voice/emotion-tags.js';
+import { QQ_VOICE_PROMPT_RULE, QQ_VOICE_TAG_GUIDE } from '../qq-v2/voice/emotion-tags.js';
+import { normalizeQQVoiceSpeechControls } from '../qq-v2/voice/speech-controls.js';
 
-const TONE_RULE = QQ_VOICE_PROMPT_RULE.replace('voice 正文写台词，可在对应台词前', '可在对应对白前');
+const TONE_RULE = `请结合剧情、人物情绪和说话习惯，主动使用以下声音标记，让对白像真人说话一样自然生动。
+
+标记可以穿插在对白的开头、中间和结尾附近。情绪、音量、语速发生变化时，把相应标记放在需要改变的词句前；停顿、呼吸、叹气、笑声等放在实际发生的位置。
+
+同一条对白可以随情节出现多次自然变化，也可以组合相符的情绪与语气标记。普通短句不必强加，避免频繁切换、重复堆叠或使用互相矛盾的标记。
+
+每条对白最多 10 个标记；仅使用下列 25 种。
+
+${QQ_VOICE_TAG_GUIDE}`;
+const PROSODY_RULE = `请结合当前剧情、人物性格、情绪和说话习惯，为每条对白设置语速与表现力。
+
+语速范围为0.5～2.0：0.5为半速，1为正常速度，2为两倍速。
+表现力范围为0～1：低值表现更稳定一致，高值表现更多变，不表示固定的某种情绪。
+
+按实际语境选择，不必刻意使用极端值；无明显需要时，使用语速1、表现力0.7。`;
+const namedDialogue = (config, name, content, parameters = '1,0.7') =>
+    `「${name}|${content}${config.voice && config.prosody ? `|${parameters}` : ''}」`;
 export const BODY_DIALOGUE_PROMPTS = Object.freeze({
     base: '正文中人物说出口的对白用「」包裹',
-    name: '对白写为「姓名|对白」，姓名使用人物真名，同一人物保持一致。例如：「小玉|你好。」',
+    name: '对白格式为「姓名|对白」，姓名使用人物真名，同一人物保持一致。',
     bilingual: '人物对白按以下两行成对输出，日语自然连贯，中文动漫汉化组翻译：\n「日语台词」\n「中文翻译」',
-    tone: `${TONE_RULE}\n\n例如：「小玉|[whispering]别吵醒她。」`,
+    tone: `${TONE_RULE}\n\n例如：「小玉|你终于来了……[slight pause][sad]我还以为你不会来了。[whispering]下次别让我等这么久，好吗？」`,
+    prosody: PROSODY_RULE,
+    punctuation: '请结合人物性格、当前语境和情绪，自然使用标点表达对白的节奏与语气。\n\n需要疑问、惊讶、迟疑、停顿或话语中断时，合理使用问号、感叹号、省略号和破折号等标点。\n\n标点应服务于台词表达，不必每句添加，也不要连续堆叠。不要为了控制朗读而额外添加Emoji或颜文字。',
 });
 
 export function bodyDialogueDefaultPrompts(config = {}) {
-    if (!config.bilingual) return { ...BODY_DIALOGUE_PROMPTS };
+    if (!config.bilingual) return {
+        ...BODY_DIALOGUE_PROMPTS,
+        name: `对白格式为${namedDialogue(config, '姓名', '对白', '语速,表现力')}，姓名使用人物真名，同一人物保持一致。`,
+        tone: `${TONE_RULE}\n\n例如：${namedDialogue(config, '小玉', '你终于来了……[slight pause][sad]我还以为你不会来了。[whispering]下次别让我等这么久，好吗？')}`,
+    };
     return {
         ...BODY_DIALOGUE_PROMPTS,
-        name: '姓名使用人物真名，同一人物保持一致。例如：\n「原文台词」\n「小玉|中文翻译」',
-        tone: `${TONE_RULE}\n\n例如：\n「${config.readOriginal ? '[whispering]' : ''}原文台词」\n「小玉|[whispering]中文翻译」`,
+        name: `姓名使用人物真名，同一人物保持一致。格式：\n「原文台词」\n${namedDialogue(config, '姓名', '中文翻译', '语速,表现力')}`,
+        tone: `${TONE_RULE}\n\n例如：\n「${config.readOriginal ? 'やっと来た……[slight pause][sad]もう来ないのかと思った。[whispering]次は、こんなに待たせないでね。' : 'やっと来た……もう来ないのかと思った。次は、こんなに待たせないでね。'}」\n${namedDialogue(config, '小玉', '你终于来了……[slight pause][sad]我还以为你不会来了。[whispering]下次别让我等这么久，好吗？')}`,
     };
 }
 
 // Only built-in examples follow mode changes. User-authored text stays byte-for-byte intact.
-const defaultVariants = [BODY_DIALOGUE_PROMPTS, bodyDialogueDefaultPrompts({ bilingual: true }), bodyDialogueDefaultPrompts({ bilingual: true, readOriginal: true })];
+const legacyToneRule = QQ_VOICE_PROMPT_RULE.replace('voice 正文写台词，可在对应台词前', '可在对应对白前');
+const promptModes = [false, true].flatMap(bilingual => [false, true].flatMap(readOriginal => [false, true].map(prosody =>
+    ({ bilingual, readOriginal, prosody, voice: true }))));
+// Recognize the previous built-in wording exactly; never rewrite user-authored text.
+const legacyProsodyRule = `${PROSODY_RULE.replaceAll('表现力', '张力')}\n\n在对白最后追加“|语速,张力”。`;
+const defaultVariants = [BODY_DIALOGUE_PROMPTS,
+    ...promptModes.map(bodyDialogueDefaultPrompts),
+    ...promptModes.map(config => ({
+        name: config.bilingual
+            ? `姓名使用人物真名，同一人物保持一致。例如：\n「原文台词」\n${namedDialogue(config, '小玉', '中文翻译', '0.95,0.75')}`
+            : `对白写为「姓名|对白${config.prosody ? '|语速,张力' : ''}」，姓名使用人物真名，同一人物保持一致。例如：${namedDialogue(config, '小玉', '你好。', '0.95,0.75')}`,
+        tone: bodyDialogueDefaultPrompts(config).tone.replaceAll('|1,0.7', '|0.95,0.75'),
+        prosody: `${legacyProsodyRule}\n例如：${config.bilingual ? '\n「やっと来てくれたんだね……」\n' : ''}「小玉|你终于来了……|0.95,0.75」`,
+    })),
+    { punctuation: BODY_DIALOGUE_PROMPTS.punctuation.replace('等标点。', '等标点。符合人物说话习惯时，可适当使用“～”表达轻快、撒娇或尾音延展的文字感觉。') },
+    { tone: `${legacyToneRule}\n\n例如：「小玉|[whispering]别吵醒她。」` },
+    ...[false, true].map(readOriginal => ({ tone: `${legacyToneRule}\n\n例如：\n「${readOriginal ? '[whispering]' : ''}原文台词」\n「小玉|[whispering]中文翻译」` })),
+];
 
 // Each capability owns its prompt contribution and its format/display requirements.
 // A future field belongs here and in the parser, not in an unrelated prompt append hook.
@@ -27,6 +67,8 @@ export const BODY_DIALOGUE_MODULES = Object.freeze([
     { id: 'bilingual', prompt: 'bilingual', active: config => config.bilingual },
     { id: 'avatar', prompt: 'name', identity: true, active: config => config.avatar },
     { id: 'voice', prompt: 'name', identity: true, active: config => config.voice },
+    { id: 'prosody', prompt: 'prosody', active: config => config.voice && config.prosody },
+    { id: 'punctuation', prompt: 'punctuation', active: config => config.voice && config.punctuation },
     { id: 'tone', prompt: 'tone', active: config => config.voice && config.tone },
 ]);
 
@@ -47,6 +89,7 @@ export function normalizeBodyDialogue(value = {}) {
     const config = {
         enabled: source.enabled === true, avatar: source.avatar !== false,
         voice: source.voice === true, tone: source.tone === true, bubble: source.bubble !== false,
+        prosody: source.prosody === true, punctuation: source.punctuation === true,
         bilingual: source.bilingual === true, readOriginal: source.readOriginal === true,
         align: source.align === 'right' ? 'right' : 'left',
         avatarShape: ['round', 'rounded', 'square'].includes(source.avatarShape) ? source.avatarShape : 'round',
@@ -87,12 +130,12 @@ export function composeBodyDialoguePrompt(config, people = []) {
         && defaultVariants.some(variant => variant.name === config.prompts.name);
     const blocks = prompts.filter(key => key !== 'tone' && !(mergeDefaults && key === 'name')).map(key =>
         mergeDefaults && key === 'bilingual'
-            ? '人物对白按以下两行成对输出，日语自然连贯，中文动漫汉化组翻译，姓名使用人物真名，同一人物保持一致。例如：\n「日语台词」\n「小玉|中文翻译」'
+            ? `人物对白按以下两行成对输出，日语自然连贯，中文动漫汉化组翻译，姓名使用人物真名，同一人物保持一致。格式：\n「日语台词」\n${namedDialogue(config, '姓名', '中文翻译', '语速,表现力')}`
             : config.prompts[key]);
     if (bodyDialogueUsesPersonLanguages(config)) {
         for (const person of people) {
             const language = normalizeBodyDialogueLanguage(person.language);
-            if (person.name && language) blocks.push(`${person.name}的对白原文改用${language}，格式为：\n「${language}台词」\n「${person.name}|中文翻译」`);
+            if (person.name && language) blocks.push(`${person.name}的对白原文改用${language}，格式为：\n「${language}台词」\n${namedDialogue(config, person.name, '中文翻译', '语速,表现力')}`);
         }
     }
     // Keep voice guidance last so it also applies to each person's language override.
@@ -107,11 +150,16 @@ export function parseBodyDialogue(text, config) {
     const result = [];
     for (const match of String(text).matchAll(/「([^「」]+)」/gu)) {
         const fields = match[1].split('|');
-        if (fields.length > 2 || (fields.length === 2 && !identity)) continue;
-        const name = fields.length === 2 ? fields[0].trim() : '';
-        const content = fields.at(-1).trim();
-        if (!content || (fields.length === 2 && !name)) continue;
-        result.push({ start: match.index, end: match.index + match[0].length, raw: match[0], name, text: content });
+        if (fields.length > 3 || (fields.length >= 2 && !identity)) continue;
+        const name = fields.length >= 2 ? fields[0].trim() : '';
+        const content = fields[fields.length >= 2 ? 1 : 0].trim();
+        if (!content || (fields.length >= 2 && !name)) continue;
+        const controls = fields.length === 3 ? fields[2].split(/[,，]/u) : null;
+        result.push({ start: match.index, end: match.index + match[0].length, raw: match[0], name, text: content,
+            ...(controls ? { speechControls: normalizeQQVoiceSpeechControls({
+                speed: controls.length === 2 && controls[0].trim() ? Number(controls[0]) : undefined,
+                temperature: controls.length === 2 && controls[1].trim() ? Number(controls[1]) : undefined,
+            }) } : {}) });
     }
     if (!config.bilingual) return result;
     const paired = [];
@@ -128,6 +176,10 @@ export function parseBodyDialogue(text, config) {
 
 export function bodyDialogueSpeech(dialogue, config) {
     return config.bilingual && config.readOriginal && dialogue.originalText ? dialogue.originalText : dialogue.text;
+}
+
+export function bodyDialogueSpeechControls(dialogue, config) {
+    return config.voice && config.prosody ? normalizeQQVoiceSpeechControls(dialogue.speechControls) : null;
 }
 
 export function selectBodyDialogueFloors(chat, count, pendingIndex = -1) {

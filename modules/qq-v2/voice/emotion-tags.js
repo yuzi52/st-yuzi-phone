@@ -46,13 +46,15 @@ const TAG_LABELS = {
     happy: '开心', sad: '难过', angry: '生气', scared: '害怕', excited: '兴奋',
 };
 
-/** 五套默认预设共用的简短输出说明；清单与识别器同源。 */
-export const QQ_VOICE_PROMPT_RULE = [
-    `voice 正文写台词，可在对应台词前加入以下声音标记；按场景选用，每条最多 ${QQ_VOICE_TAG_LIMIT} 个，不能只写标记。共 ${QQ_VOICE_KNOWN_TAGS.length} 种：`,
-    ...['emotion', 'delivery', 'timing', 'breath', 'reaction', 'pitch'].map(key => {
+export const QQ_VOICE_TAG_GUIDE = ['emotion', 'delivery', 'timing', 'breath', 'reaction', 'pitch'].map(key => {
         const group = QQ_VOICE_TAG_CATALOG[key];
         return `【${key === 'pitch' ? '音高／表现' : group.label}：${group.tags.length} 种】\n${group.tags.map(tag => `[${tag}] ${TAG_LABELS[tag]}`).join('；')}。`;
-    }),
+    }).join('\n\n');
+
+/** 五套 QQ 默认预设共用；正文可独立调整说明，继续共用标签清单。 */
+export const QQ_VOICE_PROMPT_RULE = [
+    `voice 正文写台词，可在对应台词前加入以下声音标记；按场景选用，每条最多 ${QQ_VOICE_TAG_LIMIT} 个，不能只写标记。共 ${QQ_VOICE_KNOWN_TAGS.length} 种：`,
+    QQ_VOICE_TAG_GUIDE,
 ].join('\n\n');
 
 const KNOWN_TAG_SET = new Set(QQ_VOICE_KNOWN_TAGS.map((tag) => tag.toLowerCase()));
