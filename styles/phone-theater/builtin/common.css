@@ -148,6 +148,6 @@
 .yuzi-theater-square, .yuzi-theater-forum, .yuzi-theater-diary {
   --yuzi-theater-home-clearance: var(--yuzi-phone-home-indicator-hit-height, 32px);
 }
-.yuzi-phone-shell[data-yuzi-phone-home-indicator-layout="docked"] :is(.yuzi-theater-square, .yuzi-theater-forum, .yuzi-theater-diary) {
+.phone-page[data-yuzi-phone-bottom-bar="docked"] :is(.yuzi-theater-square, .yuzi-theater-forum, .yuzi-theater-diary) {
   --yuzi-theater-home-clearance: 0px;
 }

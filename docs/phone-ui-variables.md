@@ -13,17 +13,19 @@
 | `.yuzi-body-dialogue.is-editorial` / `.yuzi-body-quote` | 非气泡排版、名字首字装饰与末尾／成对引号 |
 | `.yuzi-body-original` | 双语上方的整句原文；共用对白颜色与字体，字号为正文的 `0.55em`、透明度 `0.65`，可自然换行；气泡与非气泡共用，不做逐字注音 |
 | `.yuzi-body-lines` / `.yuzi-body-bubble.is-paired-bilingual` | 双语原文与译文共用内容区；成对引号模式以左右引号包住上下两行，播放按钮留在右侧；气泡与末尾引号保持原排版 |
-| `.yuzi-body-play` | 对白尾部播放、暂停与合成状态；仅点击发起请求 |
+| `.yuzi-body-play` | 对白尾部播放、暂停与合成状态；手动合成及预生成复用圆圈加载态，只有点击才播放 |
 | `--yuzi-body-default-bubble/text/name` | 默认对白配色，在 `00-theme-modes.css` 登记深浅模式 |
 | `--yuzi-body-preview-background` / `--yuzi-body-avatar-background/foreground` | 预览底色与首字占位头像配色，同样跟随全局主题 |
 | `--yuzi-body-font-size/name-size/line-height/width/spacing/avatar-size/avatar-radius/radius/quote-size` | 由已归一化的用户参数写入正文节点，局部生效 |
 | `--yuzi-body-name-color/text-color/bubble-color/quote-color` | 用户显式颜色覆盖；空值继续使用主题默认值 |
 
-正文和设置页样例共用 `createDialogueView()`；QQ 头像框校准与气泡装饰复用 `decorateQQAvatar()`、`decorateQQBubble()`。样例不调用 TTS、不写聊天，设置页不建立自己的状态栏。图片资料面板按接近可见区申请图片，最多四个并发读取；关闭面板释放临时 Blob URL。
+正文和设置页样例共用 `createDialogueView()`；QQ 头像框校准与气泡装饰复用 `decorateQQAvatar()`、`decorateQQBubble()`。同一渲染楼层共用素材读取和 Blob URL，楼层销毁统一释放；迟到的图片读取不会重新创建 URL。独立样例拥有并清理自己的资源，不调用 TTS、不写聊天，设置页不建立自己的状态栏。图片资料面板按接近可见区申请图片，最多四个并发读取；关闭面板释放临时 Blob URL。
 
-人物编辑与精确数值弹层通过 `className: 'phone-settings-page'` 接入既有输入框主题隔离。普通参数保存局部更新控件和样例，人物列表加载不重建页面；字号、颜色、位置、头像形状与装饰引号更新已有正文节点，不重新读取图片或打断朗读。长按实时预览、结束提交，纯外观调整不触发世界书同步。公共弹层关闭时即时注销页面清理回调；确认框与提示条在退出动画结束、被替换或离页时释放自身计时器、事件与父页面注册。
+人物编辑与精确数值弹层通过 `className: 'phone-settings-page'` 接入既有输入框主题隔离。普通参数保存局部更新控件和样例，人物列表加载不重建页面；字号、颜色、位置、头像形状与装饰引号更新已有正文节点，不重新读取图片或打断朗读。长按实时预览、结束提交，纯外观调整不触发世界书同步、正文扫描或语音任务组装。公共弹层关闭时即时注销页面清理回调；确认框与提示条在退出动画结束、被替换或离页时释放自身计时器、事件与父页面注册。
 
 双语模式位于头像与姓名、正文朗读之间，默认关闭，复用模块展开、公共 switch、提示词草稿及恢复默认／保存。朗读展开区的“朗读双语”默认关闭，双语关闭时沿用公共禁用态；开启只读上方原文。双语配对只增加一层原文小字，共用同一人物装饰和尾部播放按钮；分别保留原文、译文与换行的恢复位置，只临时隐藏已消费的空原生容器，关闭后恢复，不改聊天数据。纯朗读来源切换不重建正文节点。
+
+“语音预生成”位于正文朗读展开区的“朗读双语”上方，默认关闭，复用 `.phone-ios-row`、公共 switch 与 `.phone-ios-group-footer`，不新增弹层、进度条或 CSS。开启后只为最新已完成且已美化的楼层按阅读顺序后台生成，已有缓存直接跳过；仅当前处理的 `.yuzi-body-play` 显示既有圆圈并设置 `aria-busy`，完成或失败后恢复播放图标。点击圆圈共用该请求并在完成后播放，其余预生成不出声；失败写入现有日志。关闭开关取消后台任务，已被用户点击接管的请求继续；缓存仍由原有窗口清理。设置页样例不参与预生成。
 
 朗读展开区在“语气标记”之后依次增加“语速与表现力”“标点表达”，默认均关闭，沿用同一 `disclosure()`、公共 switch 与提示词编辑器，不新增 CSS 或页面。模块仅在正文朗读启用时参与注入；关闭仍保留草稿。语速与表现力采用 `「姓名|对白|语速,表现力」`，双语参数只追加在第二行姓名／译文末尾；原文与译文共用一组参数，数字不显示、不送入 TTS 文本。开关只影响参数应用及提示词，不重建已有正文或重新读取图片；切换语速与表现力停止旧朗读，下次点击使用对应缓存。标点表达只追加写作提示，不改写已有台词。旧版未手改的语气提示词自动更新为前中后按语境插入标签的说明；用户手改的内容保留，恢复默认可取新版。
 
@@ -80,6 +82,10 @@
 状态栏的蜂窝、Wi-Fi 和电池图标分别使用项目内的 `assets/phone-status-signal.svg`、`assets/phone-status-wifi.svg` 和 `assets/phone-status-battery.svg`（Figma `195:3510`）；不得改回临时 URL 或手绘替代品。三个白色 SVG 通过 `--yuzi-phone-status-icon-filter` 切换黑白：非首页跟随全局主题，首页跟随 `homeAppLabelColorMode`，并与时间保持同色。
 
 ## 全局应用标题栏契约
+
+路由页面通过 `data-yuzi-phone-route` 声明已经提交的目标，准备完成后在同一帧直接替换并释放旧页面，不使用缩放、推屏或淡入／淡出，也不保留转场计时器。首页 App 图标保留原有的缩放淡入，按显示顺序间隔 `40ms` 入场，仅使用 CSS 动画；系统开启减少动态效果时直接显示。按压反馈继续保留。`data-yuzi-phone-bottom-bar="docked"` 只由外壳根据既有 `data-phone-bottom-bar` 自动写到当前页面：页面自身用 padding 保留底部空间，`::after` 使用本页的 `--yuzi-phone-home-region-background` 延续底栏背景；screen 不随目标页面缩短。
+
+Home Indicator 仍由外壳持有唯一可点击按钮，背景透明，与新页面同步显示或隐藏。QQ 首次加载沿用单一骨架，正式内容与初始皮肤准备好后一起展示；骨架也声明 `data-phone-bottom-bar`，保持底部空间稳定。这些属于宿主页面切换实现，不增加作者包字段、动作或控件。
 
 标题栏的视觉基准来自 Figma `02_设计画板` 的“用户页 / 编辑资料”标题栏（`177:1532`）：内容高度 `54px`，左/右内边距分别为 `10px` / `12px`，方向图标为 `24px`，交互热区为 `32px` 方形。共享实现位于 [`navigation-ui.js`](../modules/phone-core/navigation-ui.js)，页面通过 `buildPhoneNavBar()`、`buildPhoneBackButton()`、`buildPhoneSwitchButton()` 与 `buildPhoneNavTitleSwitcher()` 生成字符串模板；QQ 的 DOM 构建路径使用同一模块的 `createPhoneNavIconElement()` 和相同公共 class。
 
@@ -159,7 +165,7 @@ App 页面存在固定底栏时，在底栏根节点声明 `data-phone-bottom-ba
 | 深色背景上的应用名称 | `--yuzi-phone-home-app-label-color-on-dark` / `--yuzi-phone-home-app-label-shadow-on-dark` | 白色 / `0 2px 25px #000` |
 | 浅色背景上的应用名称 | `--yuzi-phone-home-app-label-color-on-light` / `--yuzi-phone-home-app-label-shadow-on-light` | `rgba(20, 24, 28, 0.92)` / `0 1px 3px rgba(255, 255, 255, 0.45)` |
 | 当前应用名称 | `--yuzi-phone-home-app-label-color` / `--yuzi-phone-home-app-label-shadow` | 默认指向深色背景组；由白色/黑色外观设置切换 |
-| 应用入场 | `--yuzi-phone-home-app-enter-duration` / `--yuzi-phone-home-app-enter-easing` / `--yuzi-phone-home-app-enter-start-scale` | `0.3s` / `ease` / `0.7` |
+| 首页图标入场 | `--yuzi-phone-home-app-enter-duration` / `--yuzi-phone-home-app-enter-easing` / `--yuzi-phone-home-app-enter-start-scale` | `0.3s` / `ease` / `0.7`；duration 同时供 QQ 加载转圈复用 |
 | 交互与角标 | `--yuzi-phone-home-app-press-scale` / `--yuzi-phone-home-badge-bg` / `--yuzi-phone-home-badge-fg` | `0.85` / `#ff383c` / 白色 |
 | QQ 既有图标 | `--yuzi-phone-home-qq-icon-start` / `--yuzi-phone-home-qq-icon-end` | `#1F9CFF` / `#0069D9` |
 | 剧情状态卡布局 | `--yuzi-phone-home-status-offset` / `--yuzi-phone-home-status-inline-padding` / `--yuzi-phone-home-status-gap` | `12px` / 与网格对齐 / `12px` |
@@ -206,6 +212,8 @@ Dock 仍消费现有四个运行时入口；隐藏可视标签不等于删除名
 | 裁剪框 | `openImageCropDialog()`（`pickImageFile` 调用） | 居中卡片弹窗，画布底色 `--yuzi-phone-crop-stage-background` |
 
 控件桥规则：分组控件只换外观，数据仍走隐藏的原生 `select` / `input`。选择行用 `[data-settings-select="<select id>"]`，分段控件用 `.phone-ios-seg[data-settings-seg="<select id>"]`，步进器用 `.phone-ios-stepper[data-settings-stepper="<input id>"]`；页面调用 `bindSettingsGroupedControls(container, runtime)` 后，既有服务继续按原 id 监听 `change` / `input`。
+
+弹幕设置的普通数值与等长调色板／背景色修改保留当前控件节点，保存归一化后同步数值和色块；增删颜色、调整来源或切换参数面板等结构变化继续复用防回顶重绘。连续修改按顺序保存，旧结果不覆盖较新的页面意图；保存失败恢复已保存配置。正在编辑的 HEX 草稿不会被无关数值保存打断。
 
 步进器可按页在 `.phone-ios-stepper` 上添加 `[data-settings-repeat]` 启用长按：短按仍派发 `input` + `change`；长按 350ms 后每 90ms 调整一次，仅派发 `input` 供局部预览，手势结束统一派发一次 `change` 保存。松手、取消、移出、失焦、切后台或控件销毁均停止，达到上下限不再递增；允许纵向滚动，不在每步重建控件。当前仅正文对话气泡页启用，其余页面维持原行为。
 

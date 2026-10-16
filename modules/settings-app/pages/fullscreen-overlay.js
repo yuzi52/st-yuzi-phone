@@ -92,6 +92,9 @@ export function createFullscreenOverlayPage(ctx) {
     let eventCleanups = [];
     let colorControl = null;
     let groupedCleanup = () => {};
+    let saveQueue = Promise.resolve();
+    let saveRevision = 0;
+    let repaintPending = false;
 
     const notify = (message, isError = false) => {
         ctx.showToast?.(ctx.container, message, isError, ctx.pageRuntime);
@@ -142,27 +145,44 @@ export function createFullscreenOverlayPage(ctx) {
             ));
     };
 
-    const persist = async (nextConfig, successMessage = '') => {
+    const persist = async (nextConfig, successMessage = '', repaint = true) => {
         if (!active || typeof service?.saveConfig !== 'function') return false;
         const token = generation;
-        const result = await service.saveConfig(nextConfig);
-        if (!isCurrent(token)) return false;
+        const revision = ++saveRevision;
+        const previousConfig = state.config;
+        // Subsequent clicks build on the latest intent; persist them in order.
+        state.config = clone(nextConfig);
+        repaintPending ||= repaint;
+        const pending = saveQueue.then(() => service.saveConfig(nextConfig));
+        saveQueue = pending.catch(() => {});
+        const result = await pending.catch(() => ({ ok: false }));
+        if (!isCurrent(token) || revision !== saveRevision) return false;
         if (result?.ok !== true) {
+            state.config = clone(service.readConfig?.() || previousConfig);
+            repaintPending = false;
+            requestRerender();
             notify(getActionMessage(result?.code, t("弹幕设置保存失败，请稍后重试。")), true);
             return false;
         }
         state.config = clone(result.config);
         syncTablesFromConfig(Array.isArray(result.tables) ? result.tables : state.tables);
         if (successMessage) notify(successMessage);
-        requestRerender();
+        const shouldRepaint = repaintPending;
+        repaintPending = false;
+        if (shouldRepaint) requestRerender();
+        else colorControl?.refresh();
         return true;
     };
 
-    const bindNumericSetting = (selector, modelId, toPatch) => {
+    const bindNumericSetting = (selector, modelId, toPatch, scale = 1) => {
         const input = ctx.container?.querySelector?.(selector);
-        bind(input, 'change', () => {
+        bind(input, 'change', async () => {
             const patch = toPatch(Number(input.value));
-            void persist(updateModel(state.config, modelId, patch));
+            if (await persist(updateModel(state.config, modelId, patch), '', false) && input.isConnected) {
+                const key = Object.keys(patch)[0];
+                input.value = String(state.config.models[modelId][key] / scale);
+                input.dispatchEvent(new Event('input', { bubbles: true }));
+            }
         });
     };
 
@@ -308,10 +328,10 @@ export function createFullscreenOverlayPage(ctx) {
         }));
         bindNumericSetting('#phone-fullscreen-overlay-interval', SCROLLING_BARRAGE_MODEL_ID, value => ({
             intervalMs: value * 1000,
-        }));
+        }), 1000);
         bindNumericSetting('#phone-fullscreen-overlay-duration', SCROLLING_BARRAGE_MODEL_ID, value => ({
             durationMs: value * 1000,
-        }));
+        }), 1000);
         bindNumericSetting('#phone-fullscreen-overlay-font-size', SCROLLING_BARRAGE_MODEL_ID, value => ({
             fontSizePx: value,
         }));
@@ -345,11 +365,13 @@ export function createFullscreenOverlayPage(ctx) {
             '#phone-fullscreen-overlay-popup-interval',
             TABLE_POPUP_MODEL_ID,
             value => ({ intervalMs: value * 1000 }),
+            1000,
         );
         bindNumericSetting(
             '#phone-fullscreen-overlay-popup-duration',
             TABLE_POPUP_MODEL_ID,
             value => ({ durationMs: value * 1000 }),
+            1000,
         );
         const cardModelId = state.selectedModelId === INLINE_TABLE_POPUP_MODEL_ID
             ? INLINE_TABLE_POPUP_MODEL_ID : TABLE_POPUP_MODEL_ID;
@@ -389,7 +411,7 @@ export function createFullscreenOverlayPage(ctx) {
                 onColorChange: (backgroundColor) => {
                     void persist(updateModel(state.config, cardModelId, {
                         backgroundColor,
-                    }));
+                    }), '', false);
                 },
                 showToast: notify,
                 scope: globalThis,
@@ -399,9 +421,10 @@ export function createFullscreenOverlayPage(ctx) {
                 pageRuntime: ctx.pageRuntime,
                 getPalette: () => getBarrageModel(state.config).palette,
                 onPaletteChange: (palette) => {
+                    const repaint = palette.length !== getBarrageModel(state.config).palette.length;
                     void persist(updateModel(state.config, SCROLLING_BARRAGE_MODEL_ID, {
                         palette: normalizeFullscreenOverlayPalette(palette),
-                    }));
+                    }), '', repaint);
                 },
                 showToast: notify,
                 scope: globalThis,

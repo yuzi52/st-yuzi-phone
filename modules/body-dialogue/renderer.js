@@ -12,7 +12,26 @@ const element = (tag, className, text) => {
     return node;
 };
 
-export function createDialogueView({ dialogue, config, person, userName = '', onPlay }) {
+// Images live for one rendered floor (or one standalone preview), never in a global cache.
+function createDialogueImages() {
+    const pending = new Map(), urls = new Set();
+    let alive = true;
+    return {
+        load(asset) {
+            const key = asset?.blob instanceof Blob ? asset.blob : asset?.mediaId;
+            if (!alive || !key) return Promise.resolve('');
+            if (!pending.has(key)) pending.set(key, (async () => {
+                const media = asset.blob instanceof Blob ? asset : await repository.getMedia(asset.mediaId);
+                if (!alive || !(media?.blob instanceof Blob)) return '';
+                const url = URL.createObjectURL(media.blob); urls.add(url); return url;
+            })());
+            return pending.get(key);
+        },
+        dispose() { alive = false; pending.clear(); urls.forEach(url => URL.revokeObjectURL(url)); urls.clear(); },
+    };
+}
+
+export function createDialogueView({ dialogue, config, person, userName = '', onPlay, images: sharedImages = null }) {
     const node = element('span', `yuzi-body-dialogue${config.bubble ? '' : ' is-editorial'}${dialogue.name && dialogue.name === userName && config.align === 'right' ? ' is-self' : ''}`);
     node.setAttribute('data-yuzi-body-dialogue', '');
     let applied = {};
@@ -37,13 +56,12 @@ export function createDialogueView({ dialogue, config, person, userName = '', on
         applied = next;
     };
     let alive = true;
-    const urls = [];
+    const images = sharedImages || createDialogueImages();
     const load = async (asset, apply) => {
         if (!asset) return;
         try {
-            const media = asset.blob instanceof Blob ? asset : await repository.getMedia(asset.mediaId);
-            if (!alive || !(media?.blob instanceof Blob)) return;
-            const url = URL.createObjectURL(media.blob); urls.push(url); apply(url);
+            const url = await images.load(asset);
+            if (alive && url) apply(url);
         } catch { /* A missing image never hides the dialogue. */ }
     };
     if (config.avatar && dialogue.name) {
@@ -71,14 +89,16 @@ export function createDialogueView({ dialogue, config, person, userName = '', on
     if (closingQuote) bubble.append(closingQuote);
     updateStyle(config);
     if (config.bubble) void load(person?.bubble, url => decorateQQBubble(bubble, url, person.bubble.bubble));
+    let playButton = null;
     if (config.voice && dialogue.name) {
         const play = element('button', 'yuzi-body-play', '▷'); play.type = 'button';
+        playButton = play;
         play.setAttribute('aria-label', `朗读${dialogue.name}的对白`);
         play.title = person?.voice?.voiceId ? '播放／暂停' : '请先为此人物选择音色';
         play.addEventListener('click', event => { event.preventDefault(); event.stopPropagation(); onPlay?.(play); });
         bubble.append(play);
     }
-    return { node, updateStyle, dispose() { alive = false; urls.splice(0).forEach(url => URL.revokeObjectURL(url)); } };
+    return { node, playButton, updateStyle, dispose() { alive = false; if (!sharedImages) images.dispose(); } };
 }
 
 // Only native prose containers/inline formatting. Unknown components are a hard boundary.
@@ -125,8 +145,10 @@ function textRuns(root, bilingual) {
 
 /** Reversible, display-only replacements. No writes to chat messages or message metadata. */
 export function renderDialogueFloor(root, { config, people, userName, onPlay }) {
-    const replacements = [], emptyContainers = new Set();
+    const images = createDialogueImages();
+    const replacements = [], voiceItems = [], emptyContainers = new Set();
     for (const nodes of textRuns(root, config.bilingual)) {
+        const runVoiceItems = [];
         const segments = []; let offset = 0;
         for (const node of nodes) { segments.push({ node, start: offset, end: offset + node.length }); offset += node.length; }
         const matches = parseBodyDialogue(nodes.map(node => node.data).join(''), config);
@@ -139,7 +161,8 @@ export function renderDialogueFloor(root, { config, people, userName, onPlay }) 
             segmentEnd = segmentStart;
             if (!parts.length) continue;
             const person = people.get(dialogue.name);
-            const view = createDialogueView({ dialogue, config, person, userName, onPlay: button => onPlay(dialogue, person, button) });
+            const view = createDialogueView({ dialogue, config, person, userName, images, onPlay: button => onPlay(dialogue, person, button) });
+            if (view.playButton) runVoiceItems.push({ dialogue, person, button: view.playButton });
             const slots = [];
             // Replace text slices, not their ancestors: <q>, inline formatting and paragraph
             // boundaries must restore in place, without cloning/nesting the original wrappers.
@@ -161,6 +184,8 @@ export function renderDialogueFloor(root, { config, people, userName, onPlay }) 
             }
             replacements.push({ ...view, slots });
         }
+        // Text replacements run backwards; speech follows the visible reading order.
+        voiceItems.push(...runVoiceItems.reverse());
     }
     const emptyProse = node => node.nodeType === 8 || (node.nodeType === 3 ? !node.data.trim()
         : node.nodeType === 1 && isNativeProse(node) && (INLINE.has(node.tagName) || ['P', 'DIV', 'BR'].includes(node.tagName))
@@ -168,9 +193,11 @@ export function renderDialogueFloor(root, { config, people, userName, onPlay }) 
     const hiddenContainers = [...emptyContainers].filter(emptyProse);
     hiddenContainers.forEach(node => { node.hidden = true; });
     return {
+        voiceItems,
         isIntact: () => replacements.every(view => view.slots.every(slot => root.contains(slot.node))),
         updateStyle: next => replacements.forEach(view => view.updateStyle(next)),
         dispose() {
+            images.dispose();
             const restoredParents = new Set();
             for (const view of replacements) {
                 view.dispose();

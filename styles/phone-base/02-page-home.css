@@ -1,4 +1,4 @@
-/* --- Page Transitions --- */
+/* --- Route Page --- */
 .phone-page {
     position: absolute;
     inset: 0;
@@ -8,52 +8,9 @@
     overflow: hidden;
 }
 
-.phone-page-enter {
-    animation: phoneSlideIn 0.3s cubic-bezier(0.25, 0.46, 0.45, 0.94) forwards;
-}
-
-.phone-page-enter-back {
-    animation: phoneSlideInBack 0.25s ease forwards;
-}
-
-.phone-page-exit {
-    animation: phoneSlideOut 0.25s ease forwards;
-    pointer-events: none;
-}
-
-.phone-page-exit-back {
-    animation: phoneSlideOutBack 0.25s ease forwards;
-    pointer-events: none;
-}
-
 .phone-page[aria-hidden="true"] {
     pointer-events: none !important;
     visibility: hidden;
-}
-
-.phone-page-active {
-    transform: translateX(0);
-    opacity: 1;
-}
-
-@keyframes phoneSlideIn {
-    from { transform: translateX(100%); opacity: 0.6; }
-    to { transform: translateX(0); opacity: 1; }
-}
-
-@keyframes phoneSlideOut {
-    from { transform: translateX(0); opacity: 1; }
-    to { transform: translateX(-30%); opacity: 0; }
-}
-
-@keyframes phoneSlideInBack {
-    from { transform: translateX(-30%); opacity: 0.6; }
-    to { transform: translateX(0); opacity: 1; }
-}
-
-@keyframes phoneSlideOutBack {
-    from { transform: translateX(0); opacity: 1; }
-    to { transform: translateX(100%); opacity: 0; }
 }
 
 /* --- Home Screen --- */
@@ -119,6 +76,12 @@
     to {
         transform: scale(1);
         opacity: 1;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .phone-app-item {
+        animation: none;
     }
 }
 

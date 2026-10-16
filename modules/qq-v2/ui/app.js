@@ -1069,7 +1069,7 @@ export function createQQApp({
 } = {}) {
     if (!facade?.query || !facade?.intent) throw new TypeError('QQ App needs an injected Facade');
 
-    let releaseSkin = () => {};
+    let skin = null;
     const bubbleMetadata = new Map();
     const avatarFrameMetadata = new Map();
     let root = null;
@@ -1623,6 +1623,8 @@ export function createQQApp({
         openedChatId = '';
         if (conversationId) {
             exitMessageSelection(conversationId);
+            pages.reset(conversationId);
+            viewSnapshotCache.take(`page:chat:${conversationId}`)?.holder?.replaceChildren();
             void facade.intent.closeConversation?.({ conversationId });
         }
     };
@@ -1916,6 +1918,7 @@ export function createQQApp({
         }
         const conversationId = asText(target?.conversationId);
         if (!conversationId) return;
+        if (!pageStackContainsChat(conversationId)) pages.reset(conversationId);
         conversationSnapshots.set(conversationId, target);
         jumpCounts.delete(conversationId);
         go({ type: 'chat', conversationId });
@@ -3165,16 +3168,19 @@ export function createQQApp({
         const previousStream = viewport?.querySelector(`[data-qq-message-stream="${conversationId}"]`);
         const atBottom = !previousStream
             || isScrollContainerNearBottom(previousStream);
-        const [conversation, currentContext, currentProfileResult, globalSettingsResult] = await Promise.all([
+        const [conversation, currentContext, currentProfileResult, globalSettingsResult, bindings] = await Promise.all([
             getConversation(conversationId),
             getCurrentContext(),
             facade.query.currentProfile?.(),
             facade.query.globalSettings?.(),
+            facade.query.voiceBindings?.(),
             refreshMessages ? loadMessages(conversationId, { retain: !atBottom }) : Promise.resolve(previousState),
         ]);
         const chatKind = conversation?.kind === 'group' ? 'group' : 'private';
         const main = createElement('main', `yuzi-qq-view yuzi-qq-chat-view yuzi-qq-${chatKind}-chat-view`);
         if (!conversation || !isActive(token)) return main;
+        voiceBindings = new Map(asArray(bindings?.bindings)
+            .map(binding => [binding.personId, binding.effectiveVoiceId]));
         if (selectionMode) main.classList.add('is-message-selection-mode');
         const nextState = getMessageState(conversationId);
         const jumpDelta = countIncomingJumpMessages(nextState.items, new Set(previousState.items.map((message) => message.messageId)), { atBottom });
@@ -4432,7 +4438,7 @@ export function createQQApp({
 
     const isSnapshotEligibleView = (viewKey) => (
         viewKey === 'tab:messages'
-        || viewKey.startsWith('page:chat:')
+        || (viewKey.startsWith('page:chat:') && pageStackContainsChat(viewKey.slice('page:chat:'.length)))
         || viewKey.startsWith('page:conversation-settings:')
     );
 
@@ -4480,6 +4486,11 @@ export function createQQApp({
     const prepareImmediateView = (targetViewKey, outgoingScrollSnapshot) => {
         if (displayedViewKey === targetViewKey) {
             return { scrollSnapshot: outgoingScrollSnapshot, deferred: false };
+        }
+
+        // Keep the message list intact until the chat content is ready.
+        if (displayedViewKey === 'tab:messages' && targetViewKey.startsWith('page:chat:')) {
+            return { scrollSnapshot: null, deferred: true, chatEntry: true };
         }
 
         const cached = isSnapshotEligibleView(targetViewKey)
@@ -4541,10 +4552,8 @@ export function createQQApp({
         } : null);
         if (nextScrollSnapshot) viewScrollState.restore(nextScrollSnapshot, { token, isCurrent: isActive });
         try {
-            const bindings = await facade.query.voiceBindings?.();
-            if (isActive(token)) voiceBindings = new Map(asArray(bindings?.bindings)
-                .map(binding => [binding.personId, binding.effectiveVoiceId]));
             const content = await renderPage(token);
+            await skin?.ready;
             if (!isActive(token) || !viewport) {
                 await Promise.all([
                     leaseSessions.media.abort(),
@@ -4567,8 +4576,14 @@ export function createQQApp({
             }
             viewport.replaceChildren(content);
             if (!page) viewport.append(makeNav());
+            root.querySelector('[data-qq-route-skeleton]')?.remove();
+            viewport.hidden = false;
             composerAutoHeight.schedule(viewport.querySelector('.yuzi-qq-composer-input'));
             displayedViewKey = targetViewKey;
+            if (immediateSnapshot.chatEntry) {
+                // Position the first chat frame after composer sizing, without waiting for lease cleanup.
+                viewScrollState.restore(nextScrollSnapshot, { token, isCurrent: isActive });
+            }
             await Promise.all([
                 leaseSessions.media.commit(),
                 leaseSessions.background.commit(),
@@ -4576,7 +4591,9 @@ export function createQQApp({
                 leaseSessions.bubbles.commit(),
                 leaseSessions.stickers.commit(),
             ]);
-            viewScrollState.restore(nextScrollSnapshot, { token, isCurrent: isActive });
+            if (!immediateSnapshot.chatEntry) {
+                viewScrollState.restore(nextScrollSnapshot, { token, isCurrent: isActive });
+            }
         } catch (error) {
             await Promise.all([
                 leaseSessions.media.abort(),
@@ -4585,6 +4602,10 @@ export function createQQApp({
                 leaseSessions.bubbles.abort(),
                 leaseSessions.stickers.abort(),
             ]);
+            if (isActive(token) && viewport?.hidden) {
+                root.querySelector('[data-qq-route-skeleton]')?.remove();
+                viewport.hidden = false;
+            }
             throw error;
         } finally {
             renderLeaseSessions.delete(token);
@@ -6201,8 +6222,13 @@ export function createQQApp({
             viewport.addEventListener('change', handleChange);
             viewport.addEventListener('scroll', handleConversationListScroll, true);
             window.addEventListener('yuzi-phone-resize-start', handlePhoneResizeStart);
-            root.replaceChildren(viewport);
-            releaseSkin = mountQQSkin(root, 'theme', report);
+            if (root.querySelector('[data-qq-route-skeleton]')) {
+                viewport.hidden = true;
+                root.append(viewport);
+            } else {
+                root.replaceChildren(viewport);
+            }
+            skin = mountQQSkin(root, 'theme', report);
             void render().catch(report);
             return this;
         },
@@ -6281,7 +6307,8 @@ export function createQQApp({
                 profileLibraryRenderLeases.dispose(),
                 stickerRenderLeases.dispose(),
             ]);
-            releaseSkin();
+            skin?.dispose();
+            skin = null;
             bubbleMetadata.clear();
             avatarFrameMetadata.clear();
             root?.classList.remove('yuzi-qq-app');

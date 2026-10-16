@@ -9,6 +9,7 @@
  *   - 然后用 createCurrentPageRuntime(nextMode) 重建一个新的 runtimeScope
  *   - pageRuntime 是一个稳定引用：内部所有 setTimeout/observe/registerCleanup 都会路由到 *当前* runtime
  *     这样 page renderers 拿到 pageRuntime 后，不需要关心 runtime 实例切换
+ *   - 持有异步上传或读取回调的旧式页面用 getCurrentRuntime() 捕获本次绘制的 scope，避免离页后误用新 scope
  *
  * 这种"包装稳定引用 + 内部转发到当前 runtime"的模式必须保持，否则 page renderer
  * 持有的 pageRuntime 引用在 mode 切换后会指向已 dispose 的 runtime。
@@ -61,6 +62,7 @@ export function createPageRuntimeManager() {
     // 这是稳定引用：内部所有方法都通过闭包访问 currentPageRuntime，
     // 这样调用方持有 pageRuntime 后即使 mode 切换也能继续使用最新 runtime。
     const pageRuntime = {
+        getCurrentRuntime: () => currentPageRuntime,
         setTimeout(callback, delay) {
             if (!currentPageRuntime || typeof currentPageRuntime.setTimeout !== 'function') {
                 return null;

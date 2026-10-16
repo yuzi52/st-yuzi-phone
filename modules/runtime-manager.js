@@ -65,10 +65,12 @@ export function createRuntimeScope(scopeName = 'yuzi-runtime') {
     const isDisposed = () => disposed;
 
     const setManagedTimeout = (callback, delay = 0) => {
+        if (disposed) return null;
         const timeout = Number(delay);
         const ms = Number.isFinite(timeout) && timeout >= 0 ? timeout : 0;
         const id = window.setTimeout(() => {
             timeoutIds.delete(id);
+            if (disposed) return;
             try {
                 callback?.();
             } catch (e) {
@@ -86,9 +88,11 @@ export function createRuntimeScope(scopeName = 'yuzi-runtime') {
     };
 
     const setManagedInterval = (callback, delay = 0) => {
+        if (disposed) return null;
         const timeout = Number(delay);
         const ms = Number.isFinite(timeout) && timeout >= 16 ? timeout : 16;
         const id = window.setInterval(() => {
+            if (disposed) return;
             try {
                 callback?.();
             } catch (e) {
@@ -106,12 +110,14 @@ export function createRuntimeScope(scopeName = 'yuzi-runtime') {
     };
 
     const requestManagedAnimationFrame = (callback) => {
+        if (disposed) return null;
         if (typeof window.requestAnimationFrame !== 'function') {
             return setManagedTimeout(() => callback?.(Date.now()), 16);
         }
 
         const id = window.requestAnimationFrame((ts) => {
             rafIds.delete(id);
+            if (disposed) return;
             try {
                 callback?.(ts);
             } catch (e) {
@@ -134,7 +140,7 @@ export function createRuntimeScope(scopeName = 'yuzi-runtime') {
     };
 
     const addManagedEventListener = (target, type, handler, options) => {
-        if (!target || !isFn(target.addEventListener) || !isFn(target.removeEventListener) || !isFn(handler)) {
+        if (disposed || !target || !isFn(target.addEventListener) || !isFn(target.removeEventListener) || !isFn(handler)) {
             return () => {};
         }
 
@@ -153,6 +159,10 @@ export function createRuntimeScope(scopeName = 'yuzi-runtime') {
         if (!isFn(cleanup)) {
             return () => {};
         }
+        if (disposed) {
+            safeInvoke(cleanup);
+            return () => {};
+        }
         cleanups.add(cleanup);
         return () => {
             cleanups.delete(cleanup);
@@ -160,11 +170,12 @@ export function createRuntimeScope(scopeName = 'yuzi-runtime') {
     };
 
     const observeManagedMutation = (target, callback, options = {}) => {
-        if (typeof MutationObserver !== 'function' || !target || !isFn(callback)) {
+        if (disposed || typeof MutationObserver !== 'function' || !target || !isFn(callback)) {
             return null;
         }
 
         const observer = new MutationObserver((mutations, instance) => {
+            if (disposed) return;
             try {
                 callback(mutations, instance);
             } catch (e) {
@@ -201,7 +212,7 @@ export function createRuntimeScope(scopeName = 'yuzi-runtime') {
     };
 
     const observeManagedDisconnection = (target, callback, options = {}) => {
-        if (!target || !isFn(callback)) {
+        if (disposed || !target || !isFn(callback)) {
             return null;
         }
 

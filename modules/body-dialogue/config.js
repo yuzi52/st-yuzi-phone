@@ -1,6 +1,7 @@
 import { QQ_VOICE_PROMPT_RULE, QQ_VOICE_TAG_GUIDE } from '../qq-v2/voice/emotion-tags.js';
 import { normalizeQQVoiceSpeechControls } from '../qq-v2/voice/speech-controls.js';
 
+const BILINGUAL_RULE = '人物对白先输出自然连贯的日语原文，再翻译成中文，中文采用动漫汉化组翻译风格。';
 const TONE_RULE = `请结合剧情、人物情绪和说话习惯，主动使用以下声音标记，让对白像真人说话一样自然生动。
 
 标记可以穿插在对白的开头、中间和结尾附近。情绪、音量、语速发生变化时，把相应标记放在需要改变的词句前；停顿、呼吸、叹气、笑声等放在实际发生的位置。
@@ -21,7 +22,7 @@ const namedDialogue = (config, name, content, parameters = '1,0.7') =>
 export const BODY_DIALOGUE_PROMPTS = Object.freeze({
     base: '正文中人物说出口的对白用「」包裹',
     name: '对白格式为「姓名|对白」，姓名使用人物真名，同一人物保持一致。',
-    bilingual: '人物对白按以下两行成对输出，日语自然连贯，中文动漫汉化组翻译：\n「日语台词」\n「中文翻译」',
+    bilingual: `${BILINGUAL_RULE}按以下两行成对输出：\n「日语台词」\n「中文翻译」`,
     tone: `${TONE_RULE}\n\n例如：「小玉|你终于来了……[slight pause][sad]我还以为你不会来了。[whispering]下次别让我等这么久，好吗？」`,
     prosody: PROSODY_RULE,
     punctuation: '请结合人物性格、当前语境和情绪，自然使用标点表达对白的节奏与语气。\n\n需要疑问、惊讶、迟疑、停顿或话语中断时，合理使用问号、感叹号、省略号和破折号等标点。\n\n标点应服务于台词表达，不必每句添加，也不要连续堆叠。不要为了控制朗读而额外添加Emoji或颜文字。',
@@ -36,7 +37,7 @@ export function bodyDialogueDefaultPrompts(config = {}) {
     return {
         ...BODY_DIALOGUE_PROMPTS,
         name: `姓名使用人物真名，同一人物保持一致。格式：\n「原文台词」\n${namedDialogue(config, '姓名', '中文翻译', '语速,表现力')}`,
-        tone: `${TONE_RULE}\n\n例如：\n「${config.readOriginal ? 'やっと来た……[slight pause][sad]もう来ないのかと思った。[whispering]次は、こんなに待たせないでね。' : 'やっと来た……もう来ないのかと思った。次は、こんなに待たせないでね。'}」\n${namedDialogue(config, '小玉', '你终于来了……[slight pause][sad]我还以为你不会来了。[whispering]下次别让我等这么久，好吗？')}`,
+        tone: `${TONE_RULE}\n\n声音标记仅添加在第一行原文对白中，按剧情和人物情绪自然穿插在原文的开头、中间和结尾附近。第二行中文仅翻译对白内容，不包含声音标记。\n\n例如：\n「やっと来た……[slight pause][sad]もう来ないのかと思った。[whispering]次は、こんなに待たせないでね。」\n${namedDialogue(config, '小玉', '你终于来了……我还以为你不会来了。下次别让我等这么久，好吗？')}`,
     };
 }
 
@@ -44,15 +45,22 @@ export function bodyDialogueDefaultPrompts(config = {}) {
 const legacyToneRule = QQ_VOICE_PROMPT_RULE.replace('voice 正文写台词，可在对应台词前', '可在对应对白前');
 const promptModes = [false, true].flatMap(bilingual => [false, true].flatMap(readOriginal => [false, true].map(prosody =>
     ({ bilingual, readOriginal, prosody, voice: true }))));
+const previousTonePrompts = promptModes.map(config => ({
+    tone: config.bilingual
+        ? `${TONE_RULE}\n\n例如：\n「${config.readOriginal ? 'やっと来た……[slight pause][sad]もう来ないのかと思った。[whispering]次は、こんなに待たせないでね。' : 'やっと来た……もう来ないのかと思った。次は、こんなに待たせないでね。'}」\n${namedDialogue(config, '小玉', '你终于来了……[slight pause][sad]我还以为你不会来了。[whispering]下次别让我等这么久，好吗？')}`
+        : bodyDialogueDefaultPrompts(config).tone,
+}));
 // Recognize the previous built-in wording exactly; never rewrite user-authored text.
 const legacyProsodyRule = `${PROSODY_RULE.replaceAll('表现力', '张力')}\n\n在对白最后追加“|语速,张力”。`;
 const defaultVariants = [BODY_DIALOGUE_PROMPTS,
     ...promptModes.map(bodyDialogueDefaultPrompts),
-    ...promptModes.map(config => ({
+    { bilingual: '人物对白按以下两行成对输出，日语自然连贯，中文动漫汉化组翻译：\n「日语台词」\n「中文翻译」' },
+    ...previousTonePrompts,
+    ...promptModes.map((config, index) => ({
         name: config.bilingual
             ? `姓名使用人物真名，同一人物保持一致。例如：\n「原文台词」\n${namedDialogue(config, '小玉', '中文翻译', '0.95,0.75')}`
             : `对白写为「姓名|对白${config.prosody ? '|语速,张力' : ''}」，姓名使用人物真名，同一人物保持一致。例如：${namedDialogue(config, '小玉', '你好。', '0.95,0.75')}`,
-        tone: bodyDialogueDefaultPrompts(config).tone.replaceAll('|1,0.7', '|0.95,0.75'),
+        tone: previousTonePrompts[index].tone.replaceAll('|1,0.7', '|0.95,0.75'),
         prosody: `${legacyProsodyRule}\n例如：${config.bilingual ? '\n「やっと来てくれたんだね……」\n' : ''}「小玉|你终于来了……|0.95,0.75」`,
     })),
     { punctuation: BODY_DIALOGUE_PROMPTS.punctuation.replace('等标点。', '等标点。符合人物说话习惯时，可适当使用“～”表达轻快、撒娇或尾音延展的文字感觉。') },
@@ -90,7 +98,7 @@ export function normalizeBodyDialogue(value = {}) {
         enabled: source.enabled === true, avatar: source.avatar !== false,
         voice: source.voice === true, tone: source.tone === true, bubble: source.bubble !== false,
         prosody: source.prosody === true, punctuation: source.punctuation === true,
-        bilingual: source.bilingual === true, readOriginal: source.readOriginal === true,
+        bilingual: source.bilingual === true, readOriginal: source.readOriginal === true, preGenerate: source.preGenerate === true,
         align: source.align === 'right' ? 'right' : 'left',
         avatarShape: ['round', 'rounded', 'square'].includes(source.avatarShape) ? source.avatarShape : 'round',
         quote: source.quote === 'pair' ? 'pair' : 'tail',
@@ -130,7 +138,7 @@ export function composeBodyDialoguePrompt(config, people = []) {
         && defaultVariants.some(variant => variant.name === config.prompts.name);
     const blocks = prompts.filter(key => key !== 'tone' && !(mergeDefaults && key === 'name')).map(key =>
         mergeDefaults && key === 'bilingual'
-            ? `人物对白按以下两行成对输出，日语自然连贯，中文动漫汉化组翻译，姓名使用人物真名，同一人物保持一致。格式：\n「日语台词」\n${namedDialogue(config, '姓名', '中文翻译', '语速,表现力')}`
+            ? `${BILINGUAL_RULE}姓名使用人物真名，同一人物保持一致。按以下两行成对输出，格式：\n「日语台词」\n${namedDialogue(config, '姓名', '中文翻译', '语速,表现力')}`
             : config.prompts[key]);
     if (bodyDialogueUsesPersonLanguages(config)) {
         for (const person of people) {

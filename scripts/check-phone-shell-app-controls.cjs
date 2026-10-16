@@ -37,6 +37,7 @@ class FakeElement {
         this.tagName = String(tagName || 'div').toUpperCase();
         this.style = {
             values: new Map(),
+            getPropertyValue: (name) => this.style.values.get(name) || '',
             removeProperty: (name) => this.style.values.delete(name),
             setProperty: (name, value) => this.style.values.set(name, value),
         };
@@ -164,8 +165,8 @@ async function main() {
 
     const shellCss = fs.readFileSync(path.join(ROOT, 'styles/phone-base/01-shell-system.css'), 'utf8');
     const variableCss = fs.readFileSync(path.join(ROOT, 'styles/12-variable-manager.css'), 'utf8');
-    assert.match(shellCss, /#yuzi-phone-standalone\s+\.yuzi-phone-shell\[data-yuzi-phone-home-indicator-layout="docked"\]\s+\.yuzi-phone-screen\s*\{[^}]*margin-bottom:/s, '停靠模式在 Yuzi 根范围内缩短当前页面');
-    assert.match(shellCss, /#yuzi-phone-standalone\s+\.yuzi-phone-shell\[data-yuzi-phone-home-indicator-layout="docked"\]\s+\.yuzi-phone-home-indicator\s*\{[^}]*background:/s, '停靠模式在 Yuzi 根范围内提供独立 Home 区域背景');
+    assert.match(shellCss, /#yuzi-phone-standalone\s+\.phone-page\[data-yuzi-phone-bottom-bar="docked"\]\s*\{[^}]*padding-bottom:/s, '停靠空间由各自页面保留，切换时不缩放整个 screen 布局');
+    assert.match(shellCss, /\.phone-page\[data-yuzi-phone-bottom-bar="docked"\]::after\s*\{[^}]*background:/s, 'Home 区域背景随所属页面一起过渡');
     assert.doesNotMatch(shellCss, /(^|[,{]\s*)\.phone-(?:shell|screen|home-indicator|notch|status-bar|status-time|status-icons|temporary-layer-host)\b/m, 'shell CSS 不再公开旧核心选择器');
     assert.match(variableCss, /\.vm-footer,\s*\.vm-delete-bar\s*\{[^}]*background:\s*var\(--yuzi-variable-manager-surface-strong\);/s,
         '变量管理器底栏使用可独立绘制的强表面，复制到 Home 区域后不得透出外壳底色');
@@ -212,7 +213,7 @@ async function main() {
     bottomBar.computedStyle.backgroundColor = 'rgb(245, 245, 245)';
     FakeMutationObserver.instances.at(-1).trigger();
     assert.equal(shell.getAttribute('data-yuzi-phone-home-indicator-layout'), 'docked', '当前页存在可见底栏时 Home Indicator 自动停靠');
-    assert.equal(shell.style.values.get('--yuzi-phone-home-region-background'), 'rgb(245, 245, 245)', 'Home 区域自动继承当前底栏背景');
+    assert.equal(pageWithBar.style.values.get('--yuzi-phone-home-region-background'), 'rgb(245, 245, 245)', '页面 Home 区域自动继承当前底栏背景');
 
     const observer = FakeMutationObserver.instances.at(-1);
     const composerInput = pageWithBar.appendChild(new FakeElement(['yuzi-qq-composer-input'], ownerDocument, 'textarea'));

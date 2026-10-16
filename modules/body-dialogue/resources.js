@@ -54,9 +54,9 @@ export async function randomDialogueAppearance() {
 export async function readDialogueVoiceConnection() {
     // Let the existing TTS owner perform any legacy migration, never a second writer.
     const ready = await getQQV2Facade()?.query.voiceSettings();
-    if (!ready?.ok) throw new Error('TTS 连接尚未就绪');
+    if (!ready?.ok) throw Object.assign(new Error('TTS 连接尚未就绪'), { code: 'voice_connection_unavailable' });
     const connection = await reader().resources.getVoiceConnection();
-    if (!connection) throw new Error('请先在设置 → TTS 中选择连接');
+    if (!connection) throw Object.assign(new Error('请先在设置 → TTS 中选择连接'), { code: 'voice_preset_required' });
     return connection;
 }
 

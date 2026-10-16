@@ -340,7 +340,8 @@ export function createTableContentReplacementPage(ctx) {
         const target = event?.target;
         if (!target || typeof target.closest !== 'function') return;
         if (target.closest('.phone-nav-back')) {
-            ctx.navigateBack?.();
+            ctx.state.mode = 'home';
+            ctx.render();
             return;
         }
         const control = target.closest('[data-action]');

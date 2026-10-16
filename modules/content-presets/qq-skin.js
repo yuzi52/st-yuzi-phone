@@ -41,17 +41,27 @@ export async function prepareQQSkin(kind, { mode, documentRef = globalThis.docum
 }
 export function mountQQSkin(root, kind, onError = () => {}) {
     let disposed = false; let epoch = 0; let current = null;
+    let mode;
     const refresh = async () => {
         if (!globalThis.indexedDB) return;
+        mode = getPhoneSettings()?.phoneThemeMode;
         const token = ++epoch;
         try {
-            const next = await prepareQQSkin(kind);
+            const next = await prepareQQSkin(kind, { mode });
             if (disposed || token !== epoch) { next?.dispose(); return; }
             current?.dispose(); current = next; current?.apply(root);
         } catch (error) { if (!disposed && token === epoch) { current?.dispose(); current = null; onError(error); } }
     };
     const unsubscribe = subscribeContentPresetIndex(refresh);
-    const unsubscribeSettings = subscribePhoneSettingsUpdates(refresh);
-    void refresh();
-    return () => { disposed = true; epoch += 1; unsubscribe(); unsubscribeSettings(); current?.dispose(); };
+    const unsubscribeSettings = subscribePhoneSettingsUpdates(({ key }) => {
+        if (key && key !== 'phoneThemeMode') return;
+        const nextMode = getPhoneSettings()?.phoneThemeMode;
+        if (mode === nextMode) return;
+        mode = nextMode;
+        void refresh();
+    });
+    return {
+        ready: refresh(),
+        dispose() { disposed = true; epoch += 1; unsubscribe(); unsubscribeSettings(); current?.dispose(); },
+    };
 }

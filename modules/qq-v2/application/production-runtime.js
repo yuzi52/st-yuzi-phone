@@ -502,7 +502,7 @@ export function createQQV2ProductionRuntime(options = {}) {
         const connection = await readVoiceConnection();
         // 保留现有共享设置快照的读取方式；实际请求从预设一次性读取配置和对应密钥。
         await globalRuntimeSettings.update('', { voice: connection.settings });
-        await notifySubscribers(currentScopeId());
+        await notifySubscribers(currentScopeId(), { reason: 'voice-settings-changed' });
         return resources.listVoicePresets();
     };
     const promptTranslationService = options.promptTranslationService
@@ -984,7 +984,7 @@ export function createQQV2ProductionRuntime(options = {}) {
             await writeVoiceApiKey(apiKey);
             result.apiKeyImported = true;
         }
-        await notifySubscribers(currentScopeId());
+        await notifySubscribers(currentScopeId(), result.settings || result.apiKeyImported ? { reason: 'voice-settings-changed' } : {});
         return result;
     };
 
@@ -2334,7 +2334,7 @@ export function createQQV2ProductionRuntime(options = {}) {
                 ...runtimeSettings,
                 voice: { ...(runtimeSettings?.voice || {}), apiKeySaved: voiceApiKeySaved },
             });
-            await notifySubscribers(normalizedScopeId);
+            await notifySubscribers(normalizedScopeId, hasOwn(source, 'voice') ? { reason: 'voice-settings-changed' } : {});
             return settingsResult;
         },
         async setConversationInjection({ scopeId, conversationId, injection = {}, userName = getUserName(), storyTime = getStoryTime() }) {
@@ -2744,7 +2744,7 @@ export function createQQV2ProductionRuntime(options = {}) {
             await initializeVoicePresets();
             await resources.updateVoicePresetSettings?.(asObject(settings));
             const saved = await globalRuntimeSettings.update('', { voice: asObject(settings) });
-            await notifySubscribers(currentScopeId());
+            await notifySubscribers(currentScopeId(), { reason: 'voice-settings-changed' });
             return {
                 ...normalizeQQVoiceSettings(saved.settings.voice),
                 apiKeySaved: Boolean(asText(await safeReadAsync(readVoiceApiKey, ''))),
@@ -2753,6 +2753,7 @@ export function createQQV2ProductionRuntime(options = {}) {
         async setVoiceApiKey({ apiKey } = {}) {
             const value = asText(apiKey, 8192);
             await writeVoiceApiKey(value);
+            await notifySubscribers(currentScopeId(), { reason: 'voice-settings-changed' });
             return { hasApiKey: Boolean(asText(await safeReadAsync(readVoiceApiKey, ''))) };
         },
         async getVoicePresets() {

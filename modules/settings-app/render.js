@@ -200,6 +200,8 @@ export function renderSettings(container) {
             : null;
         const canUpdateInPlace = !!currentPage && typeof currentPage.update === 'function';
 
+        if (currentPageSession?.mode === 'home') captureScroll('homeScrollTop');
+
         if (!canUpdateInPlace) {
             disposeCurrentPageSession();
             currentPageSession = {
@@ -224,6 +226,7 @@ export function renderSettings(container) {
 
         // 设置 App 内部子视图会反复 innerHTML 重渲染，需要每次重绑滚动守卫。
         bindPhoneScrollGuards(container);
+        if (nextMode === 'home') restoreScroll('homeScrollTop');
     };
 
     const rerenderHomeKeepScroll = createRerenderWithScroll('homeScrollTop', render);

@@ -31,25 +31,9 @@ function main() {
         'route renderer should only clean direct phone-page children',
         "child.classList.contains('phone-page')",
     );
-    assertSourceIncludes(
-        'route render context should use the latest committed phone page as oldContent',
-        'oldContent: getCurrentRoutePage(screen),',
-    );
-
-    const previousRemovalBlock = functionBlock('schedulePreviousPageRemoval');
-    assert.ok(
-        previousRemovalBlock.includes('if (!oldContent.isConnected) {')
-            && previousRemovalBlock.includes('removeRoutePage(oldContent);'),
-        'previous page removal should dispose route-page lifecycle even when the page is already disconnected',
-    );
-    assert.ok(
-        (previousRemovalBlock.match(/removeRoutePage\(oldContent\);/g) || []).length === 2,
-        'previous page removal should use lifecycle-aware removal in both connected and disconnected paths',
-    );
-    assert.ok(
-        !previousRemovalBlock.includes('isActiveRouteRender(renderToken)'),
-        'previous page removal must not be cancelled by a newer render token',
-    );
+    const previousRemovalBlock = functionBlock('removeStaleRoutePages');
+    assert.ok(previousRemovalBlock.includes('removeRoutePage(routePage);'),
+        'replaced pages must release their lifecycle resources');
     assert.ok(
         !previousRemovalBlock.includes('renderToken'),
         'previous page removal should not accept or use renderToken',
@@ -57,13 +41,15 @@ function main() {
 
     const commitBlock = functionBlock('commitRoutePage');
     assert.ok(
-        commitBlock.includes('removeStaleRoutePages(screen, [oldContent, page]);'),
-        'committing a page should prune stale phone-page siblings',
+        commitBlock.includes('removeStaleRoutePages(screen, [page]);'),
+        'direct switching must retain only the committed page',
     );
     assert.ok(
-        commitBlock.includes('schedulePreviousPageRemoval(oldContent, exitClass);'),
-        'commit should schedule previous page removal without a render token',
+        commitBlock.includes("page.classList.add('phone-page-active');"),
+        'the committed page is active without an entrance-animation delay',
     );
+    assert.doesNotMatch(source, /animationend|ROUTE_ANIMATION_FALLBACK_MS/,
+        'direct switching must not retain animation listeners or fallback timers');
     assert.ok(
         commitBlock.includes('removeRoutePage(page);'),
         'a stale direct commit should dispose its uncommitted route page',
@@ -82,7 +68,7 @@ function main() {
     );
 
     console.log('[route-renderer-page-cleanup-check] passed');
-    console.log(`- OK | ${ROUTE_RENDERER} keeps oldContent aligned with latest direct .phone-page`);
+    console.log(`- OK | ${ROUTE_RENDERER} switches directly to one active .phone-page`);
     console.log(`- OK | ${ROUTE_RENDERER} removes stale .phone-page siblings on commit`);
     console.log(`- OK | ${ROUTE_RENDERER} does not cancel previous-page removal with stale render tokens`);
     console.log(`- OK | ${ROUTE_RENDERER} disposes route-page lifecycle on every removal path`);

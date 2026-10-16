@@ -1071,6 +1071,7 @@ export interface SettingsAppState {
 export type SettingsToastHandler = (host: unknown, message: string, isError?: boolean) => void;
 
 export interface SettingsPageRuntime {
+    getCurrentRuntime?: () => SettingsPageRuntimeHandle | null;
     setTimeout?: (callback: () => void, delay?: number) => number | null;
     clearTimeout?: (timeoutId: number | null) => void;
     setInterval?: (callback: () => void, delay?: number) => number | null;
@@ -1402,7 +1403,6 @@ export interface SettingsImageGenerationService {
 }
 
 export interface SettingsTableContentReplacementPageContext extends SettingsPageRendererCommonDeps {
-    navigateBack: () => void;
     showToast: SettingsToastHandler;
     rerenderTableContentReplacementKeepScroll: () => void;
     tableContentReplacementSettingsService: SettingsTableContentReplacementService;

@@ -14,11 +14,6 @@
     line-height: var(--yuzi-qq-body-line-height);
 }
 
-/* QQ 设置一级页的顶部安全区与“设置”标题栏共用同一内容表面。 */
-#yuzi-phone-standalone .yuzi-phone-shell:has(.yuzi-qq-settings-root-view) .yuzi-phone-status-bar {
-    background: var(--yuzi-qq-content-surface);
-}
-
 :where(.yuzi-qq-app) :where(button, input, textarea, select) {
     color: inherit;
     font: inherit;
@@ -1424,10 +1419,6 @@
     line-height: var(--yuzi-qq-nav-label-line-height);
 }
 
-.yuzi-qq-route-skeleton {
-    pointer-events: none;
-}
-
 .yuzi-qq-route-skeleton-list {
     padding-block-start: 0;
 }
@@ -2358,6 +2349,10 @@
 .yuzi-qq-settings-root-view {
     padding: var(--yuzi-qq-safe-top) 0 var(--yuzi-qq-page-padding);
     gap: 0;
+    /* Keep the status safe-area surface inside the animated page. */
+    background-image: linear-gradient(var(--yuzi-qq-content-surface), var(--yuzi-qq-content-surface));
+    background-size: 100% var(--yuzi-qq-safe-top);
+    background-repeat: no-repeat;
 }
 
 .yuzi-qq-settings-root-view > .yuzi-qq-settings-root-header {

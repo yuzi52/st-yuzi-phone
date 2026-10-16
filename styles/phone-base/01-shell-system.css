@@ -112,8 +112,18 @@
     container-type: inline-size;
 }
 
-#yuzi-phone-standalone .yuzi-phone-shell[data-yuzi-phone-home-indicator-layout="docked"] .yuzi-phone-screen {
-    margin-bottom: var(--yuzi-phone-home-indicator-hit-height);
+#yuzi-phone-standalone .phone-page[data-yuzi-phone-bottom-bar="docked"] {
+    box-sizing: border-box;
+    padding-bottom: var(--yuzi-phone-home-indicator-hit-height);
+}
+
+#yuzi-phone-standalone .phone-page[data-yuzi-phone-bottom-bar="docked"]::after {
+    content: '';
+    position: absolute;
+    inset: auto 0 0;
+    height: var(--yuzi-phone-home-indicator-hit-height);
+    background: var(--yuzi-phone-home-region-background, var(--yuzi-phone-bg-app));
+    pointer-events: none;
 }
 
 #yuzi-phone-standalone .yuzi-phone-temporary-layer-host {
@@ -167,7 +177,7 @@
     padding-bottom: var(--yuzi-phone-home-indicator-bottom);
     border-radius: 0;
     place-items: end center;
-    background: var(--yuzi-phone-home-region-background, var(--yuzi-phone-bg-app, #000));
+    background: transparent;
     box-sizing: border-box;
     transform: none;
 }

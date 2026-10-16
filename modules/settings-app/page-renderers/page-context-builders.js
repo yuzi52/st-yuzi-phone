@@ -136,7 +136,6 @@ function buildImageGenerationPageContextFromServices(services) {
 function buildTableContentReplacementPageContextFromServices(services) {
     return {
         ...services.common,
-        navigateBack: services.navigation.navigateBack,
         showToast: services.feedback.showToast,
         rerenderTableContentReplacementKeepScroll: services.scroll.rerenderTableContentReplacementKeepScroll,
         tableContentReplacementSettingsService: services.tableContentReplacement,

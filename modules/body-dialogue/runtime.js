@@ -3,7 +3,7 @@ import { getFreshSillyTavernContext } from '../integration/context-bridge.js';
 import { onEvent, EventTypes } from '../integration/event-bridge.js';
 import { showNotification } from '../integration/toast-bridge.js';
 import { getQQV2Facade } from '../qq-v2/runtime/default-runtime.js';
-import { normalizeBodyDialogue, selectBodyDialogueFloors, composeBodyDialoguePrompt, bodyDialogueSpeech, bodyDialogueSpeechControls, bodyDialogueUsesPersonLanguages } from './config.js';
+import { normalizeBodyDialogue, BODY_DIALOGUE_NUMBERS, selectBodyDialogueFloors, composeBodyDialoguePrompt, bodyDialogueSpeech, bodyDialogueSpeechControls, bodyDialogueUsesPersonLanguages } from './config.js';
 import { bodyDialogueRepository as repository } from './repository.js';
 import { createBodyDialogueProjection } from './worldbook.js';
 import { renderDialogueFloor, isDialogueProseMutation } from './renderer.js';
@@ -34,10 +34,11 @@ let refreshPending = null, refreshRequested = false, refreshRevision = 0;
 let floorDigests = new Map(), audioWindowKey = '', dirtyRoots = new WeakSet();
 let settingsSnapshot = null, settingsPending = Promise.resolve(), projectionVersion = 0;
 const publish = () => { for (const listener of changes) listener(); };
-const effectiveConfig = () => {
+const readEffectiveConfig = () => {
     const settings = getPhoneSettings(), config = normalizeBodyDialogue(settings.bodyDialogue);
     return { ...config, enabled: settings.enabled !== false && config.enabled };
 };
+const effectiveConfig = () => settingsSnapshot || readEffectiveConfig();
 const restoreFloors = () => {
     observer?.disconnect();
     for (const entry of retained.values()) entry.dispose();
@@ -50,8 +51,9 @@ function observeChat() {
     if (observing) observer.observe(observing, { childList: true, characterData: true, subtree: true });
 }
 function schedule() {
+    if (!running || !effectiveConfig().enabled) return;
     refreshRevision++;
-    if (!running || timer !== null) return;
+    if (timer !== null) return;
     timer = setTimeout(() => {
         timer = null;
         refreshRequested = true;
@@ -71,13 +73,25 @@ async function syncProjection() {
 
 // One settings path for both this page and external restores/imports. Appearance never writes prompts.
 function applySettings() {
-    const next = effectiveConfig(), previous = settingsSnapshot || next;
+    const next = readEffectiveConfig(), previous = settingsSnapshot || next;
     settingsSnapshot = next;
     const keys = Object.keys(next).filter(key => key !== 'prompts' && previous[key] !== next[key]);
     const structural = keys.some(key => ['enabled', 'avatar', 'voice', 'bubble', 'bilingual'].includes(key));
+    const speechChanged = keys.includes('prosody') || (keys.includes('readOriginal') && next.bilingual);
     if (structural) { configVersion++; voice?.stop(); }
-    else if (keys.includes('prosody') || (keys.includes('readOriginal') && next.bilingual)) voice?.stop();
-    if (keys.some(key => !['tone', 'readOriginal', 'prosody', 'punctuation'].includes(key))) schedule();
+    else if (speechChanged) voice?.stop();
+    if (keys.includes('preGenerate') && !next.preGenerate) voice?.stopPreGeneration();
+    if (!next.enabled) {
+        if (previous.enabled) {
+            refreshRevision++; clearTimeout(timer); timer = null; refreshRequested = false;
+            restoreFloors(); floorDigests.clear(); audioWindowKey = '';
+        }
+    } else if (structural || keys.includes('layers') || keys.includes('preGenerate') || (speechChanged && next.preGenerate)) schedule();
+    else if (keys.some(key => (key in BODY_DIALOGUE_NUMBERS && key !== 'layers')
+        || ['align', 'avatarShape', 'quote', 'nameColor', 'textColor', 'bubbleColor', 'quoteColor'].includes(key))) {
+        for (const entry of retained.values()) entry.updateStyle(next);
+    }
+    if (next.enabled && next.voice && (!previous.enabled || !previous.voice)) void checkVoiceConfiguration().finally(schedule);
     const projectionChanged = previous.enabled !== next.enabled || composeBodyDialoguePrompt(previous) !== composeBodyDialoguePrompt(next)
         || bodyDialogueUsesPersonLanguages(previous) !== bodyDialogueUsesPersonLanguages(next);
     if (projectionChanged) projectionVersion++;
@@ -90,8 +104,9 @@ function applySettings() {
 }
 
 async function refresh() {
-    if (!running) return;
-    const token = generation, version = configVersion, revision = refreshRevision, scope = getBodyDialogueScope(), config = effectiveConfig();
+    if (!running || !effectiveConfig().enabled) return;
+    const token = generation, version = configVersion, revision = refreshRevision, scope = getBodyDialogueScope();
+    let config = effectiveConfig();
     const currentScope = () => running && token === generation && version === configVersion && scope.chat === getBodyDialogueScope().chat;
     const valid = () => currentScope() && revision === refreshRevision;
     if (scope.chat !== activeChat) { restoreFloors(); activeChat = scope.chat; floorDigests.clear(); audioWindowKey = ''; }
@@ -118,6 +133,8 @@ async function refresh() {
         if (valid()) audioWindowKey = nextWindowKey;
     }
     if (!valid()) return;
+    // Pure appearance saves do not schedule another pass; use their newest values after I/O.
+    config = effectiveConfig();
     const selected = new Set(config.enabled ? floors.map(floor => floor.index) : []);
     observer?.disconnect();
     try {
@@ -135,31 +152,38 @@ async function refresh() {
             const root = document.querySelector(`#chat .mes[mesid="${index}"] .mes_text`);
             if (!root || root.closest('[is_user="true"]')) continue;
             const fingerprint = fingerprints.get(index);
+            const voiceInput = (dialogue, person, button) => ({ ...scope, floor: index, fingerprint, dialogue, person, button,
+                speechText: bodyDialogueSpeech(dialogue, effectiveConfig()),
+                speechControls: bodyDialogueSpeechControls(dialogue, effectiveConfig()),
+                isCurrent: () => currentScope() && effectiveConfig().enabled && effectiveConfig().voice && retained.get(index)?.fingerprint === fingerprint });
             const view = renderDialogueFloor(root, {
                 config, people, userName: scope.userName,
-                onPlay: (dialogue, person, button) => voice.play({ ...scope, floor: index, fingerprint, dialogue, person, button,
-                    speechText: bodyDialogueSpeech(dialogue, effectiveConfig()),
-                    speechControls: bodyDialogueSpeechControls(dialogue, effectiveConfig()),
-                    isCurrent: () => currentScope() && effectiveConfig().enabled && effectiveConfig().voice && retained.get(index)?.fingerprint === fingerprint }),
+                onPlay: (dialogue, person, button) => voice.play(voiceInput(dialogue, person, button)),
             });
             dirtyRoots.delete(root);
-            retained.set(index, { root, fingerprint, version, userName: scope.userName, ...view });
+            retained.set(index, { root, fingerprint, version, userName: scope.userName, ...view,
+                getVoiceRequests: () => view.voiceItems.map(({ dialogue, person, button }) => voiceInput(dialogue, person, button)) });
+        }
+        const latest = retained.get(floors.at(-1)?.index);
+        if (!streaming && !voiceCheckPending && config.voice && config.preGenerate && latest) {
+            void voice.preGenerate(latest, latest.getVoiceRequests).catch(error => console.warn('[玉子手机] 正文语音预生成失败', error));
         }
     } finally { observeChat(); }
 }
 
 async function checkVoiceConfigurationNow() {
-    if (!running) return;
+    if (!running || !effectiveConfig().enabled || !effectiveConfig().voice) return;
     const token = generation;
     try {
         const connection = await readDialogueVoiceConnection();
         const signature = await dialogueDigest(JSON.stringify(connection.settings));
-        if (!running || token !== generation) return;
+        if (!running || token !== generation || !effectiveConfig().enabled || !effectiveConfig().voice) return;
         const previous = await repository.getMeta('voiceSignature');
         if (previous !== signature) {
-            voice?.stop();
+            voice?.stop(true);
             await repository.pruneAudio('', entry => entry.signature === signature);
             await repository.setMeta('voiceSignature', signature);
+            if (running && token === generation) schedule();
         }
     } catch { /* Missing TTS configuration is reported only on an explicit play action. */ }
 }
@@ -176,9 +200,13 @@ function checkVoiceConfiguration() {
 async function bindQQUpdates() {
     qqCleanup(); qqCleanup = () => {};
     const token = generation;
-    const unsubscribe = await getQQV2Facade()?.subscribe(() => { void checkVoiceConfiguration(); });
+    const unsubscribe = await getQQV2Facade()?.subscribe(event => {
+        if (event?.reason !== 'voice-settings-changed' || !effectiveConfig().enabled || !effectiveConfig().voice) return;
+        voice?.stop(true);
+        void checkVoiceConfiguration().finally(schedule);
+    });
     if (!running || token !== generation) unsubscribe?.();
-    else qqCleanup = unsubscribe || (() => {});
+    else { qqCleanup = unsubscribe || (() => {}); void checkVoiceConfiguration().finally(schedule); }
 }
 
 async function peopleChanged(card, changes) {
@@ -247,7 +275,7 @@ export const bodyDialogueService = {
 export async function initializeBodyDialogue() {
     if (running) return;
     running = true; const token = ++generation;
-    settingsSnapshot = effectiveConfig();
+    settingsSnapshot = readEffectiveConfig();
     const processor = getBodyDialogueScope().context?.streamingProcessor;
     streaming = Boolean(processor && !processor.isFinished && !processor.isStopped);
     streamFloor = streaming ? (processor.messageId >= 0 ? processor.messageId : getBodyDialogueScope().context.chat.length) : -1;
@@ -309,7 +337,7 @@ export async function initializeBodyDialogue() {
         }),
     ]);
     if (!running) return;
-    observeChat(); schedule(); void syncProjection(); void bindQQUpdates(); void checkVoiceConfiguration();
+    observeChat(); schedule(); void syncProjection(); void bindQQUpdates();
 }
 
 export function destroyBodyDialogue() {

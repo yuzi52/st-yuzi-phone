@@ -41,8 +41,7 @@ function isVisibleWithinPage(element, page) {
     return false;
 }
 
-function findVisibleBottomBar(screen) {
-    const page = getCurrentPage(screen);
+function findVisibleBottomBar(page) {
     if (!page) return null;
 
     return Array.from(page.querySelectorAll?.(BOTTOM_BAR_SELECTOR) || [])
@@ -71,9 +70,22 @@ function isComposerStyleMutation(mutation) {
         || target?.classList?.contains?.('yuzi-qq-composer-input');
 }
 
-function shouldRefreshForMutations(mutations) {
+function shouldRefreshForMutations(mutations, screen, root) {
     const records = Array.from(mutations || []);
-    return records.length === 0 || records.some((mutation) => !isComposerStyleMutation(mutation));
+    const containsBottomBar = node => node?.matches?.(BOTTOM_BAR_SELECTOR)
+        || !!node?.querySelector?.(BOTTOM_BAR_SELECTOR);
+    return records.length === 0 || records.some((mutation) => {
+        if (isComposerStyleMutation(mutation)) return false;
+        if (mutation.target === screen || mutation.target === root) return true;
+        if (mutation.target?.tagName === 'STYLE') return true;
+        if (mutation.type === 'attributes') {
+            return mutation.attributeName === 'data-phone-bottom-bar'
+                || mutation.target?.classList?.contains?.('phone-page')
+                || containsBottomBar(mutation.target);
+        }
+        return [...(mutation.addedNodes || []), ...(mutation.removedNodes || [])]
+            .some(node => node?.tagName === 'STYLE' || containsBottomBar(node));
+    });
 }
 
 export function bindPhoneShellAppControls(root, {
@@ -89,20 +101,25 @@ export function bindPhoneShellAppControls(root, {
 
     const refresh = () => {
         if (!indicator) return;
-        const hidden = isHomeRoute(getCurrentRoute());
-        const bottomBar = hidden ? null : findVisibleBottomBar(screen);
+        const page = getCurrentPage(screen);
+        const committedRoute = page?.dataset?.yuziPhoneRoute;
+        const hidden = isHomeRoute(committedRoute || getCurrentRoute());
+        const bottomBar = hidden ? null : findVisibleBottomBar(page);
         const layout = bottomBar ? 'docked' : 'floating';
         indicator.hidden = hidden;
         indicator.setAttribute?.('aria-hidden', String(hidden));
         indicator.setAttribute?.('aria-label', t('返回手机主页'));
         indicator.tabIndex = hidden ? -1 : 0;
         shell?.setAttribute?.('data-yuzi-phone-home-indicator-layout', layout);
+        if (page?.getAttribute?.('data-yuzi-phone-bottom-bar') !== layout) {
+            page?.setAttribute?.('data-yuzi-phone-bottom-bar', layout);
+        }
 
         const background = bottomBar ? getBottomBarBackground(bottomBar) : '';
-        if (background) {
-            shell?.style?.setProperty?.(HOME_REGION_BACKGROUND_PROPERTY, background);
-        } else {
-            shell?.style?.removeProperty?.(HOME_REGION_BACKGROUND_PROPERTY);
+        // Keep the safe-area surface local to the page instead of resizing the screen.
+        if (page?.style?.getPropertyValue?.(HOME_REGION_BACKGROUND_PROPERTY) !== background) {
+            if (background) page?.style?.setProperty?.(HOME_REGION_BACKGROUND_PROPERTY, background);
+            else page?.style?.removeProperty?.(HOME_REGION_BACKGROUND_PROPERTY);
         }
     };
 
@@ -135,7 +152,7 @@ export function bindPhoneShellAppControls(root, {
     const MutationObserverClass = view?.MutationObserver || globalThis.MutationObserver;
     const observer = screen && typeof MutationObserverClass === 'function'
         ? new MutationObserverClass((mutations) => {
-            if (shouldRefreshForMutations(mutations)) scheduleRefresh();
+            if (shouldRefreshForMutations(mutations, screen, root)) scheduleRefresh();
         })
         : null;
     observer?.observe?.(screen, {

@@ -451,7 +451,8 @@ export function renderAppearancePage(ctx) {
     applyPhoneThemeMode();
     applyReadableTextScale();
 
-    const runtime = pageRuntime && typeof pageRuntime === 'object' ? pageRuntime : null;
+    // Async uploads and repository reads belong to this paint, not a later settings page.
+    const runtime = pageRuntime?.getCurrentRuntime?.() || pageRuntime || null;
     const bindEvent = (target, type, listener, options) => {
         if (!runtime?.addEventListener) {
             return () => {};

@@ -248,6 +248,18 @@ export function createFullscreenOverlayColorControl(options = {}) {
     }));
 
     return Object.freeze({
+        refresh() {
+            if (disposed) return;
+            const palette = currentPalette();
+            colorInputs.forEach(input => {
+                const color = palette[readIndex(input, 'data-fullscreen-overlay-color-input')];
+                input.value = color;
+                input.parentElement?.querySelector('span')?.style.setProperty('--yuzi-phone-fullscreen-overlay-swatch', color);
+            });
+            hexInputs.forEach(input => {
+                if (input !== globalThis.document?.activeElement) input.value = palette[readIndex(input, 'data-fullscreen-overlay-color-hex')];
+            });
+        },
         dispose() {
             disposed = true;
             cleanupFns.splice(0).forEach((cleanup) => {
@@ -307,6 +319,13 @@ export function createFullscreenOverlaySingleColorControl(options = {}) {
     }));
 
     return Object.freeze({
+        refresh() {
+            if (disposed) return;
+            const color = currentColor();
+            if (colorInput) colorInput.value = color;
+            if (hexInput && hexInput !== globalThis.document?.activeElement) hexInput.value = color;
+            colorInput?.parentElement?.querySelector('span')?.style.setProperty('--yuzi-phone-fullscreen-overlay-swatch', color);
+        },
         dispose() {
             disposed = true;
             cleanupFns.splice(0).forEach((cleanup) => cleanup?.());

@@ -1,6 +1,7 @@
 export function createSettingsAppState() {
     return {
         mode: 'home',
+        homeScrollTop: 0,
         inputShortcutsScrollTop: 0,
         logsScrollTop: 0,
         apiPresetsScrollTop: 0,
