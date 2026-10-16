@@ -17,7 +17,7 @@ export function createBodyDialogueProjection() {
     return {
         getStatus: () => status,
         subscribe(listener) { listeners.add(listener); return () => listeners.delete(listener); },
-        sync(config, isCurrent = () => true) {
+        sync(config, isCurrent = () => true, modulePrompt = '') {
             const task = pending.then(async () => {
                 if (!isCurrent()) return status;
                 let target = '';
@@ -32,7 +32,7 @@ export function createBodyDialogueProjection() {
                     if (!isCurrent()) return status;
                     const people = target && bodyDialogueUsesPersonLanguages(config) ? await repository.listPeople(String(character.avatar)) : [];
                     if (!isCurrent()) return status;
-                    const content = composeBodyDialoguePrompt(config, people);
+                    const content = composeBodyDialoguePrompt(config, people, modulePrompt);
                     const tracked = await repository.getMeta('worldbooks') || [];
                     const books = [...new Set([...tracked, target].filter(Boolean))];
                     // Record intent before writing: interruption or failed cleanup remains recoverable.

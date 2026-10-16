@@ -2,6 +2,10 @@
 
 ## 正文对话气泡
 
+正文美化模块列表在既有内置行后追加时间栏与用户模块，使用同一 `.yuzi-body-module`、`.yuzi-body-module-head`、`.yuzi-body-module-content`、`.phone-ios-switch` 和提示词编辑器。有附加提示词的内部开关同正文朗读嵌套展开；纯展示开关只显示一行。模块错误使用 `.phone-ios-group-footer` 和已有危险色 token。分组底部固定「导入模块／导出模块」，没有新模块预览或排序；预览仍只服务气泡。自带时间栏没有删除按钮，用户模块删除复用公共确认框。局部保存不重建页面，导入／删除保留滚动位置和未保存提示词草稿。
+
+正文挂载点 `.yuzi-body-module-view` 复用 `--yuzi-body-spacing`，模块内容使用各自 Shadow DOM；作者样式不渗入气泡或设置页。自带时间栏的 `--yuzi-time-paper/edge/ink/muted/wash/particle/hill/leaf/branch` 属于模板内部局部配色，随本条剧情月份和时间决定四季与昼夜，不新增小手机全局主题开关。样式、Canvas 插画和动画都随 JSON 导出；动态效果由模块的 `motion` 开关控制，后台／离开视口暂停，减少动态偏好停用动画。
+
 入口是设置中的单个二级页；人物管理、美化参数、模块提示词使用原页展开，语气标记在朗读展开区内再次独立展开。标题与右侧启用开关互不代替；关闭模块仍可编辑文案。人物新建／编辑、素材选择与数值精确输入复用 `showSettingsSheet()`；删除人物、导入人物确认复用居中 `showConfirmDialog()`，取消删除返回原编辑草稿。头像裁剪复用既有居中 `pickImageFile()`／`openImageCropDialog()`。选择、步进器、分段控件继续使用隐藏原生字段和 `bindSettingsGroupedControls()`，没有新的控件皮肤。
 
 | 类名／变量 | 用途 |

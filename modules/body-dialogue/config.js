@@ -131,7 +131,7 @@ export function bodyDialogueUsesPersonLanguages(config) {
     return config.enabled && config.bilingual && bodyDialogueFormat(config).identity;
 }
 
-export function composeBodyDialoguePrompt(config, people = []) {
+export function composeBodyDialoguePrompt(config, people = [], modulePrompt = '') {
     if (!config.enabled) return '';
     const { identity, prompts } = bodyDialogueFormat(config);
     const mergeDefaults = config.bilingual && identity && config.prompts.bilingual === BODY_DIALOGUE_PROMPTS.bilingual
@@ -146,8 +146,9 @@ export function composeBodyDialoguePrompt(config, people = []) {
             if (person.name && language) blocks.push(`${person.name}的对白原文改用${language}，格式为：\n「${language}台词」\n${namedDialogue(config, person.name, '中文翻译', '语速,表现力')}`);
         }
     }
-    // Keep voice guidance last so it also applies to each person's language override.
+    // Keep voice guidance after the built-in language overrides, before independent modules.
     if (prompts.includes('tone')) blocks.push(config.prompts.tone);
+    if (modulePrompt) blocks.push(modulePrompt);
     return blocks.filter(Boolean).join('\n\n');
 }
 

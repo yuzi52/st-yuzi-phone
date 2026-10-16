@@ -2,6 +2,7 @@ import { parseQQVoiceText } from '../qq-v2/voice/emotion-tags.js';
 import { decorateQQAvatar, decorateQQBubble } from '../qq-v2/ui/appearance.js';
 import { parseBodyDialogue } from './config.js';
 import { bodyDialogueRepository as repository } from './repository.js';
+import { matchBodyModules, createBodyModuleView } from './beautify-modules.js';
 
 const numericStyles = { fontSize: ['font-size', 'px'], nameSize: ['name-size', 'px'], lineHeight: ['line-height', ''],
     width: ['width', '%'], spacing: ['spacing', 'px'], avatarSize: ['avatar-size', 'px'], radius: ['radius', 'px'], quoteSize: ['quote-size', 'px'] };
@@ -119,7 +120,7 @@ export function isDialogueProseMutation(record, root) {
     return [...record.addedNodes, ...record.removedNodes].some(node => {
         if (node.nodeType === 3) return Boolean(node.data);
         if (node.nodeType === 8) return node.data === 'yuzi-body-prose';
-        return node.nodeType === 1 && (node.matches('[data-yuzi-body-dialogue]') || node.querySelector('[data-yuzi-body-dialogue]')
+        return node.nodeType === 1 && (node.matches('[data-yuzi-body-dialogue], [data-yuzi-body-module]') || node.querySelector('[data-yuzi-body-dialogue], [data-yuzi-body-module]')
             || (isNativeProse(node) && (INLINE.has(node.tagName) || BLOCK.has(node.tagName) || node.tagName === 'BR')));
     });
 }
@@ -144,14 +145,17 @@ function textRuns(root, bilingual) {
 }
 
 /** Reversible, display-only replacements. No writes to chat messages or message metadata. */
-export function renderDialogueFloor(root, { config, people, userName, onPlay }) {
+export function renderDialogueFloor(root, { config, people, userName, onPlay, modules = [], mutateProse = update => update() }) {
     const images = createDialogueImages();
     const replacements = [], voiceItems = [], emptyContainers = new Set();
     for (const nodes of textRuns(root, config.bilingual)) {
         const runVoiceItems = [];
         const segments = []; let offset = 0;
         for (const node of nodes) { segments.push({ node, start: offset, end: offset + node.length }); offset += node.length; }
-        const matches = parseBodyDialogue(nodes.map(node => node.data).join(''), config);
+        const text = nodes.map(node => node.data).join('');
+        // Built-in dialogue keeps ownership of its spans. Additional modules share
+        // the same offsets, overlap resolution and reversible replacement below.
+        const matches = matchBodyModules(text, modules, parseBodyDialogue(text, config));
         let segmentEnd = segments.length - 1;
         for (const dialogue of matches.reverse()) {
             while (segmentEnd >= 0 && segments[segmentEnd].start >= dialogue.end) segmentEnd--;
@@ -161,7 +165,16 @@ export function renderDialogueFloor(root, { config, people, userName, onPlay }) 
             segmentEnd = segmentStart;
             if (!parts.length) continue;
             const person = people.get(dialogue.name);
-            const view = createDialogueView({ dialogue, config, person, userName, images, onPlay: button => onPlay(dialogue, person, button) });
+            let view;
+            try {
+                view = dialogue.module ? createBodyModuleView(dialogue)
+                    : createDialogueView({ dialogue, config, person, userName, images, onPlay: button => onPlay(dialogue, person, button) });
+            } catch (error) {
+                if (!dialogue.module) throw error;
+                dialogue.module.failed = true;
+                dialogue.module.report(dialogue.module.entry.id, error);
+                continue;
+            }
             if (view.playButton) runVoiceItems.push({ dialogue, person, button: view.playButton });
             const slots = [];
             // Replace text slices, not their ancestors: <q>, inline formatting and paragraph
@@ -192,31 +205,42 @@ export function renderDialogueFloor(root, { config, people, userName, onPlay }) 
             && [...node.childNodes].every(emptyProse));
     const hiddenContainers = [...emptyContainers].filter(emptyProse);
     hiddenContainers.forEach(node => { node.hidden = true; });
+    const restoreViews = views => {
+        const restoredParents = new Set();
+        for (const view of views) {
+            view.dispose();
+            for (const slot of view.slots) if (slot.node.parentNode) {
+                restoredParents.add(slot.node.parentNode);
+                slot.node.replaceWith(slot.original);
+            }
+        }
+        // Range insertion splits text nodes. Coalesce only touched siblings, never
+        // normalize whole subtrees (which may contain other extensions' components).
+        for (const parent of restoredParents) {
+            let previous = null;
+            for (const child of [...parent.childNodes]) {
+                if (child.nodeType !== 3) { previous = null; continue; }
+                if (!child.length) child.remove();
+                else if (previous) { previous.appendData(child.data); child.remove(); }
+                else previous = child;
+            }
+        }
+    };
+    // Mount only after all original slices are retained; a late failure restores
+    // this view without discarding another module or an existing dialogue.
+    for (const view of replacements) view.mount?.(() => mutateProse(() => {
+        restoreViews([view]);
+        hiddenContainers.forEach(node => { if (node.textContent.trim()) node.hidden = false; });
+        const index = replacements.indexOf(view);
+        if (index >= 0) replacements.splice(index, 1);
+    }));
     return {
         voiceItems,
         isIntact: () => replacements.every(view => view.slots.every(slot => root.contains(slot.node))),
         updateStyle: next => replacements.forEach(view => view.updateStyle(next)),
         dispose() {
             images.dispose();
-            const restoredParents = new Set();
-            for (const view of replacements) {
-                view.dispose();
-                for (const slot of view.slots) if (slot.node.parentNode) {
-                    restoredParents.add(slot.node.parentNode);
-                    slot.node.replaceWith(slot.original);
-                }
-            }
-            // Range insertion splits text nodes. Coalesce only touched siblings, never
-            // normalize whole subtrees (which may contain other extensions' components).
-            for (const parent of restoredParents) {
-                let previous = null;
-                for (const child of [...parent.childNodes]) {
-                    if (child.nodeType !== 3) { previous = null; continue; }
-                    if (!child.length) child.remove();
-                    else if (previous) { previous.appendData(child.data); child.remove(); }
-                    else previous = child;
-                }
-            }
+            restoreViews(replacements);
             hiddenContainers.forEach(node => { node.hidden = false; });
         },
     };

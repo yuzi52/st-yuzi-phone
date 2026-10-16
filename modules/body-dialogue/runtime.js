@@ -10,6 +10,8 @@ import { renderDialogueFloor, isDialogueProseMutation } from './renderer.js';
 import { createBodyDialogueVoice, dialogueDigest } from './voice.js';
 import { closeDialogueResources, readDialogueVoiceConnection } from './resources.js';
 import { exportBodyDialoguePeoplePack } from './people-pack.js';
+import { BODY_MODULE_KEY, BODY_TIME_ID, BODY_MODULE_BYTES, normalizeBodyModuleLibrary, readBodyModulePack,
+    exportBodyModulePack, bodyModulePrompt, prepareBodyModules } from './beautify-modules.js';
 
 export function getBodyDialogueScope() {
     const context = getFreshSillyTavernContext();
@@ -33,7 +35,47 @@ let loadedCard = null, people = new Map(), retained = new Map(), activeChat = ''
 let refreshPending = null, refreshRequested = false, refreshRevision = 0;
 let floorDigests = new Map(), audioWindowKey = '', dirtyRoots = new WeakSet();
 let settingsSnapshot = null, settingsPending = Promise.resolve(), projectionVersion = 0;
+let moduleEntries = normalizeBodyModuleLibrary(), moduleLoad = null, modulesLoaded = false;
+let moduleWrites = Promise.resolve(), preparedModules = null, moduleRevision = 0;
+const moduleErrors = new Map();
+const moduleViewKey = entries => JSON.stringify(entries.filter(entry => entry.enabled).map(entry => [entry.id, entry.controls.map(control => [control.id, control.value])]));
+const moduleSettingsSnapshot = () => moduleEntries.map(({ id, name, description, enabled, prompt, controls }) => structuredClone({ id, name, description, enabled, prompt, controls }));
 const publish = () => { for (const listener of changes) listener(); };
+function reportModuleError(id, error) {
+    const message = error?.message || '模块运行失败';
+    if (moduleErrors.get(id) === message) return;
+    moduleErrors.set(id, message); console.warn('[玉子手机] 正文美化模块', id, error); publish();
+}
+function loadModules() {
+    if (modulesLoaded) return Promise.resolve(moduleEntries);
+    if (!moduleLoad) moduleLoad = repository.getMeta(BODY_MODULE_KEY).then(saved => {
+        moduleEntries = normalizeBodyModuleLibrary(saved); modulesLoaded = true;
+        moduleErrors.delete('library'); publish(); return moduleEntries;
+    }).finally(() => { moduleLoad = null; });
+    return moduleLoad;
+}
+function saveModules(update) {
+    const task = moduleWrites.then(async () => {
+        await loadModules();
+        const previousPrompt = bodyModulePrompt(moduleEntries);
+        const previousView = moduleViewKey(moduleEntries);
+        const next = await repository.updateMeta(BODY_MODULE_KEY, saved => {
+            const next = update(normalizeBodyModuleLibrary(saved));
+            if (new Blob([JSON.stringify(exportBodyModulePack(next), null, 2)]).size > BODY_MODULE_BYTES) throw new Error('模块库超过 32MB，未保存；请先删除不再使用的模块');
+            return next;
+        });
+        moduleEntries = next;
+        if (previousView !== moduleViewKey(next)) {
+            moduleRevision++; preparedModules = null; moduleErrors.clear();
+            configVersion++; refreshRevision++; schedule();
+        }
+        publish();
+        if (previousPrompt !== bodyModulePrompt(next)) { projectionVersion++; await syncProjection(); }
+        return next;
+    });
+    moduleWrites = task.catch(() => {});
+    return task;
+}
 const readEffectiveConfig = () => {
     const settings = getPhoneSettings(), config = normalizeBodyDialogue(settings.bodyDialogue);
     return { ...config, enabled: settings.enabled !== false && config.enabled };
@@ -49,6 +91,28 @@ function observeChat() {
     if (!observer || !running || streaming || !effectiveConfig().enabled) return;
     observing = document.getElementById('chat');
     if (observing) observer.observe(observing, { childList: true, characterData: true, subtree: true });
+}
+function handleProseMutations(records) {
+    // Our delayed image/audio UI changes are not new host prose; never rescan for them.
+    if (streaming) return;
+    let changed = false;
+    for (const record of records) {
+        const target = record.target.nodeType === 1 ? record.target : record.target.parentElement;
+        const root = target?.closest('.mes_text');
+        if (root) {
+            if (!isDialogueProseMutation(record, root)) continue;
+            dirtyRoots.add(root);
+            changed = true;
+        } else if ([...record.addedNodes, ...record.removedNodes].some(node => node.nodeType === 1
+            && (node.matches('.mes, .mes_text') || node.querySelector('.mes, .mes_text')))) changed = true;
+    }
+    if (changed) schedule();
+}
+function mutateProse(update) {
+    // Preserve pending host edits before hiding our own restoration from the observer.
+    handleProseMutations(observer?.takeRecords() || []);
+    observer?.disconnect();
+    try { update(); } finally { observeChat(); }
 }
 function schedule() {
     if (!running || !effectiveConfig().enabled) return;
@@ -68,7 +132,8 @@ function schedule() {
 }
 async function syncProjection() {
     const token = generation, version = projectionVersion, card = getBodyDialogueScope().card;
-    return projection.sync(effectiveConfig(), () => running && token === generation && version === projectionVersion && card === getBodyDialogueScope().card);
+    await loadModules().catch(error => reportModuleError('library', error));
+    return projection.sync(effectiveConfig(), () => running && token === generation && version === projectionVersion && card === getBodyDialogueScope().card, bodyModulePrompt(moduleEntries));
 }
 
 // One settings path for both this page and external restores/imports. Appearance never writes prompts.
@@ -109,6 +174,14 @@ async function refresh() {
     let config = effectiveConfig();
     const currentScope = () => running && token === generation && version === configVersion && scope.chat === getBodyDialogueScope().chat;
     const valid = () => currentScope() && revision === refreshRevision;
+    await loadModules();
+    if (!valid()) return;
+    if (!preparedModules) {
+        const revision = moduleRevision;
+        preparedModules = prepareBodyModules(moduleEntries, (id, error) => { if (revision === moduleRevision) reportModuleError(id, error); });
+    }
+    const modules = await preparedModules;
+    if (!valid()) return;
     if (scope.chat !== activeChat) { restoreFloors(); activeChat = scope.chat; floorDigests.clear(); audioWindowKey = ''; }
     if (loadedCard !== scope.card) {
         const records = scope.card ? await repository.listPeople(scope.card) : [];
@@ -157,7 +230,7 @@ async function refresh() {
                 speechControls: bodyDialogueSpeechControls(dialogue, effectiveConfig()),
                 isCurrent: () => currentScope() && effectiveConfig().enabled && effectiveConfig().voice && retained.get(index)?.fingerprint === fingerprint });
             const view = renderDialogueFloor(root, {
-                config, people, userName: scope.userName,
+                config, people, userName: scope.userName, modules, mutateProse,
                 onPlay: (dialogue, person, button) => voice.play(voiceInput(dialogue, person, button)),
             });
             dirtyRoots.delete(root);
@@ -232,6 +305,40 @@ export const bodyDialogueService = {
     readConfig: readBodyDialogueConfig,
     getScope: getBodyDialogueScope,
     getStatus: () => projection.getStatus(),
+    getModules: moduleSettingsSnapshot,
+    getModuleErrors: () => Object.fromEntries(moduleErrors),
+    getModulePrompt: () => bodyModulePrompt(moduleEntries),
+    async loadModules() { await loadModules(); return moduleSettingsSnapshot(); },
+    async exportModules() {
+        await moduleWrites; await loadModules();
+        const pack = exportBodyModulePack(moduleEntries);
+        if (new Blob([JSON.stringify(pack, null, 2)]).size > BODY_MODULE_BYTES) throw new Error('模块包超过 32MB，请先删除不再使用的模块');
+        return pack;
+    },
+    async importModules(source) {
+        const incoming = readBodyModulePack(source);
+        await saveModules(entries => [...entries, ...incoming]);
+        return incoming.length;
+    },
+    saveModule(id, patch) {
+        return saveModules(entries => {
+            const entry = entries.find(item => item.id === id);
+            if (!entry) throw new Error('模块已删除');
+            if (typeof patch.enabled === 'boolean') entry.enabled = patch.enabled;
+            if (typeof patch.prompt === 'string') entry.prompt.value = patch.prompt;
+            if (patch.controlId) {
+                const control = entry.controls.find(item => item.id === patch.controlId);
+                if (!control) throw new Error('模块开关不存在');
+                if (typeof patch.controlValue === 'boolean') control.value = patch.controlValue;
+                if (typeof patch.controlPrompt === 'string' && control.prompt) control.prompt.value = patch.controlPrompt;
+            }
+            return entries;
+        });
+    },
+    deleteModule(id) {
+        if (id === BODY_TIME_ID) return Promise.reject(new Error('自带时间栏作为模板保留，不能删除'));
+        return saveModules(entries => entries.filter(entry => entry.id !== id));
+    },
     subscribe(listener) { changes.add(listener); const off = projection.subscribe(listener); return () => { changes.delete(listener); off(); }; },
     async saveConfig(next) {
         if (!savePhoneSetting('bodyDialogue', normalizeBodyDialogue(next))) throw new Error('正文气泡设置保存失败');
@@ -276,26 +383,14 @@ export async function initializeBodyDialogue() {
     if (running) return;
     running = true; const token = ++generation;
     settingsSnapshot = readEffectiveConfig();
+    await loadModules().catch(error => reportModuleError('library', error));
+    if (!running || token !== generation) return;
+    settingsSnapshot = readEffectiveConfig();
     const processor = getBodyDialogueScope().context?.streamingProcessor;
     streaming = Boolean(processor && !processor.isFinished && !processor.isStopped);
     streamFloor = streaming ? (processor.messageId >= 0 ? processor.messageId : getBodyDialogueScope().context.chat.length) : -1;
     voice = createBodyDialogueVoice();
-    observer = new MutationObserver(records => {
-        // Our delayed image/audio UI changes are not new host prose; never rescan for them.
-        if (streaming) return;
-        let changed = false;
-        for (const record of records) {
-            const target = record.target.nodeType === 1 ? record.target : record.target.parentElement;
-            const root = target?.closest('.mes_text');
-            if (root) {
-                if (!isDialogueProseMutation(record, root)) continue;
-                dirtyRoots.add(root);
-                changed = true;
-            } else if ([...record.addedNodes, ...record.removedNodes].some(node => node.nodeType === 1
-                && (node.matches('.mes, .mes_text') || node.querySelector('.mes, .mes_text')))) changed = true;
-        }
-        if (changed) schedule();
-    });
+    observer = new MutationObserver(handleProseMutations);
     const bind = async (type, handler) => {
         const off = await onEvent(type, handler);
         if (running && generation === token) cleanups.push(off); else off();
@@ -346,6 +441,7 @@ export function destroyBodyDialogue() {
     cleanups.splice(0).forEach(off => off()); qqCleanup(); qqCleanup = () => {};
     restoreFloors(); observer = null; observing = null; voice = null; loadedCard = null; activeChat = '';
     floorDigests.clear(); audioWindowKey = ''; dirtyRoots = new WeakSet(); settingsSnapshot = null;
+    preparedModules = null; moduleRevision++;
     void projection.sync({ ...readBodyDialogueConfig(), enabled: false }).catch(error => showNotification(error.message, 'error'));
     void closeDialogueResources();
 }

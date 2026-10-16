@@ -13,6 +13,7 @@ import { bodyDialogueRepository } from '../../body-dialogue/repository.js';
 import { BODY_DIALOGUE_PACK_BYTES, readBodyDialoguePeoplePack } from '../../body-dialogue/people-pack.js';
 import { pickJsonPackFile } from '../../qq-v2/ui/json-pack-actions.js';
 import { downloadTextFile } from '../services/media-upload/download.js';
+import { createBodyModuleSettings } from './body-modules.js';
 
 const chevron = '<span class="phone-ios-row-chevron" aria-hidden="true">›</span>';
 const switchControl = (key, checked, label, disabled = false) => `<span class="phone-ios-switch"><input type="checkbox" role="switch" data-body-setting="${key}" aria-label="${attr(label)}" ${checked ? 'checked' : ''} ${disabled ? 'disabled' : ''}><span class="phone-ios-switch-track" aria-hidden="true"></span></span>`;
@@ -36,6 +37,7 @@ export function createBodyDialoguePage({ container, state, render, pageRuntime }
     const toast = (message, error = false) => { if (!disposed) showToast(container, message, error, pageRuntime); };
     const validPerson = token => !disposed && token === personVersion && service.getScope().card === personCard;
     const handleError = error => toast(error?.message || '操作失败，请重试', true);
+    const moduleSettings = createBodyModuleSettings({ container, pageRuntime, onChange: () => { if (!disposed) updateInjection(); } });
     const promptEditor = (key, owner) => {
         const dirty = drafts[key] !== config.prompts[key];
         const id = `yuzi-body-prompt-${owner}`;
@@ -89,7 +91,7 @@ export function createBodyDialoguePage({ container, state, render, pageRuntime }
     }
     function updateInjection() {
         const preview = q('.yuzi-body-injection');
-        if (preview) preview.textContent = composeBodyDialoguePrompt(config, people) || '总开关已关闭，不注入任何内容。';
+        if (preview) preview.textContent = composeBodyDialoguePrompt(config, people, service.getModulePrompt()) || '总开关已关闭，不注入任何内容。';
     }
     function paintPreview() {
         cancelAnimationFrame(previewFrame); previewFrame = null;
@@ -149,13 +151,15 @@ export function createBodyDialoguePage({ container, state, render, pageRuntime }
                     + disclosure('tone', '语气标记', promptEditor('tone', 'tone'), 'tone')
                     + disclosure('prosody', '语速与表现力', promptEditor('prosody', 'prosody'), 'prosody')
                     + disclosure('punctuation', '标点表达', promptEditor('punctuation', 'punctuation'), 'punctuation')
-                    + '<p class="phone-ios-group-footer">共用设置 → TTS 的当前连接，点击对白尾部播放。</p>', 'voice'))}
+                    + '<p class="phone-ios-group-footer">共用设置 → TTS 的当前连接，点击对白尾部播放。</p>', 'voice')
+                + '<div data-body-module-list></div>')}
             ${section('人物', disclosure('people', '人物管理', ''))}
             <p class="phone-ios-group-footer" data-body-scope></p>
             ${section('美化', '<div class="yuzi-body-preview" data-body-preview></div>' + disclosure('style', '美化参数', style))}
             ${section('实际注入内容 · 只读', '<pre class="yuzi-body-injection"></pre>')}
             <p class="phone-ios-group-footer" data-body-status role="status"></p>
             <section class="phone-ios-group">${action('sync', '重新同步世界书')}</section>${hiddenSelects}` });
+        moduleSettings.mount(q('[data-body-module-list]'));
         paintPreview(); updatePeople();
         groupedCleanup = bindSettingsGroupedControls(container, pageRuntime, () => !busy && !disposed);
         q('.phone-settings-scroll').scrollTop = scrollTop;
@@ -406,6 +410,6 @@ export function createBodyDialoguePage({ container, state, render, pageRuntime }
                 updateStatus();
             }));
         },
-        dispose() { groupedCleanup(); disposed = true; personVersion++; cancelPackPick(); closeSheet(); closeConfirmation(); cancelAnimationFrame(previewFrame); previewViews.splice(0).forEach(view => view.dispose()); },
+        dispose() { groupedCleanup(); disposed = true; moduleSettings.dispose(); personVersion++; cancelPackPick(); closeSheet(); closeConfirmation(); cancelAnimationFrame(previewFrame); previewViews.splice(0).forEach(view => view.dispose()); },
     };
 }

@@ -36,9 +36,11 @@ export async function importContentPresetModule(options = {}) {
     try {
         url = createObjectURL(new BlobCtor([String(options.source || '')], { type: options.mimeType || 'text/javascript' }));
         const namespace = await awaitDeadline(importModule(url), options);
-        if (typeof namespace?.mount !== 'function') throw new Error(t("玉子美化模块缺少 mount(context) 导出"));
+        if (options.requireMount !== false && typeof namespace?.mount !== 'function') throw new Error(t("玉子美化模块缺少 mount(context) 导出"));
+        if (namespace.mount !== undefined && typeof namespace.mount !== 'function') throw new Error('mount 必须是函数');
+        if (options.requireMount === false && namespace.parse !== undefined && typeof namespace.parse !== 'function') throw new Error('parse 必须是函数');
         let released = false;
-        return Object.freeze({ mount: namespace.mount, disposeModuleUrl() { if (!released) { released = true; revokeObjectURL(url); } } });
+        return Object.freeze({ mount: namespace.mount, parse: namespace.parse, disposeModuleUrl() { if (!released) { released = true; revokeObjectURL(url); } } });
     } catch (error) {
         if (url) revokeObjectURL(url);
         throw error;

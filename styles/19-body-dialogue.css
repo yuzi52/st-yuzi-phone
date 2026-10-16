@@ -1,4 +1,12 @@
 /* Body-only display: no styling or mutation of SillyTavern prose outside our own nodes. */
+.yuzi-body-module-view {
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    margin: var(--yuzi-body-spacing, 12px) 0;
+    text-indent: 0;
+}
 .yuzi-body-dialogue {
     display: flex;
     align-items: flex-start;
@@ -111,6 +119,7 @@
 
 /* Settings compose the shared grouped rows, stepper, switch and bottom-sheet system. */
 .yuzi-body-module + .yuzi-body-module { border-top: var(--yuzi-settings-row-divider-width) solid var(--yuzi-settings-group-separator); }
+.yuzi-body-settings [data-body-module-list] > .yuzi-body-module:first-child { border-top: var(--yuzi-settings-row-divider-width) solid var(--yuzi-settings-group-separator); }
 .yuzi-body-module-head { display: flex; align-items: center; padding-right: var(--yuzi-settings-row-padding-inline); }
 .yuzi-body-module-head > button { min-width: 0; flex: 1; }
 .yuzi-body-module-head [aria-expanded='true'] .phone-ios-row-chevron { transform: rotate(90deg); }
@@ -134,4 +143,4 @@
 .yuzi-body-person-initial { width: 34px; height: 34px; display: grid; place-items: center; flex-shrink: 0; border-radius: 50%; background: var(--yuzi-settings-group-fill); color: var(--yuzi-settings-accent); }
 .yuzi-body-library .phone-ios-thumb { width: 100%; height: 100%; object-fit: contain; aspect-ratio: 1; }
 .yuzi-body-library .phone-ios-icon-cell { aspect-ratio: 1; padding: 0; }
-.yuzi-body-settings [data-body-status].is-danger { color: var(--yuzi-settings-group-danger); }
+.yuzi-body-settings [data-body-status].is-danger, .yuzi-body-settings [data-module-error] { color: var(--yuzi-settings-group-danger); }

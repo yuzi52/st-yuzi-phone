@@ -98,6 +98,13 @@ export const bodyDialogueRepository = {
     },
     getMeta(key) { return transaction(['meta'], 'readonly', store => result(store('meta').get(key))); },
     setMeta(key, value) { return transaction(['meta'], 'readwrite', store => result(store('meta').put(value, key))); },
+    updateMeta(key, update) {
+        return transaction(['meta'], 'readwrite', async store => {
+            const value = update(await result(store('meta').get(key)));
+            await result(store('meta').put(value, key));
+            return value;
+        });
+    },
     getMedia(id) { return transaction(['media'], 'readonly', store => result(store('media').get(id))); },
     async savePerson(card, draft, canSave = () => true) {
         if (!card) throw new Error('请先打开一张角色卡');
