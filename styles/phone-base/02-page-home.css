@@ -8,6 +8,12 @@
     overflow: hidden;
 }
 
+/* Preserve the settled page transform without restoring route animations. */
+#yuzi-phone-standalone .phone-page.phone-page-active {
+    transform: translateX(0);
+    opacity: 1;
+}
+
 .phone-page[aria-hidden="true"] {
     pointer-events: none !important;
     visibility: hidden;
