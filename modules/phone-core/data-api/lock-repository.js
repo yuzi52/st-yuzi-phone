@@ -82,12 +82,6 @@ function remapLockStateAfterRowDelete(lockState, deletedRowIndex) {
     return remapLockStateAfterRowsDelete(lockState, [deletedRowIndex]);
 }
 
-function isTableColLocked(sheetKey, colIndex) {
-    const lockState = getTableLockState(sheetKey);
-    if (!lockState) return false;
-    return lockState.cols.includes(Number(colIndex));
-}
-
 function setTableColLock(sheetKey, colIndex, locked) {
     const api = getDB();
     if (!api) return false;
@@ -166,7 +160,15 @@ export function remapTableLockStateAfterRowDelete(sheetKey, deletedRowIndex) {
     }
 }
 
-export function remapTableLockStateAfterRowsDelete(sheetKey, deletedRowIndexes = []) {
+function sameLockState(left, right) {
+    const canonical = value => {
+        const state = normalizeLockState(value);
+        return JSON.stringify({ rows: state.rows.sort((a, b) => a - b), cols: state.cols.sort((a, b) => a - b), cells: state.cells.sort() });
+    };
+    return canonical(left) === canonical(right);
+}
+
+export function remapTableLockStateAfterRowsDelete(sheetKey, deletedRowIndexes = [], options = {}) {
     const api = getDB();
     if (!api || typeof api.getTableLockState !== 'function' || typeof api.setTableLockState !== 'function') {
         return false;
@@ -174,7 +176,13 @@ export function remapTableLockStateAfterRowsDelete(sheetKey, deletedRowIndexes =
 
     try {
         const current = api.getTableLockState(sheetKey);
-        const next = remapLockStateAfterRowsDelete(current, deletedRowIndexes);
+        const next = remapLockStateAfterRowsDelete(options.beforeState ?? current, deletedRowIndexes);
+        if (options.beforeState) {
+            // Newer database APIs already remap locks. Never shift their result twice,
+            // or overwrite an unrelated lock change made while the mutation settled.
+            if (sameLockState(current, next)) return true;
+            if (!sameLockState(current, options.beforeState)) return false;
+        }
         return isLockWriteSuccess(api.setTableLockState(sheetKey, next, { merge: false }));
     } catch (error) {
         logger.warn({
@@ -260,68 +268,62 @@ export function isTableCellLocked(sheetKey, rowIndex, colIndex) {
     return rowLocked || colLocked || cellLocked;
 }
 
+// Database toggles return operation success, not the resulting lock state.
+// Never retry a toggle after failure: it may already have changed the lock.
+function toggleTableLock(methodName, args, isLocked, setLocked) {
+    const api = getDB();
+    const [sheetKey] = args;
+    const failure = { ok: false, locked: null };
+    if (typeof api?.getTableLockState !== 'function') return failure;
+
+    const readState = () => {
+        const state = api.getTableLockState(sheetKey);
+        return state && Array.isArray(state.rows) && Array.isArray(state.cols) && Array.isArray(state.cells)
+            ? normalizeLockState(state)
+            : null;
+    };
+
+    try {
+        let result;
+        if (typeof api[methodName] === 'function') {
+            result = api[methodName](...args);
+        } else {
+            const before = readState();
+            if (!before) return failure;
+            result = setLocked(!isLocked(before));
+        }
+        if (!isLockWriteSuccess(result)) return failure;
+        const after = readState();
+        return after ? { ok: true, locked: isLocked(after) } : failure;
+    } catch (error) {
+        logger.warn({
+            action: 'lock.toggle',
+            message: '锁定状态切换或读取失败',
+            context: { methodName, sheetKey },
+            error,
+        });
+        return failure;
+    }
+}
+
+/** @returns {{ ok: boolean, locked: boolean | null }} */
 export function toggleTableRowLock(sheetKey, rowIndex) {
-    const api = getDB();
-
-    if (api && typeof api.toggleTableRowLock === 'function') {
-        try {
-            const result = api.toggleTableRowLock(sheetKey, rowIndex);
-            return typeof result === 'boolean' ? result : isTableRowLocked(sheetKey, rowIndex);
-        } catch (error) {
-            logger.warn({
-                action: 'lock.row.toggle',
-                message: 'toggleTableRowLock 调用失败',
-                context: { sheetKey, rowIndex },
-                error,
-            });
-        }
-    }
-
-    const currentLocked = isTableRowLocked(sheetKey, rowIndex);
-    const success = setTableRowLock(sheetKey, rowIndex, !currentLocked);
-    return success ? !currentLocked : currentLocked;
+    return toggleTableLock('toggleTableRowLock', [sheetKey, rowIndex],
+        state => state.rows.includes(Number(rowIndex)),
+        locked => setTableRowLock(sheetKey, rowIndex, locked));
 }
 
+/** @returns {{ ok: boolean, locked: boolean | null }} */
 export function toggleTableCellLock(sheetKey, rowIndex, colIndex) {
-    const api = getDB();
-
-    if (api && typeof api.toggleTableCellLock === 'function') {
-        try {
-            const result = api.toggleTableCellLock(sheetKey, rowIndex, colIndex);
-            return typeof result === 'boolean' ? result : isTableCellLocked(sheetKey, rowIndex, colIndex);
-        } catch (error) {
-            logger.warn({
-                action: 'lock.cell.toggle',
-                message: 'toggleTableCellLock 调用失败',
-                context: { sheetKey, rowIndex, colIndex },
-                error,
-            });
-        }
-    }
-
-    const currentLocked = isTableCellLocked(sheetKey, rowIndex, colIndex);
-    const success = setTableCellLock(sheetKey, rowIndex, colIndex, !currentLocked);
-    return success ? !currentLocked : currentLocked;
+    return toggleTableLock('toggleTableCellLock', [sheetKey, rowIndex, colIndex],
+        state => state.rows.includes(Number(rowIndex)) || state.cols.includes(Number(colIndex))
+            || state.cells.includes(`${Number(rowIndex)}:${Number(colIndex)}`),
+        locked => setTableCellLock(sheetKey, rowIndex, colIndex, locked));
 }
 
+/** @returns {{ ok: boolean, locked: boolean | null }} */
 export function toggleTableColLock(sheetKey, colIndex) {
-    const api = getDB();
-
-    if (api && typeof api.toggleTableColLock === 'function') {
-        try {
-            const result = api.toggleTableColLock(sheetKey, colIndex);
-            return typeof result === 'boolean' ? result : isTableColLocked(sheetKey, colIndex);
-        } catch (error) {
-            logger.warn({
-                action: 'lock.col.toggle',
-                message: 'toggleTableColLock 调用失败',
-                context: { sheetKey, colIndex },
-                error,
-            });
-        }
-    }
-
-    const currentLocked = isTableColLocked(sheetKey, colIndex);
-    const success = setTableColLock(sheetKey, colIndex, !currentLocked);
-    return success ? !currentLocked : currentLocked;
+    return toggleTableLock('toggleTableColLock', [sheetKey, colIndex],
+        state => state.cols.includes(Number(colIndex)),
+        locked => setTableColLock(sheetKey, colIndex, locked));
 }

@@ -35,7 +35,6 @@ import {
     shouldSubmitComposerKey,
 } from './composer.js';
 import {
-    copyMessageText,
     createQuoteDrafts,
     createMessageMenuController,
     quotePreviewText,
@@ -2613,13 +2612,7 @@ export function createQQApp({
             messageSelection.toggle(conversationId, message.messageId);
             void render().catch(report);
         });
-        item.addEventListener('contextmenu', (event) => {
-            if (isMessageSelectionMode(conversationId)) {
-                event.preventDefault();
-                return;
-            }
-            messageMenu.handleContextMenu(event, menuPayload);
-        });
+        item.addEventListener('contextmenu', (event) => event.preventDefault());
         if (!isMessageSelectionMode(conversationId)
             && conversation?.kind === 'group'
             && message.senderType !== 'system'
@@ -5126,43 +5119,6 @@ export function createQQApp({
         showDialog({ title: t("删除消息"), content, actions: [cancel, confirm], className: 'yuzi-qq-delete-message-dialog' });
     };
 
-    const openMessageMenu = (conversationId, messageId) => {
-        const message = getMessageState(conversationId).items.find((item) => item.messageId === messageId);
-        if (!message) return;
-        const menu = createElement('div', 'yuzi-qq-dialog-menu yuzi-qq-message-action-menu');
-        const copy = createButton(t("复制"), 'yuzi-qq-dialog-menu-item');
-        copy.addEventListener('click', async () => {
-            try {
-                await copyMessageText(message);
-            } catch (error) {
-                report(error);
-            }
-            clearOverlay();
-        });
-        const selectForDeletion = createButton(
-            t("多选管理"),
-            'yuzi-qq-dialog-menu-item',
-            { 'data-qq-select-message': message.messageId },
-        );
-        selectForDeletion.addEventListener('click', () => {
-            enterMessageSelection(conversationId, message.messageId);
-        });
-        menu.append(copy);
-        if (conversationSnapshots.get(asText(conversationId))?.kind === 'group') {
-            const quote = createButton(t("引用"), 'yuzi-qq-dialog-menu-item');
-            quote.addEventListener('click', () => {
-                quoteDrafts.select(conversationId, message);
-                clearOverlay();
-                void render().catch(report);
-            });
-            menu.append(quote);
-        }
-        menu.append(selectForDeletion);
-        const cancel = createButton(t("取消"), 'yuzi-qq-secondary-button');
-        cancel.addEventListener('click', clearOverlay);
-        showDialog({ title: '', content: menu, actions: [cancel], className: 'yuzi-qq-message-action-menu-dialog' });
-    };
-
     const openMessageEditor = (conversationId, message) => {
         const transfer = message.type === 'transfer';
         const content = createElement('div', 'yuzi-qq-dialog-form');
@@ -5278,7 +5234,6 @@ export function createQQApp({
     };
 
     const messageMenu = createMessageMenuController({
-        open: ({ conversationId, message }) => openMessageMenu(conversationId, message.messageId),
         longPress: ({ conversationId, message }) => openMessageQuickMenu(conversationId, message),
     });
 
@@ -6143,7 +6098,6 @@ export function createQQApp({
         }
         if (target.dataset.qqStickerUpload) return uploadSticker();
         if (target.dataset.qqSettings) return go({ type: 'settings', kind: target.dataset.qqSettings });
-        if (target.dataset.qqMessage) return openMessageMenu(page?.conversationId, target.dataset.qqMessage);
         if (target.dataset.qqTransfer) return openTransferAction(page?.conversationId, target.dataset.qqTransfer);
         if (target.dataset.qqVoice) {
             await playVoiceMessage(page?.conversationId, target.dataset.qqVoice);

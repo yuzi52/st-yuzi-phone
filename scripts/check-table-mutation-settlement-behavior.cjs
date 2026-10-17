@@ -271,9 +271,13 @@ async function checkSqlDeleteSettlementBehavior(repository) {
                 mutationResult: testCase.mutationResult,
                 includeQuery: false,
             });
+            // SQL is available at preflight, then disappears after the mutation is dispatched.
+            Object.defineProperty(scenario.api, 'querySql', {
+                get: () => scenario.calls.mutation === 0 ? () => null : undefined,
+            });
             setApi(scenario.api);
             result = await repository.deleteTableRowsBatch('测试表', [0]);
-            assert.equal(result.ok, false, testCase.name + '：缺少对账 API 时不能猜测成功');
+            assert.equal(result.ok, false, testCase.name + '：SQL 发出后失去对账 API 时不能猜测成功');
             assert.equal(result.code, 'partial_unknown');
             assert.deepEqual(result.deletedRowIndexes, []);
             assert.deepEqual(result.failedRowIndexes, []);

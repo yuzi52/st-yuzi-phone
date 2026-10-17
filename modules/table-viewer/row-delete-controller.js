@@ -1,5 +1,5 @@
 import { t } from '../i18n/index.js';
-import { remapTableLockStateAfterRowsDelete } from '../phone-core/data-api.js';
+import { getTableLockState, remapTableLockStateAfterRowsDelete } from '../phone-core/data-api.js';
 
 function normalizeRowIndexes(rowIndexes = []) {
     return Array.from(new Set((Array.isArray(rowIndexes) ? rowIndexes : [rowIndexes])
@@ -15,10 +15,6 @@ function remapRemainingRowIndexes(rowIndexes = [], deletedRowIndexes = []) {
         .map((rowIndex) => rowIndex - deletedSorted.filter((deletedIndex) => deletedIndex < rowIndex).length)
         .filter((rowIndex) => rowIndex >= 0)
         .sort((a, b) => a - b);
-}
-
-function applyLockStateAfterRowsDelete(sheetKey, deletedRowIndexes = []) {
-    remapTableLockStateAfterRowsDelete(sheetKey, deletedRowIndexes);
 }
 
 function isRuntimeDisposed(runtime) {
@@ -131,6 +127,7 @@ export function createRowDeleteController(options) {
             return createDeletePreflightFailureOutcome(message, requestedRowIndexes);
         }
 
+        const lockStateBeforeDelete = getTableLockState(sheetKey);
         const result = await deleteSheetRows(sheetKey, requestedRowIndexes, {
             tableName: liveTableName,
         });
@@ -167,8 +164,8 @@ export function createRowDeleteController(options) {
             });
         }
 
-        if (hasDeletion) {
-            applyLockStateAfterRowsDelete(sheetKey, deletedRowIndexes);
+        if (hasDeletion && isViewerActive()) {
+            remapTableLockStateAfterRowsDelete(sheetKey, deletedRowIndexes, { beforeState: lockStateBeforeDelete });
         }
         if (!isViewerActive()) {
             return createDeleteOutcome({

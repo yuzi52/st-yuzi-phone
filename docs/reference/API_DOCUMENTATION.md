@@ -1386,7 +1386,7 @@ console.log(jsonString);
 
 切换指定行锁定状态。
 
-**返回值**: `boolean`
+**返回值**: `boolean`，表示操作是否成功，不表示切换后的锁定状态。成功后通过 `getTableLockState(sheetKey)` 读取实际状态；失败或异常后不得自动再次切换。
 
 ---
 
@@ -1394,7 +1394,7 @@ console.log(jsonString);
 
 切换指定列锁定状态。
 
-**返回值**: `boolean`
+**返回值**: `boolean`，表示操作是否成功，不表示切换后的锁定状态。成功后通过 `getTableLockState(sheetKey)` 读取实际状态；失败或异常后不得自动再次切换。
 
 ---
 
@@ -1402,7 +1402,9 @@ console.log(jsonString);
 
 切换指定单元格锁定状态。
 
-**返回值**: `boolean`
+**返回值**: `boolean`，表示操作是否成功，不表示切换后的锁定状态。成功后通过 `getTableLockState(sheetKey)` 读取实际状态；失败或异常后不得自动再次切换。
+
+小手机内部 `data-api` 的三个同名封装统一返回 `{ ok, locked }`：只有操作成功且已读回有效锁状态时 `ok` 才为 `true`；失败或状态不可确认时返回 `{ ok: false, locked: null }`。界面先检查 `ok`，再用 `locked` 更新成功提示和编辑行为。
 
 ---
 

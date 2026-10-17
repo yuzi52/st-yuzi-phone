@@ -18,7 +18,7 @@ export function buildNavigation(raw, active = '') {
         .map(({ key, name }) => `<button type="button" class="yuzi-bottom-tab" data-sheet="${attr(key)}" aria-pressed="${key === active}" title="${attr(name)}"><span>${html(name)}</span></button>`).join('');
 }
 
-export function buildTableContent(raw, key, descending = false, editor = null) {
+export function buildTableContent(raw, key, descending = false, editor = null, deletion = null) {
     const context = resolveTableViewerContext(key, { initialTableData: raw });
     if (!context) return null;
     const { headers, rawHeaders, rows, tableName } = context;
@@ -41,9 +41,16 @@ export function buildTableContent(raw, key, descending = false, editor = null) {
             </article>`).join('');
         return { title: tableName, count: rows.length, html: (style.scopedCss ? `<style>${style.scopedCss}</style>` : '') + (cards || `<p class="yuzi-bottom-empty">${t('暂无数据')}</p>`) };
     }
+    const deleteControl = (row, index) => {
+        const label = `#${String(row[0] ?? index + 1)}`;
+        if (!deletion?.active) return `<span>${html(label)}</span>`;
+        const locked = deletion.locked(index), selected = deletion.has(index);
+        const actionLabel = locked ? t('条目已锁定') : selected ? t('取消选择') : t('选择删除');
+        return `<button type="button" class="phone-ios-mini-btn" data-action="toggle-delete-row" data-row-index="${index}" aria-pressed="${selected}" aria-label="${attr(`${actionLabel} ${label}`)}"${deletion.deleting || locked ? ' disabled' : ''}>${selected ? '✓ ' : ''}${html(label)}${locked ? ` · ${t('条目已锁定')}` : ''}</button>`;
+    };
     return { title: tableName, count: rows.length, html: entries.map(({ row, index }) => `
         <article class="yuzi-bottom-card" data-row="${attr(String(row[0] ?? index))}">
-            <header class="yuzi-bottom-card-heading"><span>#${html(String(row[0] ?? index + 1))}</span></header>
+            <header class="yuzi-bottom-card-heading">${deleteControl(row, index)}</header>
             <dl>${headers.slice(1).map((header, i) => {
                 const value = String(row[i + 1] ?? '');
                 return value.trim() ? `<div><dt>${html(header)}</dt><dd>${html(value)}</dd></div>` : '';

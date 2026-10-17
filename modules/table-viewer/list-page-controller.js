@@ -190,9 +190,13 @@ function handleToggleRowLock(container, el) {
         return;
     }
 
-    const nextLocked = context.toggleTableRowLock(context.sheetKey, idx);
+    const result = context.toggleTableRowLock(context.sheetKey, idx);
+    if (!result.ok) {
+        context.showInlineToast(container, t("锁定状态修改失败"));
+        return;
+    }
     context.state.syncLockState(context.getTableLockState(context.sheetKey));
-    context.showInlineToast(container, nextLocked ? t("条目已锁定") : t("条目已解锁"));
+    context.showInlineToast(container, result.locked ? t("条目已锁定") : t("条目已解锁"));
 }
 
 function normalizeRowIndexes(rowIndexes = []) {

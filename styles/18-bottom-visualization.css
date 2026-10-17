@@ -41,6 +41,11 @@
 .yuzi-bottom-root .yuzi-bottom-edit-card.phone-generic-root .phone-generic-detail-flow-list { padding:0 14px 2px; }
 .yuzi-bottom-root .yuzi-bottom-edit-card .phone-row-detail-input { font-family:inherit; }
 .yuzi-bottom-edit-actions { display:flex; gap:6px; padding-right:8px; margin-right:2px; border-right:1px solid var(--yuzi-theme-border-strong); }
+.yuzi-bottom-heading { flex-wrap:wrap; }
+.yuzi-bottom-delete-actions { display:flex; flex-wrap:wrap; flex-basis:100%; gap:var(--yuzi-phone-nav-secondary-actions-gap); }
+.yuzi-bottom-root .phone-ios-mini-btn[aria-pressed='true'] { background:var(--yuzi-theme-accent-soft); color:var(--yuzi-theme-accent); outline:var(--yuzi-phone-form-focus-ring-width) solid var(--yuzi-theme-accent); }
+.yuzi-bottom-root .phone-confirm-dialog-btn { color:var(--yuzi-settings-accent); }
+.yuzi-bottom-root .phone-confirm-dialog-confirm { color:var(--yuzi-settings-group-danger); }
 .yuzi-bottom-root .yuzi-bottom-edit-actions [data-action="save"] { color:var(--yuzi-theme-accent); border-color:color-mix(in srgb,var(--yuzi-theme-accent) 35%,var(--yuzi-theme-border)); background:var(--yuzi-theme-accent-soft); }
 :is(.yuzi-bottom-root,.yuzi-bottom-dock) button:disabled { opacity:.45; cursor:wait; }
 .yuzi-bottom-panel>.phone-inline-toast { bottom:16px; max-width:calc(100% - 32px); color:var(--yuzi-theme-text-primary); background:var(--yuzi-theme-surface-strong); border:1px solid var(--yuzi-theme-border-strong); }

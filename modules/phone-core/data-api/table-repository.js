@@ -444,6 +444,11 @@ async function tryDeleteRowsViaSqlMutation(api, safeTableName, normalizedRowInde
     if (!api || typeof api.executeSqlMutation !== 'function') {
         return { shouldFallback: true, fallbackReason: 'executeSqlMutation_missing' };
     }
+    // shujuku exposes SQL writes in native mode too; reads are gated by SQLite readiness.
+    // Choose the mode-aware deleteRow path before writing when SQL cannot be reconciled.
+    if (typeof api.querySql !== 'function' && typeof api.executeSqlQuery !== 'function') {
+        return { shouldFallback: true, fallbackReason: 'sql_read_unavailable' };
+    }
     if (!api || typeof api.exportTableAsJson !== 'function') {
         return { shouldFallback: true, fallbackReason: 'snapshot_api_missing' };
     }
@@ -581,6 +586,11 @@ async function deleteRowsViaLegacyDeleteRowLoop(api, safeTableName, normalizedRo
     for (let index = 0; index < dbRowIndexes.length; index++) {
         const dbRowIndex = dbRowIndexes[index];
         const uiRowIndex = normalizedRowIndexes[index];
+        if (typeof options.isCurrent === 'function' && !options.isCurrent(deletedRowIndexes)) {
+            failureCode = 'cancelled';
+            failureMessage = t('表格已更新，请重新选择要删除的条目');
+            break;
+        }
         try {
             attemptedRowIndexes.push(uiRowIndex);
             const deletion = await callDeleteRowApi(api, safeTableName, dbRowIndex);
@@ -1083,6 +1093,14 @@ export async function deleteTableRowsBatch(tableName, rowIndexes = [], options =
         const api = getDB();
         const safeTableName = normalizeTableName(tableName);
         const normalizedRowIndexes = normalizeDeleteRowIndexes(rowIndexes);
+
+        if (typeof options.isCurrent === 'function' && !options.isCurrent()) {
+            return {
+                ok: false, code: 'cancelled', message: t('表格已更新，请重新选择要删除的条目'),
+                deletedCount: 0, refreshed: false,
+                ...buildBatchDeleteRowIndexResult({ requestedRowIndexes: normalizedRowIndexes }),
+            };
+        }
 
         if (!safeTableName) {
             const fallbackReason = 'table_name_missing';

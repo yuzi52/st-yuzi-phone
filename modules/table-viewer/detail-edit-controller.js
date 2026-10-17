@@ -237,13 +237,17 @@ export function bindGenericDetailEditController(options = {}) {
             return;
         }
 
-        const nextLocked = toggleTableCellLock(sheetKey, rowIndexForLock, lockColIndex);
+        const result = toggleTableCellLock(sheetKey, rowIndexForLock, lockColIndex);
+        if (!result.ok) {
+            showInlineToast(container, t("锁定状态修改失败"));
+            return;
+        }
 
         state.syncLockState(getTableLockState(sheetKey));
-        if (nextLocked && state.editMode && Number.isInteger(rawColIndex)) {
+        if (result.locked && state.editMode && Number.isInteger(rawColIndex)) {
             state.removeDraftValue(rawColIndex);
         }
-        showInlineToast(container, nextLocked ? t("字段已锁定") : t("字段已解锁"));
+        showInlineToast(container, result.locked ? t("字段已锁定") : t("字段已解锁"));
         renderKeepScroll();
     }
 

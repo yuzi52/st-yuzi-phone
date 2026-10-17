@@ -1,5 +1,4 @@
 import { t } from '../../i18n/index.js';
-import { writeToClipboard } from '../../utils/clipboard.js';
 import { normalizeComposerSubmission } from './composer.js';
 
 function asText(value) {
@@ -59,12 +58,6 @@ export function createQuoteDrafts() {
     });
 }
 
-export async function copyMessageText(message, { writeText = writeToClipboard } = {}) {
-    const content = messageContent(message);
-    if (typeof writeText !== 'function') return false;
-    return (await writeText(content)) !== false;
-}
-
 export async function submitQuotedTextMessage({
     facade,
     conversationId,
@@ -92,8 +85,7 @@ export async function submitQuotedTextMessage({
 }
 
 export function createMessageMenuController({
-    open = () => {},
-    longPress = open,
+    longPress = () => {},
     longPressMs = 500,
     moveTolerance = 8,
     now = () => Date.now(),
@@ -102,7 +94,6 @@ export function createMessageMenuController({
 } = {}) {
     let timer = null;
     let activePointer = null;
-    let suppressContextUntil = 0;
     let suppressClickUntil = 0;
 
     const clearLongPress = () => {
@@ -110,19 +101,15 @@ export function createMessageMenuController({
         timer = null;
         activePointer = null;
     };
-    const invoke = (callback, payload, { suppressContext = false, suppressClick = false } = {}) => {
+    const openLongPressMenu = (payload) => {
         if (!payload?.conversationId || !payload?.message?.messageId) return false;
         clearLongPress();
-        const suppressUntil = Number(now()) + Number(longPressMs);
-        if (suppressContext) suppressContextUntil = suppressUntil;
-        if (suppressClick) suppressClickUntil = suppressUntil;
-        callback(Object.freeze({ conversationId: payload.conversationId, message: payload.message }));
+        suppressClickUntil = Number(now()) + Number(longPressMs);
+        longPress(Object.freeze({ conversationId: payload.conversationId, message: payload.message }));
         return true;
     };
-    const openMenu = (payload) => invoke(open, payload);
 
     return Object.freeze({
-        open: openMenu,
         handlePointerDown(event, payload) {
             const pointerType = String(event?.pointerType || '');
             if (event?.isPrimary === false
@@ -134,7 +121,7 @@ export function createMessageMenuController({
                 startY: Number(event.clientY) || 0,
             };
             timer = setTimeoutFn?.(
-                () => invoke(longPress, payload, { suppressContext: true, suppressClick: true }),
+                () => openLongPressMenu(payload),
                 longPressMs,
             ) ?? null;
             return true;
@@ -158,11 +145,6 @@ export function createMessageMenuController({
             event?.preventDefault?.();
             event?.stopPropagation?.();
             return true;
-        },
-        handleContextMenu(event, payload) {
-            event?.preventDefault?.();
-            if (Number(now()) < suppressContextUntil) return false;
-            return openMenu(payload);
         },
         dispose: clearLongPress,
     });
