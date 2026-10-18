@@ -1,5 +1,6 @@
 import { t } from '../../i18n/index.js';
 import { buildProactiveQQV2Request, buildQQV2ProactiveSections } from '../prompt/materializer.js';
+import { createQQMessageReferences } from '../prompt/history.js';
 import { buildQQV2StickerCatalog } from '../prompt/sticker-catalog.js';
 
 function asText(value, maxLength = 0) {
@@ -35,21 +36,10 @@ function truncateConversationHistory(messages, limit) {
     return history.slice(-normalizedLimit);
 }
 
-function isVisibleMessage(message) {
-    return Boolean(message) && message.deleted !== true && message.isDeleted !== true;
-}
-
 function createProactiveMessageReferences(candidates) {
     const messageReferences = {};
     for (const candidate of candidates) {
-        let index = 0;
-        for (const message of Array.isArray(candidate?.messages) ? candidate.messages : []) {
-            if (!isVisibleMessage(message)) continue;
-            index += 1;
-            const messageId = asText(message?.messageId, 256);
-            if (!messageId) continue;
-            messageReferences[`${candidate.referenceId}-M${index}`] = messageId;
-        }
+        Object.assign(messageReferences, createQQMessageReferences(candidate.messages, candidate.referenceId));
     }
     return messageReferences;
 }
@@ -69,6 +59,8 @@ function buildGroupIdentity(candidates, friendReferences = []) {
             `成员：${candidate.members.join('、') || '无'}`,
             `群主：${candidate.ownerName || '无'}`,
             `管理员：${candidate.adminNames.join('、') || '无'}`,
+            `用户：${candidate.selfExited ? '已退出' : '在群内'}`,
+            `禁言：${Object.entries(candidate.mutes || {}).map(([id, until]) => `${candidate.peopleById?.[id] || (id === '__self__' ? 'user' : id)}（${until}）`).join('、') || '无'}`,
         ];
         if (candidate.reinviteOnly) lines.push('当前用户已退出；只能先重新邀请用户，再发送后续消息。');
         return lines.join('\n');
@@ -164,10 +156,12 @@ export function createQQV2ProactiveService(options = {}) {
                 scenario: input.scenario,
                 references: input.references,
                 personReferences: input.personReferences,
+                protocolNames: input.protocolNames,
                 messageReferences: input.messageReferences,
                 visibleMessageRefs: input.visibleMessageRefs,
                 stickers: input.stickers,
                 stickerReferences: input.stickerReferences,
+                stickerDescriptions: input.stickerDescriptions,
                 storyTime: input.storyTime,
                 scopeSession: input.scopeSession,
                 isCurrent: input.isCurrent,
@@ -218,7 +212,7 @@ export function createQQV2ProactiveService(options = {}) {
         const peopleById = new Map();
         const privateFriends = [];
         for (const conversation of conversations) {
-            if (conversation.assistantCharacterId || conversation.kind !== 'private' || conversation.status !== 'active') continue;
+            if (conversation.assistantCharacterId || conversation.kind !== 'private' || !['active', 'contact'].includes(conversation.status)) continue;
             const person = await getPerson(scopeId, conversation.personId);
             if (!person || peopleById.has(person.personId)) continue;
             peopleById.set(person.personId, person);
@@ -271,6 +265,9 @@ export function createQQV2ProactiveService(options = {}) {
                 memberIds: [...(group.memberIds || [])],
                 ownerId: group.ownerId || '',
                 adminIds: [...(group.adminIds || [])],
+                selfExited: group.selfExited === true,
+                mutes: { ...group.mutes },
+                referenceByPersonId: new Map([...referenceByPersonId].map(([id, ref]) => [id, ref.referenceId])),
                 reinviteOnly: false,
                 peopleById: Object.fromEntries(memberPeople.filter(Boolean).map((person) => [person.personId, asText(person.formalName, 120)])),
                 messages,
@@ -381,10 +378,18 @@ export function createQQV2ProactiveService(options = {}) {
             scenario: `${kind}-proactive`,
             references,
             personReferences,
+            protocolNames: {
+                people: Object.fromEntries([
+                    ...candidates.flatMap(candidate => Object.entries(candidate.peopleById || {})),
+                    ...(friendReferences || []).map(person => [person.personId, person.title]),
+                ]),
+                conversations: Object.fromEntries(candidates.map(candidate => [candidate.referenceId, candidate.title])),
+            },
             messageReferences,
             visibleMessageRefs,
             stickers: new Set(Object.keys(stickerCatalog.references)),
             stickerReferences: stickerCatalog.references,
+            stickerDescriptions: stickerCatalog.descriptions,
             storyTime,
             scopeSession,
             isCurrent: current,

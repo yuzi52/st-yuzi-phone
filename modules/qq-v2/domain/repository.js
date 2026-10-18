@@ -771,7 +771,7 @@ function appendOneMessage(scope, conversation, input, options = {}) {
     const mentionIds = [...new Set(Array.isArray(input?.mentionIds) ? input.mentionIds.map((id) => asText(id, 256)).filter(Boolean) : [])];
     if (conversation.kind === 'group') {
         const group = getGroup(scope, conversation.groupId);
-        if (mentionIds.some((id) => !group.memberIds.includes(id))) {
+        if (mentionIds.some((id) => !groupParticipantIds(group).includes(id))) {
             throw new QQV2DomainError(t("结构化提及目标不在当前群聊中"), 'mention_not_found');
         }
         if (input?.mentionAll === true && !['owner', 'admin'].includes(participantRole(group, senderId))) {
@@ -2396,6 +2396,7 @@ export function createQQV2Repository(options = {}) {
                     return conversation;
                 };
                 const runGroupAction = (action) => {
+                    if (resolvePerson(action.actor) === SELF_ID) throw new QQV2DomainError(t("AI 不能代替用户执行群管理"), 'permission_denied');
                     const conversation = resolveConversation(action.conversation);
                     if (conversation.kind !== 'group') throw new QQV2DomainError(t("群管理动作目标必须是群聊"), 'group_action_target');
                     let targetPersonId = resolvePerson(action.target);
@@ -2437,7 +2438,10 @@ export function createQQV2Repository(options = {}) {
                     if (transferMessage.transfer.status !== 'pending') {
                         throw new QQV2DomainError(t("该转账当前不能由 AI 处理"), 'transfer_not_pending');
                     }
-                    const actorId = resolvePerson(action.actor);
+                    const actorId = action.actor ? resolvePerson(action.actor) : transferMessage.transfer.recipientId;
+                    if (actorId === SELF_ID || (!action.actor && transferMessage.senderId !== SELF_ID)) {
+                        throw new QQV2DomainError(t("AI 只能处理用户发给 NPC 的待收款转账"), 'transfer_recipient_invalid');
+                    }
                     if (transferMessage.senderId === actorId || transferMessage.transfer.recipientId !== actorId) {
                         throw new QQV2DomainError(t("转账处理人不是指定收款人"), 'transfer_recipient_invalid');
                     }
@@ -2450,7 +2454,7 @@ export function createQQV2Repository(options = {}) {
                     });
                 };
 
-                actions.forEach((action) => {
+                const applyAction = (action) => {
                     if (!action || typeof action !== 'object') throw new QQV2DomainError(t("AI 动作无效"), 'action_invalid');
                     if (action.type === 'create-private') {
                         createPrivate(action);
@@ -2465,6 +2469,10 @@ export function createQQV2Repository(options = {}) {
                     if (action.type === 'message') {
                         const conversation = resolveConversation(action.conversation);
                         const senderId = action.senderPersonReference ? resolvePerson(action.senderPersonReference) : resolvePerson(action.sender);
+                        if (senderId === SELF_ID) throw new QQV2DomainError(t("AI 不能代替用户发言"), 'invalid_sender');
+                        if (conversation.kind === 'private' && conversation.status !== 'active') {
+                            throw new QQV2DomainError(t("当前私聊不可发送消息"), 'private_read_only');
+                        }
                         const message = appendOneMessage(scope, conversation, {
                             senderId,
                             senderType: senderId === SELF_ID ? 'self' : 'person',
@@ -2484,6 +2492,7 @@ export function createQQV2Repository(options = {}) {
                     if (action.type === 'read') {
                         const conversation = resolveConversation(action.conversation);
                         if (conversation.kind !== 'private') throw new QQV2DomainError(t("read 只允许私聊"), 'read_invalid');
+                        if (conversation.status !== 'active') throw new QQV2DomainError(t("当前私聊不可标为已读"), 'private_read_only');
                         const lastUserMessage = Object.values(scope.messages)
                             .filter((message) => message.conversationId === conversation.conversationId && message.senderId === SELF_ID)
                             .sort((left, right) => right.sequence - left.sequence)[0];
@@ -2510,6 +2519,14 @@ export function createQQV2Repository(options = {}) {
                         return;
                     }
                     throw new QQV2DomainError(t("不支持的 AI 动作"), 'action_invalid');
+                };
+                actions.forEach((action) => {
+                    try {
+                        applyAction(action);
+                    } catch (error) {
+                        if (action?.sourceLine) error.qqLine = action.sourceLine;
+                        throw error;
+                    }
                 });
                 if (createdWithoutMessage.size > 0) {
                     throw new QQV2DomainError(t("AI 新建会话必须在同一批提供合法首条消息"), 'created_conversation_without_message');

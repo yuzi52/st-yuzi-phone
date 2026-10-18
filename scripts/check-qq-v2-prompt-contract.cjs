@@ -166,7 +166,15 @@ async function testPromptHelpersKeepSuccessfulStoryRepliesAndEscapeProactiveSect
     });
     assert.equal(
         sections,
-        '<private id="P1" name="林&lt;知夏"><message id="P1-M1" sender="user" type="text">你好 &amp; 再见</message><message id="P1-M2" sender="npc" type="voice">语音：今晚见</message><message id="P1-M3" sender="user" type="image">图片：海边的照片</message><message id="P1-M4" sender="npc" type="video">视频：烟花</message><message id="P1-M5" sender="user" type="sticker">表情：开心挥手</message><message id="P1-M6" sender="user" type="transfer">转账，金额：88 金币，收款人：林&lt;知夏，状态：待收款，备注：晚饭</message></private>',
+        [
+            '[private|林<知夏]',
+            '[P1-M1][text|user|你好 & 再见]',
+            '[P1-M2][voice|林<知夏|今晚见]',
+            '[P1-M3][image|user|海边的照片]',
+            '[P1-M4][video|林<知夏|烟花]',
+            '[P1-M5][sticker|user|开心挥手]',
+            '[P1-M6][transfer|user|林<知夏|88 金币|pending|晚饭]',
+        ].join('\n'),
     );
 
     assert.equal(buildQQV2GroupMemorySections([{
@@ -179,11 +187,11 @@ async function testPromptHelpersKeepSuccessfulStoryRepliesAndEscapeProactiveSect
             { senderId: '__self__', senderType: 'self', type: 'text', content: '好' },
         ],
     }]), [
-        '<group-memory conversation="group&lt;&amp;1" name="周末群" known-by="P1,P3">',
-        '<message sender="林知夏" type="voice">语音：今晚见 &amp; 别迟到</message>',
-        '<message sender="用户" type="text">好</message>',
-        '</group-memory>',
-    ].join(''));
+        '[group|周末群]',
+        '[known-by|P1|P3]',
+        '[voice|林知夏|今晚见 & 别迟到]',
+        '[text|user|好]',
+    ].join('\n'));
 
     assert.equal(buildQQV2PrivateMemorySections([{
         conversationId: 'private-1',
@@ -195,11 +203,10 @@ async function testPromptHelpersKeepSuccessfulStoryRepliesAndEscapeProactiveSect
             { senderId: 'person-1', senderType: 'person', type: 'text', content: '看到了' },
         ],
     }]), [
-        '<private-memory person="林&lt;知夏" conversation="private-1">',
-        '<message sender="用户" type="image">图片：海边 &amp; 落日</message>',
-        '<message sender="林&lt;知夏" type="text">看到了</message>',
-        '</private-memory>',
-    ].join(''));
+        '[private|林<知夏]',
+        '[image|user|海边 & 落日]',
+        '[text|林<知夏|看到了]',
+    ].join('\n'));
 }
 
 async function main() {

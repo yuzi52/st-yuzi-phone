@@ -25,17 +25,22 @@ async function main() {
     '转账，金额：88 金币，收款人：玉子，状态：待收款，备注：晚饭');
 
     const runtime = read('modules/qq-v2/application/production-runtime.js');
-    const materializer = read('modules/qq-v2/prompt/materializer.js');
     const projection = read('modules/qq-v2/worldbook/projection-service.js');
-    const resources = read('modules/qq-v2/resources/service.js');
+    const { buildQQV2ProactiveSections } = await import('../modules/qq-v2/prompt/materializer.js');
+    const { createQQV2ResourceService } = await import('../modules/qq-v2/resources/service.js');
+    const resources = createQQV2ResourceService({ storage: { async get() {}, async set() {}, async delete() {} }, cryptoApi: {} });
+    const presets = await resources.listPromptPresets();
+    const protocol = id => presets.find(preset => preset.id === id).messages.find(block => block.id.endsWith('-output')).content;
 
     assert.match(runtime,
         /function formatWorldbookHistory\([\s\S]*formatQQV2MessageSemantic\(message/,
         'worldbook activation must use the canonical typed-message semantics');
     assert.ok((runtime.match(/formatWorldbookHistory\(/g) || []).length >= 3,
         'manual and proactive worldbook activation must share one typed-history boundary');
-    assert.match(materializer, /type="\$\{escapeXml\(qqV2MessageType\(message\)\)\}"[\s\S]*formatQQV2MessageSemantic\(message/,
-        'proactive prompt sections must expose both the message type and readable semantics');
+    assert.equal(buildQQV2ProactiveSections({ kind: 'private', conversations: [{
+        title: '玉子', personId: 'npc', messages: [{ senderId: 'npc', senderType: 'person', type: 'voice', content: '今晚见' }],
+    }] }), '[private|玉子]\n[P1-M1][voice|玉子|今晚见]',
+    'proactive history exposes the type, speaker, content, and automatic reference');
     assert.match(projection, /senderName\(message[\s\S]*formatQQV2MessageSemantic\(message/,
         'worldbook projection must use the same readable semantics');
     assert.match(projection, /data\.conversation\?\.kind === 'group'[\s\S]*message\.quoteMessageId/,
@@ -43,10 +48,13 @@ async function main() {
     assert.match(runtime,
         /recipientId:\s*asText\(message\.transfer\?\.recipientId,\s*256\)[\s\S]*conversation\?\.kind === 'private'[\s\S]*conversation\.personId\s*:\s*''/,
         'private transfers may default to the current person while group transfers require an explicit recipient');
-    assert.ok((resources.match(/私聊消息不得添加 quote、mentions 或 all 属性/g) || []).length >= 2,
-        'both built-in private prompts must explicitly forbid group-only message attributes');
-    assert.match(resources, /quote 只能引用同一群聊中本次实际提供的消息/,
-        'the built-in group prompts must allow only visible same-group quote references');
+    for (const id of ['builtin-private-reply', 'builtin-private-proactive', 'builtin-assistant-reply']) {
+        assert.ok(protocol(id).includes('[text|内容]'));
+        assert.doesNotMatch(protocol(id), /\[(?:quote|at|group|new-group|kick)\|/u,
+            'private and assistant defaults do not teach group actions');
+    }
+    assert.ok(protocol('builtin-group-reply').includes('[quote|M编号]'));
+    assert.ok(protocol('builtin-group-proactive').includes('[quote|G编号-M编号]'));
 
     console.log('[qq-v2-message-semantics-contract] passed');
 }

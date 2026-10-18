@@ -1,5 +1,6 @@
 import { t } from '../../i18n/index.js';
-import { parseQQV2Response, validateQQV2ActionBatch } from './xml.js';
+import { validateQQV2ActionBatch } from './xml.js';
+import { parseQQResponse } from './response.js';
 import { mapQQV2StickerActionReferences } from '../prompt/sticker-catalog.js';
 
 function asObject(value) {
@@ -36,14 +37,14 @@ function mapActionReferences(action, personReferences, messageReferences) {
 }
 
 /**
- * XML 到领域事务的唯一执行入口。解析、预校验与仓储提交分层，但任何仓储动作仍在同一事务中完成。
+ * QQ 输出到领域事务的唯一执行入口。两种输出格式共用校验和原子提交。
  */
 export function createQQV2ActionService(options = {}) {
     const repository = options.repository;
     if (!repository || typeof repository.getConversation !== 'function' || typeof repository.applyAIActions !== 'function') {
         throw new TypeError(t("QQ v2 action service 需要 repository"));
     }
-    const parseResponse = typeof options.parseResponse === 'function' ? options.parseResponse : parseQQV2Response;
+    const parseResponse = typeof options.parseResponse === 'function' ? options.parseResponse : parseQQResponse;
     const validateActions = typeof options.validateActions === 'function' ? options.validateActions : validateQQV2ActionBatch;
 
     return Object.freeze({
@@ -61,10 +62,33 @@ export function createQQV2ActionService(options = {}) {
             for (const [reference, conversationId] of Object.entries(references)) {
                 conversations.set(reference, await repository.getConversation(scopeId, conversationId));
             }
+            const personReferences = asObject(input.personReferences);
+            const protocolNames = asObject(input.protocolNames);
+            // Names refer to the roster shown to the model; commit-time permissions still use live state.
+            const personNames = asObject(protocolNames.people);
+            const conversationNames = asObject(protocolNames.conversations);
+            const people = new Map();
+            if (parseResponse === parseQQResponse) {
+                const ids = new Set([...Object.values(personReferences), ...[...conversations.values()].map(item => item?.personId).filter(Boolean)]);
+                await Promise.all([...ids].map(async id => {
+                    const person = await repository.getPerson(scopeId, id);
+                    if (person) people.set(id, { ...person, formalName: personNames[id] || person.formalName });
+                }));
+                await Promise.all([...conversations].map(async ([reference, conversation]) => {
+                    if (!conversation) return;
+                    conversation.name = conversationNames[reference] || (conversation.kind === 'private'
+                        ? people.get(conversation.personId)?.formalName
+                        : (await repository.getGroup(scopeId, conversation.groupId))?.name);
+                }));
+            }
             const messageReferences = asObject(input.messageReferences);
             const visibleMessageRefs = asReferenceSet(input.visibleMessageRefs);
-            const actions = await parseResponse(input.response, input.parseOptions || {});
             const assistantTargets = [...conversations.values()].filter(item => item?.assistantCharacterId);
+            const actions = await parseResponse(input.response, {
+                ...input.parseOptions, scenario: input.scenario, conversations, people, personReferences,
+                visibleMessageRefs, stickerDescriptions: input.stickerDescriptions,
+                assistant: assistantTargets.length > 0,
+            });
             if (assistantTargets.length && (conversations.size !== 1 || actions.some(action => !['message', 'transfer'].includes(action.type)))) {
                 throw Object.assign(new Error(t("陪聊只能回复当前会话或处理转账")), { code: 'assistant_action_forbidden' });
             }
@@ -75,7 +99,6 @@ export function createQQV2ActionService(options = {}) {
                 stickers: input.stickers,
                 visibleMessageRefs,
             });
-            const personReferences = asObject(input.personReferences);
             const assistantPerson = assistantTargets.length === 1
                 ? await repository.getPerson(scopeId, assistantTargets[0].personId)
                 : null;
@@ -98,13 +121,20 @@ export function createQQV2ActionService(options = {}) {
                 throw error;
             }
             if (input.diagnostic) input.diagnostic.stage = 'save';
-            return repository.applyAIActions(scopeId, mappedActions, {
-                references,
-                storyTime: input.storyTime,
-                handledUserSequences: input.handledUserSequences,
-                scopeSession: input.scopeSession,
-                isCurrent,
-            });
+            try {
+                return await repository.applyAIActions(scopeId, mappedActions, {
+                    references,
+                    storyTime: input.storyTime,
+                    handledUserSequences: input.handledUserSequences,
+                    scopeSession: input.scopeSession,
+                    isCurrent,
+                });
+            } catch (error) {
+                if (error.qqLine && !error.message.startsWith('QQ 块第 ')) {
+                    error.message = `QQ 块第 ${error.qqLine} 行：${error.message}`;
+                }
+                throw error;
+            }
         },
     });
 }

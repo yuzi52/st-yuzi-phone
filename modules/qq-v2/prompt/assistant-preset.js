@@ -3,7 +3,7 @@ import { CHARACTER_UNDERSTANDING_RULES, HUMAN_LIKE_RULES, onlineChatRules } from
 
 /**
  * 陪聊预设：主角是陪聊人物本人，开场直接放人设（开头注意力最高），玉子只作为幕后安排者出现。
- * 陪聊对象是屏幕外的用户，两人一起看故事；协议在私聊回复协议基础上禁止 read。
+ * 陪聊对象是屏幕外的用户，两人一起看故事；使用独立的陪聊输出协议。
  */
 export function createAssistantPromptPreset(protocol) {
     return chatPreset('builtin-assistant-reply', '陪聊', {
@@ -46,12 +46,12 @@ export function createAssistantPromptPreset(protocol) {
                 '- ta 只知道人设里的东西、故事里写出来的东西、用户告诉 ta 的东西。用户现实里的事，用户没说，ta 就不知道。',
             ),
         ].join('\n\n'),
-        protocol: protocol.replace(/\n3\. 已读不回[\s\S]*$/u, '\n陪聊必须以 message 回复当前 P1，可以同时处理当前会话转账。禁止 read、none、创建会话或群管理；任一动作不合法时整批拒绝。'),
+        protocol,
         finalAck: lines(
             '好，规则和格式我都记住了～',
             '下面就是我和用户的真实聊天记录，最后一条是用户刚发来的。',
             '发之前我会在心里过一遍：用户这句想聊的是故事、是角色、还是 ta 自己的事，我看完这段有什么感觉，我平时会怎么说这种话。',
-            '然后只留下我本人会发出去的合法 QQ XML。',
+            '然后只留下我本人会发出去的符合本轮格式的 QQ 内容。',
         ),
     });
 }

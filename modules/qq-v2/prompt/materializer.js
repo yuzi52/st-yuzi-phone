@@ -1,4 +1,4 @@
-import { formatQQV2MessageSemantic, qqV2MessageType } from '../domain/message-semantics.js';
+import { formatQQHistorySection } from './history.js';
 import { filterQQV2StoryContent } from '../domain/story-context-tags.js';
 import {
     QQ_V2_PROMPT_PLACEHOLDER_DEFINITIONS,
@@ -68,49 +68,6 @@ function isSuccessfulStoryReply(message) {
         && message?.is_successful !== false;
 }
 
-function escapeXml(value) {
-    return asText(value)
-        .replaceAll('&', '&amp;')
-        .replaceAll('<', '&lt;')
-        .replaceAll('>', '&gt;')
-        .replaceAll('"', '&quot;')
-        .replaceAll("'", '&apos;');
-}
-
-function proactiveSender(message) {
-    if (message?.senderType === 'self' || message?.sender === 'self') return 'user';
-    if (message?.senderType === 'system' || message?.sender === 'system') return 'system';
-    return 'npc';
-}
-
-function proactivePersonName(conversation, personId) {
-    if (personId === '__self__') return '用户';
-    const peopleById = conversation?.peopleById;
-    const person = peopleById instanceof Map ? peopleById.get(personId) : peopleById?.[personId];
-    if (typeof person === 'string') return asText(person);
-    if (person && typeof person === 'object') return asText(person.formalName ?? person.name);
-    if (conversation?.personId === personId) return asText(conversation?.title ?? conversation?.name);
-    return '';
-}
-
-function memoryMessages(section) {
-    return (Array.isArray(section?.messages) ? section.messages : [])
-        .filter(isVisibleMessage)
-        .map((message) => {
-            const sender = message?.senderType === 'system'
-                ? '系统'
-                : message?.senderId === '__self__' || message?.senderType === 'self'
-                    ? '用户'
-                    : proactivePersonName(section, message?.senderId) || '成员';
-            return `<message sender="${escapeXml(sender)}" type="${escapeXml(qqV2MessageType(message))}">${escapeXml(
-                formatQQV2MessageSemantic(message, {
-                    resolvePersonName: (personId) => proactivePersonName(section, personId),
-                }),
-            )}</message>`;
-        })
-        .join('');
-}
-
 /**
  * 将用户可编辑的消息块原样保留角色和顺序，仅替换 QQ 已声明的占位符。
  */
@@ -163,51 +120,21 @@ export function buildQQV2StoryContext(messages, turns = 0, tagSettings = {}) {
     return text || '无';
 }
 
-/**
- * 主动预设使用一次请求内短引用和 XML 分区展示多个会话，不伪装成角色历史。
- */
+/** Proactive conversations and memories share the same typed history, with scoped references only for actionable histories. */
 export function buildQQV2ProactiveSections({ kind, conversations = [] } = {}) {
-    const tag = kind === 'group' ? 'group' : 'private';
-    const prefix = tag === 'group' ? 'G' : 'P';
-    return (Array.isArray(conversations) ? conversations : []).map((conversation, index) => {
-        const referenceId = asText(conversation?.referenceId || `${prefix}${index + 1}`);
-        const title = asText(conversation?.title ?? conversation?.name);
-        const members = Array.isArray(conversation?.members)
-            ? conversation.members.map((member) => asText(member)).filter(Boolean).join('、')
-            : asText(conversation?.members);
-        const attributes = [`id="${escapeXml(referenceId)}"`, `name="${escapeXml(title)}"`];
-        if (tag === 'group' && members) attributes.push(`members="${escapeXml(members)}"`);
-        const messages = (Array.isArray(conversation?.messages) ? conversation.messages : [])
-            .filter(isVisibleMessage)
-            .map((message, messageIndex) => `<message id="${escapeXml(`${referenceId}-M${messageIndex + 1}`)}" sender="${proactiveSender(message)}" type="${escapeXml(qqV2MessageType(message))}">${escapeXml(
-                formatQQV2MessageSemantic(message, {
-                    resolvePersonName: (personId) => proactivePersonName(conversation, personId),
-                }),
-            )}</message>`)
-            .join('');
-        return `<${tag} ${attributes.join(' ')}>${messages}</${tag}>`;
-    }).join('\n') || '无';
+    const sectionKind = kind === 'group' ? 'group' : 'private';
+    return (Array.isArray(conversations) ? conversations : []).map((conversation, index) => formatQQHistorySection(conversation, {
+        kind: sectionKind, numbered: true,
+        referenceId: conversation.referenceId || `${sectionKind === 'group' ? 'G' : 'P'}${index + 1}`,
+    })).join('\n\n') || '无';
 }
 
 export function buildQQV2GroupMemorySections(groups = []) {
-    return (Array.isArray(groups) ? groups : []).map((group) => {
-        const knownBy = Array.isArray(group?.knownBy)
-            ? group.knownBy.map(asText).filter(Boolean).join(',')
-            : asText(group?.knownBy);
-        const attributes = [
-            `conversation="${escapeXml(group?.conversationId)}"`,
-            `name="${escapeXml(group?.name)}"`,
-            ...(knownBy ? [`known-by="${escapeXml(knownBy)}"`] : []),
-        ];
-        return `<group-memory ${attributes.join(' ')}>${memoryMessages(group)}</group-memory>`;
-    }).join('\n') || '无';
+    return (Array.isArray(groups) ? groups : []).map(group => formatQQHistorySection(group, { kind: 'group' })).join('\n\n') || '无';
 }
 
 export function buildQQV2PrivateMemorySections(conversations = []) {
-    return (Array.isArray(conversations) ? conversations : []).map((conversation) => (
-        `<private-memory person="${escapeXml(conversation?.personName)}" conversation="${escapeXml(conversation?.conversationId)}">`
-        + `${memoryMessages(conversation)}</private-memory>`
-    )).join('\n') || '无';
+    return (Array.isArray(conversations) ? conversations : []).map(conversation => formatQQHistorySection(conversation, { kind: 'private' })).join('\n\n') || '无';
 }
 
 export { QQ_V2_PROMPT_PLACEHOLDERS };

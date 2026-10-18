@@ -3234,9 +3234,9 @@ async function testProductionRuntimeBuildsManualCrossConversationMemories() {
     });
     await waitUntil(() => requests.length === 1, 'the private cross-memory request');
     const privatePrompt = requests[0][0].content;
-    assert.match(privatePrompt, new RegExp(`<group-memory conversation="${group.conversation.conversationId}" name="周末群" known-by="Alice">`));
-    assert.match(privatePrompt, /<message sender="Alice" type="voice">语音：今晚见 &amp; 别迟到<\/message>/);
-    assert.match(privatePrompt, /<message sender="用户" type="text">好<\/message>/);
+    assert.ok(privatePrompt.includes("[group|周末群]\n[known-by|Alice]"));
+    assert.ok(privatePrompt.includes("[voice|Alice|今晚见 & 别迟到]"));
+    assert.ok(privatePrompt.includes("[text|user|好]"));
     assert.doesNotMatch(privatePrompt, /超过历史条数的旧群消息/);
     assert.match(privatePrompt, /PRIVATE=无/);
 
@@ -3254,11 +3254,11 @@ async function testProductionRuntimeBuildsManualCrossConversationMemories() {
     await waitUntil(() => requests.length === 2, 'the group cross-memory request');
     const groupPrompt = requests[1][0].content;
     assert.match(groupPrompt, /GROUP=无/);
-    assert.match(groupPrompt, new RegExp(`<private-memory person="Alice" conversation="${alice.conversation.conversationId}">`));
+    assert.ok(groupPrompt.includes("[private|Alice]"));
     assert.match(groupPrompt, /Alice 的私聊记忆/);
     assert.match(groupPrompt, /现在私聊/);
-    assert.match(groupPrompt, new RegExp(`<private-memory person="Bob" conversation="${bob.conversation.conversationId}">`));
-    assert.match(groupPrompt, /图片：Bob 发来的照片/);
+    assert.ok(groupPrompt.includes("[private|Bob]"));
+    assert.ok(groupPrompt.includes("[image|Bob|Bob 发来的照片]"));
     runtime.destroy();
 }
 
@@ -3394,9 +3394,9 @@ async function testProductionRuntimeBuildsProactiveCrossConversationMemoriesOnce
     await runtime.handleMessageReceived('story-private', 'normal');
     await waitUntil(() => requests.length === 1, 'the private proactive cross-memory request');
     const privateProactivePrompt = requests[0][0].content;
-    assert.equal((privateProactivePrompt.match(/<group-memory /g) || []).length, 1);
-    assert.match(privateProactivePrompt, new RegExp(`conversation="${group.conversation.conversationId}" name="共同群"`));
-    assert.match(privateProactivePrompt, /known-by="P[12],P[12]"/);
+    assert.equal((privateProactivePrompt.match(/\[group\|/g) || []).length, 1);
+    assert.ok(privateProactivePrompt.includes("[group|共同群]"));
+    assert.match(privateProactivePrompt, /\[known-by\|(?:Alice\|Bob|Bob\|Alice)\]/);
     assert.match(privateProactivePrompt, /最新群记忆/);
     assert.doesNotMatch(privateProactivePrompt, /旧群记忆/);
     assert.match(privateProactivePrompt, /PRIVATE=无/);
@@ -3423,10 +3423,10 @@ async function testProductionRuntimeBuildsProactiveCrossConversationMemoriesOnce
     await waitUntil(() => requests.length === 2, 'the group proactive cross-memory request');
     const groupProactivePrompt = requests[1][0].content;
     assert.match(groupProactivePrompt, /GROUP=无/);
-    assert.equal((groupProactivePrompt.match(/<private-memory /g) || []).length, 2);
+    assert.equal((groupProactivePrompt.match(/\[private\|/g) || []).length, 2);
     assert.match(groupProactivePrompt, /Alice 最新私聊/);
     assert.doesNotMatch(groupProactivePrompt, /Alice 旧私聊/);
-    assert.match(groupProactivePrompt, /语音：Bob 最新私聊/);
+    assert.ok(groupProactivePrompt.includes("[voice|Bob|Bob 最新私聊]"));
     runtime.destroy();
 }
 

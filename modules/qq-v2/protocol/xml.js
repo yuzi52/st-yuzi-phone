@@ -229,7 +229,7 @@ export function validateQQV2ActionBatch(actions, options = {}) {
     let hasNone = false;
     let hasTransfer = false;
 
-    actions.forEach((action) => {
+    const validateAction = (action) => {
         if (action.type === 'create-private') {
             if (scenario !== 'private-proactive' || created.has(action.id) || conversationKind(conversations, action.id)) {
                 throw new QQV2ProtocolError('该场景不能创建私聊或引用重复');
@@ -277,6 +277,14 @@ export function validateQQV2ActionBatch(actions, options = {}) {
             return;
         }
         if (action.type === 'group' && kind !== 'group') throw new QQV2ProtocolError('群管理动作必须引用群聊');
+    };
+    actions.forEach((action) => {
+        try {
+            validateAction(action);
+        } catch (error) {
+            if (action.sourceLine) throw new QQV2ProtocolError(error.message, action.sourceLine);
+            throw error;
+        }
     });
 
     if (['private-reply', 'group-reply'].includes(scenario) && actions.length === 0) {
@@ -293,9 +301,10 @@ export function validateQQV2ActionBatch(actions, options = {}) {
 }
 
 export class QQV2ProtocolError extends Error {
-    constructor(message) {
-        super(message);
+    constructor(message, sourceLine = 0) {
+        super(sourceLine ? `QQ 块第 ${sourceLine} 行：${message}` : message);
         this.name = 'QQV2ProtocolError';
         this.code = 'protocol_invalid';
+        if (sourceLine) this.qqLine = sourceLine;
     }
 }

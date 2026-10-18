@@ -1,5 +1,6 @@
 import { t } from '../../i18n/index.js';
 import { formatQQV2MessageSemantic } from '../domain/message-semantics.js';
+import { parseQQVoiceText } from '../voice/emotion-tags.js';
 import { qqV2WorldbookPlacement } from './placement.js';
 
 const MARKER_KEY = 'yuziPhoneQQV2';
@@ -336,7 +337,10 @@ function buildProjectionContent(data, userName, storyTime) {
              && !(data.messages || []).some((candidate) => candidate.messageId === message.quoteMessageId);
         const suffix = deletedQuote ? '（引用原消息已删除）' : '';
         const time = timeLabel(message.storyTime);
-        lines.push(`${time ? `[${time}] ` : ''}${senderName(message, people, userName)}：${formatQQV2MessageSemantic(message, {
+        const projectedMessage = message.type === 'voice'
+            ? { ...message, content: parseQQVoiceText(message.content).displayText }
+            : message;
+        lines.push(`${time ? `[${time}] ` : ''}${senderName(message, people, userName)}：${formatQQV2MessageSemantic(projectedMessage, {
             selfName: userName,
             resolvePersonName: (personId) => people.get(personId),
         })}${suffix}`);

@@ -36,6 +36,7 @@ function plainDescription(value) {
  */
 export function buildQQV2StickerCatalog(stickers = []) {
     const references = {};
+    const descriptions = {};
     const lines = [];
     const seenIds = new Set();
     for (const sticker of Array.isArray(stickers) ? stickers : []) {
@@ -44,11 +45,13 @@ export function buildQQV2StickerCatalog(stickers = []) {
         seenIds.add(id);
         const reference = `S${lines.length + 1}`;
         references[reference] = id;
-        lines.push(`${reference}｜${plainDescription(description)}`);
+        descriptions[reference] = plainDescription(description);
+        lines.push(`${reference}｜${descriptions[reference]}`);
     }
     return Object.freeze({
         text: lines.join('\n') || '无',
         references: Object.freeze(references),
+        descriptions: Object.freeze(descriptions),
     });
 }
 

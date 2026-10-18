@@ -93,7 +93,9 @@ function normalizeManualRequestBuild(value) {
             personReferences: {},
             messageReferences: {},
             visibleMessageRefs: null,
-            stickerReferences: {},
+            stickerReferences: null,
+            stickerDescriptions: null,
+            protocolNames: {},
         };
     }
     const result = asObject(value);
@@ -106,7 +108,9 @@ function normalizeManualRequestBuild(value) {
         personReferences: asObject(result.personReferences),
         messageReferences: asObject(result.messageReferences),
         visibleMessageRefs: result.visibleMessageRefs,
-        stickerReferences: asObject(result.stickerReferences),
+        stickerReferences: Object.hasOwn(result, 'stickerReferences') ? asObject(result.stickerReferences) : null,
+        stickerDescriptions: Object.hasOwn(result, 'stickerDescriptions') ? asObject(result.stickerDescriptions) : null,
+        protocolNames: asObject(result.protocolNames),
     };
 }
 
@@ -369,9 +373,7 @@ export function createQQV2RequestService(options = {}) {
             preset: promptPreset,
         }));
         const stickerCatalog = buildQQV2StickerCatalog(stickers);
-        const stickerReferences = Object.keys(requestBuild.stickerReferences).length
-            ? requestBuild.stickerReferences
-            : stickerCatalog.references;
+        const stickerReferences = requestBuild.stickerReferences ?? stickerCatalog.references;
         const promptMessages = requestBuild.messages;
         if (!isCurrentEntry(entry)) return;
         entry.diagnostic.stage = 'request';
@@ -397,10 +399,12 @@ export function createQQV2RequestService(options = {}) {
                 scenario,
                 references,
                 personReferences: requestBuild.personReferences,
+                protocolNames: requestBuild.protocolNames,
                 messageReferences: requestBuild.messageReferences,
                 visibleMessageRefs,
                 stickers: new Set(Object.keys(stickerReferences)),
                 stickerReferences,
+                stickerDescriptions: requestBuild.stickerDescriptions ?? stickerCatalog.descriptions,
                 storyTime,
                 handledUserSequences,
                 scopeSession: entry.scopeSession,

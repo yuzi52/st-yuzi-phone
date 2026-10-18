@@ -19,6 +19,7 @@ import {
     buildQQV2StoryContext,
 } from '../prompt/materializer.js';
 import { buildQQV2StickerCatalog } from '../prompt/sticker-catalog.js';
+import { createQQMessageReferences, formatQQHistory } from '../prompt/history.js';
 import { createQQV2RequestService } from '../request/service.js';
 import { createSillyTavernQQV2Backend } from '../request/backend-proxy.js';
 import {
@@ -267,17 +268,6 @@ function runtimeSettingsPatch(settings) {
     return patch;
 }
 
-function formatPromptHistoryMessage(message, reference, people) {
-    const sender = message?.senderId === SELF_ID
-        ? '用户'
-        : message?.senderType === 'system'
-            ? '系统'
-            : asText(people.get(message?.senderId)?.formalName, 120) || '成员';
-    return `${reference}｜${sender}｜${formatQQV2MessageSemantic(message, {
-        resolvePersonName: (personId) => people.get(personId)?.formalName,
-    })}`;
-}
-
 function formatWorldbookHistory(messages, peopleById) {
     const resolvePersonName = (personId) => {
         const person = peopleById instanceof Map
@@ -316,14 +306,8 @@ function resolveHeaders(host) {
 }
 
 function createMessageReferences(history) {
-    const messageReferences = {};
-    const visibleMessageRefs = new Set();
-    history.forEach((message, index) => {
-        const reference = `M${index + 1}`;
-        messageReferences[reference] = message.messageId;
-        visibleMessageRefs.add(reference);
-    });
-    return { messageReferences, visibleMessageRefs };
+    const messageReferences = createQQMessageReferences(history);
+    return { messageReferences, visibleMessageRefs: new Set(Object.keys(messageReferences)) };
 }
 
 function isEligibleStoryReply(message) {
@@ -373,7 +357,7 @@ function buildPrivateIdentity(conversation, people, referenceByPersonId) {
     return `P1：${person.formalName}（人物引用 ${reference}）`;
 }
 
-function buildGroupIdentity(conversation, group, peopleById, referenceByPersonId) {
+function buildGroupIdentity(conversation, group, peopleById, referenceByPersonId, friends = []) {
     if (!group) return '无';
     const label = (personId) => {
         if (personId === SELF_ID) return '用户';
@@ -388,6 +372,9 @@ function buildGroupIdentity(conversation, group, peopleById, referenceByPersonId
         `成员：${members}`,
         `群主：${label(group.ownerId)}`,
         `管理员：${admins}`,
+        `用户：${group.selfExited ? '已退出' : '在群内'}`,
+        `禁言：${Object.entries(group.mutes || {}).map(([id, until]) => `${label(id)}（${until}）`).join('、') || '无'}`,
+        `可加入群聊的已有好友：${friends.map(person => `${person.formalName}（${referenceByPersonId.get(person.personId)}）`).join('、') || '无'}`,
     ].join('\n');
 }
 
@@ -1133,8 +1120,17 @@ export function createQQV2ProductionRuntime(options = {}) {
         const settings = runtimeSettings || await resolveRuntimeSettings(scopeId, scope, { scopeSession });
         const facts = await resolveConversationFacts(repository, scopeId, conversation);
         const visibleHistory = truncateConversationHistory(history, settings.conversationHistoryLimit);
-        const { personReferences, referenceByPersonId } = createPersonReferences(facts.people);
+        const friends = conversation.kind === 'group' ? (await Promise.all(
+            (await repository.listConversations(scopeId))
+                .filter(item => item.kind === 'private' && !item.assistantCharacterId && ['active', 'contact'].includes(item.status))
+                .map(item => repository.getPerson(scopeId, item.personId)),
+        )).filter(Boolean) : [];
+        const referencedPeople = [...new Map([...facts.people, ...friends].map(person => [person.personId, person])).values()];
+        const { personReferences, referenceByPersonId } = createPersonReferences(referencedPeople);
         const { messageReferences, visibleMessageRefs } = createMessageReferences(visibleHistory);
+        const historyLines = formatQQHistory(visibleHistory, {
+            kind: conversation.kind, peopleById: facts.peopleById, referenceByPersonId, numbered: true,
+        });
         const storyMessages = safeRead(() => host.readStoryMessages(), []);
         const people = facts.people.map((person) => person.formalName);
         const worldbookContent = await resolveWorldbookContent({
@@ -1169,14 +1165,10 @@ export function createQQV2ProductionRuntime(options = {}) {
                 ? buildPrivateIdentity(conversation, facts.people, referenceByPersonId)
                 : '无',
             groupMembers: conversation.kind === 'group'
-                ? buildGroupIdentity(conversation, facts.group, facts.peopleById, referenceByPersonId)
+                ? buildGroupIdentity(conversation, facts.group, facts.peopleById, referenceByPersonId, friends)
                 : '无',
             groupHistory: conversation.kind === 'group'
-                ? visibleHistory.map((message, index) => formatPromptHistoryMessage(
-                    message,
-                    `M${index + 1}`,
-                    facts.peopleById,
-                )).join('\n') || '无'
+                ? historyLines.join('\n') || '无'
                 : '无',
             groupMemory,
             privateMemory,
@@ -1194,11 +1186,14 @@ export function createQQV2ProductionRuntime(options = {}) {
             messageReferences,
             visibleMessageRefs,
             stickerReferences: stickerCatalog.references,
+            stickerDescriptions: stickerCatalog.descriptions,
+            protocolNames: {
+                people: Object.fromEntries(referencedPeople.map(person => [person.personId, person.formalName])),
+                conversations: { [conversation.kind === 'group' ? 'G1' : 'P1']: facts.group?.name || facts.people[0]?.formalName || '' },
+            },
             history: visibleHistory.map((message, index) => ({
                 ...message,
-                content: `[M${index + 1}] ${formatQQV2MessageSemantic(message, {
-                    resolvePersonName: (personId) => facts.peopleById.get(personId)?.formalName,
-                })}`,
+                content: historyLines[index],
             })),
         };
     };
@@ -1319,6 +1314,8 @@ export function createQQV2ProductionRuntime(options = {}) {
                 messageReferences: context.messageReferences,
                 visibleMessageRefs: context.visibleMessageRefs,
                 stickerReferences: context.stickerReferences,
+                stickerDescriptions: context.stickerDescriptions,
+                protocolNames: context.protocolNames,
             };
         },
         commitManualActions(input) {
@@ -1389,7 +1386,7 @@ export function createQQV2ProductionRuntime(options = {}) {
                     historyLimit: runtimeSettings.conversationHistoryLimit,
                     knownByPersonId: new Map(candidates.map((candidate) => [
                         candidate.personId,
-                        candidate.referenceId,
+                        candidate.title,
                     ])),
                 })
                 : '无';
