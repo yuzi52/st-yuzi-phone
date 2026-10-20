@@ -90,16 +90,23 @@ export function createDialogueView({ dialogue, config, person, userName = '', on
     if (closingQuote) bubble.append(closingQuote);
     updateStyle(config);
     if (config.bubble) void load(person?.bubble, url => decorateQQBubble(bubble, url, person.bubble.bubble));
-    let playButton = null;
+    let playButton = null, rerollButton = null;
     if (config.voice && dialogue.name) {
         const play = element('button', 'yuzi-body-play', '▷'); play.type = 'button';
         playButton = play;
         play.setAttribute('aria-label', `朗读${dialogue.name}的对白`);
         play.title = person?.voice?.voiceId ? '播放／暂停' : '请先为此人物选择音色';
         play.addEventListener('click', event => { event.preventDefault(); event.stopPropagation(); onPlay?.(play); });
-        bubble.append(play);
+        const reroll = element('button', 'yuzi-body-reroll', '↻'); reroll.type = 'button';
+        rerollButton = reroll;
+        reroll.hidden = true;
+        reroll.title = '重roll语音';
+        reroll.setAttribute('aria-label', `重新生成${dialogue.name}的语音`);
+        reroll.addEventListener('click', event => { event.preventDefault(); event.stopPropagation(); onPlay?.(play, true); });
+        const controls = element('span', 'yuzi-body-voice-controls');
+        controls.append(play, reroll); bubble.append(controls);
     }
-    return { node, playButton, updateStyle, dispose() { alive = false; if (!sharedImages) images.dispose(); } };
+    return { node, playButton, rerollButton, updateStyle, dispose() { alive = false; if (!sharedImages) images.dispose(); } };
 }
 
 // Only native prose containers/inline formatting. Unknown components are a hard boundary.
@@ -168,14 +175,14 @@ export function renderDialogueFloor(root, { config, people, userName, onPlay, mo
             let view;
             try {
                 view = dialogue.module ? createBodyModuleView(dialogue)
-                    : createDialogueView({ dialogue, config, person, userName, images, onPlay: button => onPlay(dialogue, person, button) });
+                    : createDialogueView({ dialogue, config, person, userName, images, onPlay: (button, reroll) => onPlay(dialogue, person, button, reroll) });
             } catch (error) {
                 if (!dialogue.module) throw error;
                 dialogue.module.failed = true;
                 dialogue.module.report(dialogue.module.entry.id, error);
                 continue;
             }
-            if (view.playButton) runVoiceItems.push({ dialogue, person, button: view.playButton });
+            if (view.playButton) runVoiceItems.push({ dialogue, person, button: view.playButton, rerollButton: view.rerollButton });
             const slots = [];
             // Replace text slices, not their ancestors: <q>, inline formatting and paragraph
             // boundaries must restore in place, without cloning/nesting the original wrappers.

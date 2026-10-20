@@ -577,46 +577,6 @@ export function handleError(error, userMessage = t('操作失败'), options = {}
 }
 
 /**
- * 创建错误处理包装器
- * @param {Function} func - 要包装的函数
- * @param {string} userMessage - 用户友好的错误消息
- * @param {Object} options - 选项
- * @returns {Function} 包装后的函数
- * 
- * @example
- * const safeSave = withErrorHandler(saveData, '保存数据失败');
- * await safeSave();
- */
-export function withErrorHandler(func, userMessage = t('操作失败'), options = {}) {
-    return async function (...args) {
-        try {
-            return await func.apply(this, args);
-        } catch (error) {
-            handleError(error, userMessage, options);
-            return null;
-        }
-    };
-}
-
-/**
- * 同步函数错误处理包装器
- * @param {Function} func - 要包装的函数
- * @param {string} userMessage - 用户友好的错误消息
- * @param {Object} options - 选项
- * @returns {Function} 包装后的函数
- */
-export function withSyncErrorHandler(func, userMessage = t('操作失败'), options = {}) {
-    return function (...args) {
-        try {
-            return func.apply(this, args);
-        } catch (error) {
-            handleError(error, userMessage, options);
-            return null;
-        }
-    };
-}
-
-/**
  * 上报错误（预留接口）
  * @param {Error} error - 错误对象
  */
@@ -639,66 +599,6 @@ export function configureErrorHandler(config = {}) {
 }
 
 /**
- * 创建特定类型的错误
- */
-export const createError = {
-    /**
-     * 创建存储错误
-     * @param {string} message - 错误消息
-     * @param {Object} details - 错误详情
-     * @returns {YuziPhoneError} 错误对象
-     */
-    storage: (message, details = {}) => {
-        const code = details.code || ErrorCodes.STORAGE_WRITE_FAILED;
-        return new YuziPhoneError(message, code, details);
-    },
-
-    /**
-     * 创建表格错误
-     * @param {string} message - 错误消息
-     * @param {Object} details - 错误详情
-     * @returns {YuziPhoneError} 错误对象
-     */
-    table: (message, details = {}) => {
-        const code = details.code || ErrorCodes.TABLE_NOT_FOUND;
-        return new YuziPhoneError(message, code, details);
-    },
-
-    /**
-     * 创建 API 错误
-     * @param {string} message - 错误消息
-     * @param {Object} details - 错误详情
-     * @returns {YuziPhoneError} 错误对象
-     */
-    api: (message, details = {}) => {
-        const code = details.code || ErrorCodes.API_NOT_AVAILABLE;
-        return new YuziPhoneError(message, code, details);
-    },
-
-    /**
-     * 创建设置错误
-     * @param {string} message - 错误消息
-     * @param {Object} details - 错误详情
-     * @returns {YuziPhoneError} 错误对象
-     */
-    settings: (message, details = {}) => {
-        const code = details.code || ErrorCodes.INVALID_SETTINGS;
-        return new YuziPhoneError(message, code, details);
-    },
-
-    /**
-     * 创建渲染错误
-     * @param {string} message - 错误消息
-     * @param {Object} details - 错误详情
-     * @returns {YuziPhoneError} 错误对象
-     */
-    render: (message, details = {}) => {
-        const code = details.code || ErrorCodes.RENDER_FAILED;
-        return new YuziPhoneError(message, code, details);
-    },
-};
-
-/**
  * 断言函数 - 用于开发时检查条件
  * @param {boolean} condition - 条件
  * @param {string} message - 错误消息
@@ -707,47 +607,5 @@ export const createError = {
 export function assert(condition, message, code = ErrorCodes.UNKNOWN_ERROR) {
     if (!condition) {
         throw new YuziPhoneError(message, code);
-    }
-}
-
-/**
- * 尝试执行函数，失败时返回默认值
- * @param {Function} func - 要执行的函数
- * @param {any} defaultValue - 默认值
- * @param {string} errorMessage - 错误消息
- * @returns {any} 函数返回值或默认值
- */
-export function tryOrDefault(func, defaultValue, errorMessage = '操作失败') {
-    try {
-        return func();
-    } catch (error) {
-        errorLogger.warn({
-            action: 'try-default.sync',
-            message: errorMessage,
-            context: { defaultValueApplied: true },
-            error,
-        });
-        return defaultValue;
-    }
-}
-
-/**
- * 异步尝试执行函数，失败时返回默认值
- * @param {Function} func - 要执行的异步函数
- * @param {any} defaultValue - 默认值
- * @param {string} errorMessage - 错误消息
- * @returns {Promise<any>} 函数返回值或默认值
- */
-export async function tryOrDefaultAsync(func, defaultValue, errorMessage = '操作失败') {
-    try {
-        return await func();
-    } catch (error) {
-        errorLogger.warn({
-            action: 'try-default.async',
-            message: errorMessage,
-            context: { defaultValueApplied: true },
-            error,
-        });
-        return defaultValue;
     }
 }

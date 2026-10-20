@@ -1,3 +1,4 @@
+const { createDeferred: deferred } = require('./helpers/deferred.cjs');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -398,16 +399,6 @@ function createQueueRepositoryFixture() {
         },
     };
     return { repository, scopeId, scope, messages, applied };
-}
-
-function deferred() {
-    let resolve;
-    let reject;
-    const promise = new Promise((resolvePromise, rejectPromise) => {
-        resolve = resolvePromise;
-        reject = rejectPromise;
-    });
-    return { promise, resolve, reject };
 }
 
 function captureReadyScopeSession(scopeId) {

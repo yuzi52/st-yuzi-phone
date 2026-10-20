@@ -99,6 +99,7 @@ export function normalizeBodyDialogue(value = {}) {
         voice: source.voice === true, tone: source.tone === true, bubble: source.bubble !== false,
         prosody: source.prosody === true, punctuation: source.punctuation === true,
         bilingual: source.bilingual === true, readOriginal: source.readOriginal === true, preGenerate: source.preGenerate === true,
+        reroll: source.reroll === true,
         align: source.align === 'right' ? 'right' : 'left',
         avatarShape: ['round', 'rounded', 'square'].includes(source.avatarShape) ? source.avatarShape : 'round',
         quote: source.quote === 'pair' ? 'pair' : 'tail',

@@ -1,3 +1,4 @@
+const { createDeferred: deferred } = require('./helpers/deferred.cjs');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -15,16 +16,6 @@ function sourceSlice(source, startMarker, endMarker) {
 function cssRuleHas(source, selector, declaration) {
     const escaped = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     return new RegExp(`${escaped}\\s*\\{[^}]*${declaration}`, 's').test(source);
-}
-
-function deferred() {
-    let resolve;
-    let reject;
-    const promise = new Promise((resolvePromise, rejectPromise) => {
-        resolve = resolvePromise;
-        reject = rejectPromise;
-    });
-    return { promise, resolve, reject };
 }
 
 function makeMessage(messageId, generatedImagePath = '') {

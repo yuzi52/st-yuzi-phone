@@ -106,6 +106,7 @@ export const bodyDialogueRepository = {
         });
     },
     getMedia(id) { return transaction(['media'], 'readonly', store => result(store('media').get(id))); },
+    hasAudio(id) { return transaction(['audio'], 'readonly', store => result(store('audio').count(id))).then(count => count > 0); },
     async savePerson(card, draft, canSave = () => true) {
         if (!card) throw new Error('请先打开一张角色卡');
         const name = personName(draft);

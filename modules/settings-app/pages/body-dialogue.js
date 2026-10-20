@@ -147,6 +147,7 @@ export function createBodyDialoguePage({ container, state, render, pageRuntime }
                 + disclosure('bilingual', '双语模式', promptEditor('bilingual', 'bilingual'), 'bilingual')
                 + disclosure('voice', '正文朗读', promptEditor('name', 'voice')
                     + `<label class="phone-ios-row"><span class="phone-ios-row-label">语音预生成</span>${switchControl('preGenerate', config.preGenerate, '语音预生成')}</label><p class="phone-ios-group-footer">正文生成完成后，按顺序提前生成最新一楼的对白语音，仅缓存，不自动播放。</p>`
+                    + `<label class="phone-ios-row"><span class="phone-ios-row-label">重roll</span>${switchControl('reroll', config.reroll, '重roll')}</label><p class="phone-ios-group-footer">已有语音时，在播放键旁显示重roll按钮；重新生成后播放，成功替换旧语音，失败保留。</p>`
                     + `<label class="phone-ios-row${config.bilingual ? '' : ' is-disabled'}"><span class="phone-ios-row-label">朗读双语</span>${switchControl('readOriginal', config.readOriginal, '朗读双语', !config.bilingual)}</label><p class="phone-ios-group-footer">开启读上方原文，关闭读下方译文。</p>`
                     + disclosure('tone', '语气标记', promptEditor('tone', 'tone'), 'tone')
                     + disclosure('prosody', '语速与表现力', promptEditor('prosody', 'prosody'), 'prosody')

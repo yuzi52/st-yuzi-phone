@@ -1,3 +1,4 @@
+const { createDeferred: deferred } = require('./helpers/deferred.cjs');
 const assert = require('assert');
 const path = require('path');
 const { pathToFileURL } = require('url');
@@ -42,16 +43,6 @@ class FakeClock {
             .map((task) => task.at - this.now)
             .sort((a, b) => a - b);
     }
-}
-
-function deferred() {
-    let resolve;
-    let reject;
-    const promise = new Promise((res, rej) => {
-        resolve = res;
-        reject = rej;
-    });
-    return { promise, resolve, reject };
 }
 
 async function flush() {

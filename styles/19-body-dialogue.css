@@ -97,8 +97,9 @@
 .yuzi-body-bubble.is-paired-bilingual > .yuzi-body-lines { display: block; min-width: 0; }
 .yuzi-body-bubble.is-paired-bilingual > .yuzi-body-quote { align-self: end; line-height: 1; }
 .yuzi-body-bubble.is-paired-bilingual > .yuzi-body-quote:first-child { align-self: start; }
-.yuzi-body-bubble.is-paired-bilingual > .yuzi-body-play { align-self: end; }
-.yuzi-body-bubble > .yuzi-body-play {
+.yuzi-body-bubble.is-paired-bilingual > .yuzi-body-voice-controls { align-self: end; }
+.yuzi-body-voice-controls { display: inline-flex; vertical-align: middle; }
+.yuzi-body-voice-controls > :is(.yuzi-body-play, .yuzi-body-reroll) {
     display: inline-flex;
     align-items: center;
     justify-content: center;
@@ -114,8 +115,10 @@
     font: 16px/1 sans-serif;
     cursor: pointer;
 }
-.yuzi-body-play:focus-visible { outline: 2px solid var(--yuzi-settings-accent); outline-offset: 2px; }
-.yuzi-body-play[aria-busy='true'] { opacity: .6; }
+:is(.yuzi-body-play, .yuzi-body-reroll):focus-visible { outline: 2px solid var(--yuzi-settings-accent); outline-offset: 2px; }
+.yuzi-body-play[aria-busy='true'], .yuzi-body-reroll:disabled { opacity: .6; }
+.yuzi-body-reroll:disabled { cursor: default; }
+.yuzi-body-voice-controls > .yuzi-body-reroll[hidden] { display: none; }
 
 /* Settings compose the shared grouped rows, stepper, switch and bottom-sheet system. */
 .yuzi-body-module + .yuzi-body-module { border-top: var(--yuzi-settings-row-divider-width) solid var(--yuzi-settings-group-separator); }

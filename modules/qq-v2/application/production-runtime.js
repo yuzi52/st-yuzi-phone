@@ -6,6 +6,7 @@ import {
     isQQV2DatabaseCurrentApiPresetId,
 } from '../database-current-api.js';
 import { createQQV2GlobalRuntimeSettings } from './global-runtime-settings.js';
+import { createQQV2VoicePresetTransaction } from './voice-preset-transaction.js';
 import { createQQV2Repository } from '../domain/repository.js';
 import { QQ_V2_BUILT_IN_PROMPT_PRESET_IDS } from '../domain/prompt-preset-ids.js';
 import { normalizeQQV2TagName, normalizeQQV2TagNames } from '../domain/story-context-tags.js';
@@ -468,12 +469,21 @@ export function createQQV2ProductionRuntime(options = {}) {
     const writeVoiceApiKey = typeof resources.setVoiceApiKey === 'function'
         ? (apiKey) => resources.setVoiceApiKey(apiKey)
         : async () => false;
-    const initializeVoicePresets = async () => {
-        if (typeof resources.initializeVoicePresets !== 'function') return;
-        const settings = await globalRuntimeSettings.get();
-        await resources.initializeVoicePresets(
-            getVoiceConfig ? safeRead(getVoiceConfig, {}) : settings.voice,
-        );
+    let voicePresetsInitialization = null;
+    const initializeVoicePresets = () => {
+        if (typeof resources.initializeVoicePresets !== 'function') return Promise.resolve();
+        if (!voicePresetsInitialization) {
+            voicePresetsInitialization = (async () => {
+                const settings = await globalRuntimeSettings.get();
+                await resources.initializeVoicePresets(
+                    getVoiceConfig ? safeRead(getVoiceConfig, {}) : settings.voice,
+                );
+            })().catch(error => {
+                voicePresetsInitialization = null;
+                throw error;
+            });
+        }
+        return voicePresetsInitialization;
     };
     const readVoiceConnection = async () => {
         await initializeVoicePresets();
@@ -485,12 +495,23 @@ export function createQQV2ProductionRuntime(options = {}) {
             apiKey: asText(await safeReadAsync(readVoiceApiKey, ''), 8192),
         };
     };
-    const publishVoicePresets = async () => {
-        const connection = await readVoiceConnection();
-        // 保留现有共享设置快照的读取方式；实际请求从预设一次性读取配置和对应密钥。
-        await globalRuntimeSettings.update('', { voice: connection.settings });
+    // Injected resource/settings adapters retain ownership of their own storage.
+    const transactVoicePresets = options.resources || options.sharedStorage || options.globalRuntimeSettings
+        ? null
+        : createQQV2VoicePresetTransaction({ stateStore, cryptoApi: options.cryptoApi });
+    const mutateVoicePresets = async operation => {
+        await initializeVoicePresets();
+        let snapshot;
+        if (transactVoicePresets) {
+            snapshot = await transactVoicePresets(operation);
+        } else {
+            await operation(resources);
+            const connection = await readVoiceConnection();
+            await globalRuntimeSettings.update('', { voice: connection.settings });
+            snapshot = await resources.listVoicePresets();
+        }
         await notifySubscribers(currentScopeId(), { reason: 'voice-settings-changed' });
-        return resources.listVoicePresets();
+        return snapshot;
     };
     const promptTranslationService = options.promptTranslationService
         || createImagePromptTranslationService({
@@ -2758,19 +2779,13 @@ export function createQQV2ProductionRuntime(options = {}) {
             return resources.listVoicePresets();
         },
         async saveVoicePreset({ preset } = {}) {
-            await initializeVoicePresets();
-            await resources.saveVoicePreset(asObject(preset));
-            return publishVoicePresets();
+            return mutateVoicePresets(store => store.saveVoicePreset(asObject(preset)));
         },
         async selectVoicePreset({ presetId } = {}) {
-            await initializeVoicePresets();
-            await resources.selectVoicePreset(asText(presetId, 256));
-            return publishVoicePresets();
+            return mutateVoicePresets(store => store.selectVoicePreset(asText(presetId, 256)));
         },
         async deleteVoicePreset({ presetId } = {}) {
-            await initializeVoicePresets();
-            await resources.deleteVoicePreset(asText(presetId, 256));
-            return publishVoicePresets();
+            return mutateVoicePresets(store => store.deleteVoicePreset(asText(presetId, 256)));
         },
         async loadVoiceModels({ draft, signal } = {}) {
             await initializeVoicePresets();

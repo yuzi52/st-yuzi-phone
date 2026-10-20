@@ -1,3 +1,4 @@
+const { createDeferred } = require('./helpers/deferred.cjs');
 const assert = require('assert/strict');
 const path = require('path');
 const { pathToFileURL } = require('url');
@@ -13,16 +14,6 @@ function setApi(api) {
         parent: { AutoCardUpdaterAPI: api },
         AutoCardUpdaterAPI: null,
     };
-}
-
-function createDeferred() {
-    let resolve;
-    let reject;
-    const promise = new Promise((resolvePromise, rejectPromise) => {
-        resolve = resolvePromise;
-        reject = rejectPromise;
-    });
-    return { promise, resolve, reject };
 }
 
 function wait(ms = 0) {

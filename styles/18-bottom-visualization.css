@@ -20,14 +20,15 @@
 .yuzi-bottom-heading strong { font-size:1.1em; font-weight:650; }
 .yuzi-bottom-heading small { display:block; color:var(--yuzi-theme-text-secondary); font-size:.85em; margin-top:3px; }
 /* 保留 containment 防止误滚 body；普通底部边界由 scroll-chain 平滑接续 #chat，侧栏边界不接续。 */
-.yuzi-bottom-content { min-height:0; flex:1; padding:16px; gap:12px; display:flex; align-items:flex-start; overscroll-behavior:contain; }
+.yuzi-bottom-content { position:relative; min-height:0; flex:1; padding:16px; gap:12px; display:flex; align-items:flex-start; overscroll-behavior:contain; }
 .yuzi-bottom-content.is-vertical { flex-wrap:wrap; justify-content:center; align-content:flex-start; overflow-y:auto; overflow-x:hidden; }
 .yuzi-bottom-content.is-horizontal { flex-wrap:nowrap; overflow-x:auto; overflow-y:hidden; }
 .yuzi-bottom-content[data-beautified="true"] {
-    position:relative; min-width:0; padding:0; gap:0;
+    min-width:0; padding:0; gap:0;
     flex-flow:column nowrap; align-items:stretch; overflow:hidden;
     --yuzi-phone-app-nav-top-padding:0px;
 }
+.yuzi-bottom-content[data-staging="true"] { position:absolute; inset:0; visibility:hidden; opacity:0; pointer-events:none; }
 .yuzi-bottom-content[data-beautified="true"] > :is(.phone-content-preset-root,.phone-app-page) { flex:1 1 auto; min-height:0; width:100%; }
 .yuzi-bottom-content[data-beautified="true"] > .yuzi-phone-theater-builtin { font-family:inherit; }
 .yuzi-bottom-card { width:var(--yuzi-phone-bottom-card-width,260px); max-width:100%; flex:0 0 auto; background:var(--yuzi-theme-surface); border:1px solid var(--yuzi-theme-border-strong); border-radius:10px; overflow-wrap:anywhere; user-select:text; }

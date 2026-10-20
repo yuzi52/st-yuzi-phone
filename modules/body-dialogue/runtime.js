@@ -136,6 +136,12 @@ async function syncProjection() {
     return projection.sync(effectiveConfig(), () => running && token === generation && version === projectionVersion && card === getBodyDialogueScope().card, bodyModulePrompt(moduleEntries));
 }
 
+function refreshVoiceControls() {
+    const config = effectiveConfig();
+    voice?.refreshReroll([...retained.values()].flatMap(entry => entry.getVoiceRequests()),
+        config.enabled && config.voice && config.reroll && !voiceCheckPending);
+}
+
 // One settings path for both this page and external restores/imports. Appearance never writes prompts.
 function applySettings() {
     const next = readEffectiveConfig(), previous = settingsSnapshot || next;
@@ -156,6 +162,7 @@ function applySettings() {
         || ['align', 'avatarShape', 'quote', 'nameColor', 'textColor', 'bubbleColor', 'quoteColor'].includes(key))) {
         for (const entry of retained.values()) entry.updateStyle(next);
     }
+    if (!structural && (keys.includes('reroll') || speechChanged)) refreshVoiceControls();
     if (next.enabled && next.voice && (!previous.enabled || !previous.voice)) void checkVoiceConfiguration().finally(schedule);
     const projectionChanged = previous.enabled !== next.enabled || composeBodyDialoguePrompt(previous) !== composeBodyDialoguePrompt(next)
         || bodyDialogueUsesPersonLanguages(previous) !== bodyDialogueUsesPersonLanguages(next);
@@ -231,12 +238,14 @@ async function refresh() {
                 isCurrent: () => currentScope() && effectiveConfig().enabled && effectiveConfig().voice && retained.get(index)?.fingerprint === fingerprint });
             const view = renderDialogueFloor(root, {
                 config, people, userName: scope.userName, modules, mutateProse,
-                onPlay: (dialogue, person, button) => voice.play(voiceInput(dialogue, person, button)),
+                onPlay: (dialogue, person, button, reroll = false) => voice.play(voiceInput(dialogue, person, button), { reroll }),
             });
             dirtyRoots.delete(root);
             retained.set(index, { root, fingerprint, version, userName: scope.userName, ...view,
-                getVoiceRequests: () => view.voiceItems.map(({ dialogue, person, button }) => voiceInput(dialogue, person, button)) });
+                getVoiceRequests: () => view.voiceItems.map(({ dialogue, person, button, rerollButton }) => ({
+                    ...voiceInput(dialogue, person, button), rerollButton })) });
         }
+        refreshVoiceControls();
         const latest = retained.get(floors.at(-1)?.index);
         if (!streaming && !voiceCheckPending && config.voice && config.preGenerate && latest) {
             void voice.preGenerate(latest, latest.getVoiceRequests).catch(error => console.warn('[玉子手机] 正文语音预生成失败', error));
@@ -277,6 +286,7 @@ async function bindQQUpdates() {
         if (event?.reason !== 'voice-settings-changed' || !effectiveConfig().enabled || !effectiveConfig().voice) return;
         voice?.stop(true);
         void checkVoiceConfiguration().finally(schedule);
+        refreshVoiceControls();
     });
     if (!running || token !== generation) unsubscribe?.();
     else { qqCleanup = unsubscribe || (() => {}); void checkVoiceConfiguration().finally(schedule); }

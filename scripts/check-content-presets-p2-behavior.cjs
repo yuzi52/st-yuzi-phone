@@ -1,10 +1,9 @@
+const { createDeferred: deferred } = require('./helpers/deferred.cjs');
 const assert = require('assert/strict');
 const path = require('path');
 const { pathToFileURL } = require('url');
 
 const fresh = file => import(`${pathToFileURL(path.resolve(file)).href}?t=${Date.now()}-${Math.random()}`);
-const deferred = () => { let resolve; let reject; const promise = new Promise((res, rej) => { resolve = res; reject = rej; }); return { promise, resolve, reject }; };
-
 async function checkActions() {
     const { createContentPresetActions } = await fresh('modules/content-presets/runtime-actions.js');
     let current = true;

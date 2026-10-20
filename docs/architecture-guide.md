@@ -1418,11 +1418,11 @@ graph TD
 
 ### 7.2 持久存储入口
 
-生产数据通过 settings 或各业务专用 IndexedDB repository 持久化，临时可淘汰资源使用 cache-manager。未接入生产调用的通用 localStorage 管理器已移除，不迁移、不清理浏览器中已有的历史键；禁止业务模块新增裸 localStorage/sessionStorage 访问。
+生产数据通过 settings 或各业务专用 IndexedDB repository 持久化，cache-manager 仅用于删除历史图片缓存。未接入生产调用的通用 localStorage 管理器已移除，不迁移、不清理浏览器中已有的历史键；禁止业务模块新增裸 localStorage/sessionStorage 访问。
 
 ### 7.3 IndexedDB Cache Manager
 
-[`cache-manager.js`](../modules/cache-manager.js:1) 是 IndexedDB 缓存层，数据库名为 [`yuzi-phone-cache`](../modules/cache-manager.js:6)，版本为 [`DB_VERSION`](../modules/cache-manager.js:7)。当前 object store：
+[`cache-manager.js`](../modules/cache-manager.js:1) 是历史 IndexedDB 缓存的兼容清理层，数据库名为 `yuzi-phone-cache`，版本保持为 1。保留原有 object store，避免改变历史数据库结构：
 
 - [`templates`](../modules/cache-manager.js:8)
 - [`images`](../modules/cache-manager.js:9)
@@ -1430,23 +1430,17 @@ graph TD
 
 公开 API：
 
-- [`cacheSet()`](../modules/cache-manager.js:118)：写入 `{ v, expiresAt }` payload。
-- [`cacheGet()`](../modules/cache-manager.js:127)：读取 payload，过期时调用 [`cacheRemove()`](../modules/cache-manager.js:138)。
-- [`cacheRemove()`](../modules/cache-manager.js:138)：删除指定 key。
-- [`cacheClear()`](../modules/cache-manager.js:143)：清空指定 store。
-- [`CACHE_STORES`](../modules/cache-manager.js:148)：导出 store 名常量。
+- [`cacheRemove()`](../modules/cache-manager.js:118)：删除指定 key，等待事务提交后返回成功。
+- [`CACHE_STORES`](../modules/cache-manager.js:123)：导出历史 store 名常量。
 
 当前主要使用场景：
 
-- 背景图预览读取与缓存：[`setupBgUpload()`](../modules/settings-app/services/appearance-settings/background-service.js:11) 中使用 [`cacheGet()`](../modules/cache-manager.js:127) 和 [`cacheSet()`](../modules/cache-manager.js:118)。
-- App 图标持久设置与可再生缓存：[`savePhoneSetting('appIcons', nextIcons)`](../modules/settings-app/services/appearance-settings/icon-upload-service.js:149) 保存设置事实源，随后 [`cacheSet()`](../modules/settings-app/services/appearance-settings/icon-upload-service.js:150) 把同一 data URL 写入 `images` cache store。
+- [`background-service.js`](../modules/settings-app/services/appearance-settings/background-service.js:1) 与 [`icon-upload-service.js`](../modules/settings-app/services/appearance-settings/icon-upload-service.js:1) 在替换或删除图片时清理对应的历史缓存 key。
+- 当前图片由 [`appearance-asset-repository.js`](../modules/settings/appearance-asset-repository.js:1) 独立持久化，settings 保留资源引用；背景和图标不再向旧缓存复制图片。无调用方的缓存读、写和整库清空入口已经移除。
 
 维护规则：
 
-- cache 层只保存可再生缓存，不作为唯一事实源；真正设置仍在 settings 系统中。
-- 新增 store 需要更新 [`openDb()`](../modules/cache-manager.js:32) 的 upgrade 逻辑和 [`CACHE_STORES`](../modules/cache-manager.js:148)。
-- 写入大对象必须先确认业务预算，例如背景图和图标已有 [`STORAGE_BUDGETS`](../modules/settings-app/constants.js:4)。
-- 读取缓存必须能接受 `undefined` 并降级渲染；缓存不存在不是错误。
+- 保留历史数据库和按 key 删除能力，不为清理闲置 API 批量删除用户数据，也不把旧缓存当成图片事实源。
 - 外观美化包仓库不是 cache-manager 的 store；[`appearance-pack-repository.js`](../modules/settings-app/services/appearance-settings/appearance-pack-repository.js:1) 使用独立 IndexedDB 保存用户导入的持久本地资产，不能被可再生缓存清理语义覆盖。
 - 玉子美化预设由 [`content-presets/repository.js`](../modules/content-presets/repository.js:1) 使用独立数据库 `yuzi-phone-template-workshop-v2` 持久化；`presets` 与 `activeByTable` 的覆盖、删除和清绑定必须在同一 readwrite transaction 内完成，页面只能经 workshop service 操作。
 - 裸 `indexedDB.open()` 只允许出现在 [`cache-manager.js`](../modules/cache-manager.js:1)、[`appearance-pack-repository.js`](../modules/settings-app/services/appearance-settings/appearance-pack-repository.js:1) 与 [`content-presets/repository.js`](../modules/content-presets/repository.js:1)；页面层和普通业务模块新增 IndexedDB 入口必须先扩展存储边界契约及事务行为检查。

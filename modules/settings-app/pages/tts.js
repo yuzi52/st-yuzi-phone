@@ -19,7 +19,7 @@ const field = (name, label, value, type = 'text', required = false) => `
     </label>`;
 const action = (name, label, danger = false) => `<button type="button" class="phone-ios-row is-tappable${danger ? ' is-danger' : ''}" data-tts-action="${attr(name)}">
     <span class="phone-ios-row-label">${esc(label)}</span><span class="phone-ios-row-chevron" aria-hidden="true">›</span></button>`;
-const section = (title, body) => `<h2 class="phone-ios-group-header">${esc(title)}</h2><section class="phone-ios-group">${body}</section>`;
+const section = (title, body, name = '') => `<h2 class="phone-ios-group-header" ${name ? `data-tts-section="${attr(name)}"` : ''}>${esc(title)}</h2><section class="phone-ios-group">${body}</section>`;
 const selection = (name, label, value, hidden = false) => `<button type="button" class="phone-ios-row is-tappable" data-tts-action="${attr(name)}" aria-haspopup="dialog" ${hidden ? 'hidden' : ''}>
     <span class="phone-ios-row-label">${esc(label)}</span><span class="phone-ios-row-value"><span class="phone-ios-row-value-text">${esc(value)}</span><span class="phone-ios-row-chevron" aria-hidden="true">›</span></span></button>`;
 const createDraft = (preset = {}) => ({
@@ -57,31 +57,65 @@ export function createTtsPage({ container, state, render: renderSettings, pageRu
         const preview = container.querySelector('[data-tts-preview]');
         if (preview) previewDraft = { voiceId: preview.elements.voiceId.value, text: preview.elements.text.value };
     };
+    const applyPresets = config => {
+        presets = config.presets;
+        selectedPresetId = config.selectedPresetId;
+        draft ||= createDraft(presets.find(preset => preset.presetId === selectedPresetId));
+    };
+    const syncBusyControls = () => {
+        if (disposed) return;
+        container.querySelectorAll('.phone-app-body input, .phone-app-body button').forEach(element => {
+            element.disabled = busy || (element.dataset.ttsAction === 'delete-preset' && !draft?.presetId);
+        });
+        container.querySelector('[data-tts-connection]')?.setAttribute('aria-busy', String(busy));
+    };
+    const syncConnectionControls = () => {
+        const form = container.querySelector('[data-tts-connection]');
+        for (const name of ['name', 'baseUrl', 'model', 'apiKey']) {
+            form.elements[name].value = draft[name];
+            form.elements[name].defaultValue = draft[name];
+        }
+        form.elements.directFetch.checked = draft.directFetch;
+        container.querySelector('[data-tts-action="select-preset"] .phone-ios-row-value-text').textContent =
+            presets.find(preset => preset.presetId === selectedPresetId)?.name || t("未配置");
+        container.querySelector('[data-tts-section="connection"]').textContent =
+            draft.presetId ? t("编辑 TTS 预设") : t("新建 TTS 预设");
+        container.querySelector('[data-tts-key-status]').textContent = keyStatus();
+        container.querySelector('[data-tts-preview-status]').textContent = '';
+        syncModelControls();
+    };
     const load = async () => {
         const [config, library] = await Promise.all([facade.query.voicePresets(), facade.query.voiceLibrary()]);
         checked(config); checked(library);
         if (disposed) return;
-        presets = config.presets;
-        selectedPresetId = config.selectedPresetId;
+        applyPresets(config);
         entries = library.entries;
-        draft ||= createDraft(presets.find(preset => preset.presetId === selectedPresetId));
         render();
     };
     const run = async (operation, success = t("已保存")) => {
         if (busy || disposed) return;
         capture();
         busy = true;
-        render();
+        syncBusyControls();
+        let message = success;
+        let failed = false;
         try {
-            checked(await operation());
-            await load();
-            if (success) toast(success);
+            const result = checked(await operation());
+            if (disposed) return;
+            if (Array.isArray(result.presets)) {
+                applyPresets(result);
+                syncConnectionControls();
+            } else {
+                await load();
+            }
         } catch (error) {
-            toast(error?.code ? error.message : t("操作失败"), true);
+            message = error?.message || t("操作失败");
+            failed = true;
         } finally {
             busy = false;
-            render();
+            syncBusyControls();
         }
+        if (message) toast(message, failed);
     };
     const resetModels = () => { models = []; modelStatus = ''; modelError = false; };
     const pickPreset = () => showSettingsOptionSheet({
@@ -291,7 +325,7 @@ export function createTtsPage({ container, state, render: renderSettings, pageRu
                 <button type="button" class="phone-ios-row is-action is-danger" data-tts-action="delete-preset" ${draft.presetId ? '' : 'disabled'}>${t("删除预设")}</button>
                 <p class="phone-ios-group-footer" data-tts-key-status>${keyStatus()}</p>
                 <p class="phone-ios-group-footer${modelError ? ' phone-api-preset-error' : ''}" data-tts-model-status role="${modelError ? 'alert' : 'status'}" ${modelStatus ? '' : 'hidden'}>${esc(modelStatus)}</p>
-            </form>`)
+            </form>`, 'connection')
                 + section(t("音色仓库"), entries.map(entry => action(`entry:${entry.entryId}`, entry.name)).join('')
                     + (entries.length ? '' : `<p class="phone-ios-group-footer">${t("仓库暂无音色")}</p>`) + action('add', t("新增音色")))
                 + section(t("导入与导出"), action('import', t("导入音色仓库")) + action('export', t("导出音色仓库")))
@@ -314,7 +348,7 @@ export function createTtsPage({ container, state, render: renderSettings, pageRu
         container.querySelector('[data-tts-preview]')?.addEventListener('submit', event => {
             event.preventDefault(); void preview();
         });
-        if (busy) container.querySelectorAll('.phone-app-body input, .phone-app-body button').forEach(element => { element.disabled = true; });
+        syncBusyControls();
     };
     const renderWithScroll = createScrollPreserver(container, state, undefined, pageRuntime)
         .createRerenderWithScroll('ttsScrollTop', renderPage);

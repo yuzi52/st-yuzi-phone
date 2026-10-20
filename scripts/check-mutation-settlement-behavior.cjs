@@ -1,3 +1,4 @@
+const { createDeferred: deferred } = require('./helpers/deferred.cjs');
 const assert = require('assert');
 const path = require('path');
 const { pathToFileURL } = require('url');
@@ -7,16 +8,6 @@ const LEGACY_TIMEOUT_MS = 5000;
 
 function delay(ms) {
     return new Promise(resolve => setTimeout(resolve, ms));
-}
-
-function deferred() {
-    let resolve;
-    let reject;
-    const promise = new Promise((resolvePromise, rejectPromise) => {
-        resolve = resolvePromise;
-        reject = rejectPromise;
-    });
-    return { promise, resolve, reject };
 }
 
 async function settlementState(promise, waitMs = 20) {

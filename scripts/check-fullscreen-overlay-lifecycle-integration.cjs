@@ -1,3 +1,4 @@
+const { createDeferred } = require('./helpers/deferred.cjs');
 const assert = require('assert/strict');
 const fs = require('fs');
 const path = require('path');
@@ -17,16 +18,6 @@ async function flushAsync() {
     await Promise.resolve();
     await Promise.resolve();
     await new Promise(resolve => setImmediate(resolve));
-}
-
-function createDeferred() {
-    let resolve;
-    let reject;
-    const promise = new Promise((resolvePromise, rejectPromise) => {
-        resolve = resolvePromise;
-        reject = rejectPromise;
-    });
-    return { promise, resolve, reject };
 }
 
 function createRuntimeHarness(createFullscreenOverlayRuntime, options = {}) {

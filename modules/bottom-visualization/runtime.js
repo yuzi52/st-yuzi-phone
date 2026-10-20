@@ -32,7 +32,7 @@ export function createBottomVisualization() {
     const content = root.querySelector('.yuzi-bottom-content');
     const bar = root.querySelector('.yuzi-bottom-bar');
     const launch = root.querySelector('.yuzi-bottom-launch');
-    let active = '', lastEdge = 'review', collapsed = false;
+    let active = '', requestedSheet = '', lastEdge = 'review', collapsed = false;
     let raw = null, config;
     let renderedSheet = '', renderedMode = 'view';
     const scrolls = new Map();
@@ -46,25 +46,30 @@ export function createBottomVisualization() {
     scope.registerCleanup(() => root.remove());
     const options = createBottomOptions(scope);
     bindBottomScrollChain(scope, [panel, dock]);
-    const closePanel = () => { active = ''; editor.cancel(); cancelDelete(); };
+    const closePanel = () => { active = requestedSheet = ''; editor.cancel(); cancelDelete(); };
     const layout = createBottomLayout(scope, root, () => { closePanel(); render(); }, () => render(true));
-    const beautify = createBottomContentRenderer(content, { onChange: () => render(true) });
+    const beautify = createBottomContentRenderer(content, {
+        onBeforeChange: () => scrolls.set(`${renderedSheet}:${renderedMode}`, captureScroll()),
+        onChange: () => render(true, false),
+    });
     scope.registerCleanup(() => beautify.dispose());
     function captureScroll() {
-        return { top: content.scrollTop, left: content.scrollLeft, cards: new Map([...content.querySelectorAll('[data-row]')].map(node => [node.dataset.row, node.scrollTop])) };
+        return { top: content.scrollTop, left: content.scrollLeft, cards: new Map([...content.querySelectorAll('[data-row]')].filter(node => !node.closest('[data-staging]')).map(node => [node.dataset.row, node.scrollTop])) };
     }
-    function render(preserveScroll = false) {
+    function render(preserveScroll = false, capturePreviousScroll = true) {
         if (!config) return;
         const mode = editor.active ? 'edit' : deletion.active ? 'delete' : 'view';
         const busy = editor.saving || deletion.deleting;
-        scrolls.set(`${renderedSheet}:${renderedMode}`, captureScroll());
+        if (capturePreviousScroll) scrolls.set(`${renderedSheet}:${renderedMode}`, captureScroll());
+        const descending = config.sortDescendingBySheet[requestedSheet] === true;
+        const edge = config.position === 'edge';
+        const table = requestedSheet && requestedSheet !== 'review' ? buildTableContent(raw, requestedSheet, descending, editor, deletion) : null;
+        if (requestedSheet && requestedSheet !== 'review' && !table) closePanel();
+        const beautified = beautify.update(editor.active || deletion.active ? '' : requestedSheet, raw);
+        if (beautify.pending) return;
+        active = requestedSheet;
         const scroll = preserveScroll || active !== renderedSheet || mode !== renderedMode
             ? scrolls.get(`${active}:${mode}`) : null;
-        const descending = config.sortDescendingBySheet[active] === true;
-        const edge = config.position === 'edge';
-        const table = active && active !== 'review' ? buildTableContent(raw, active, descending, editor, deletion) : null;
-        if (active && active !== 'review' && !table) closePanel();
-        const beautified = beautify.update(editor.active || deletion.active ? '' : active, raw);
         if (lastEdge !== 'review' && !raw?.[lastEdge]) lastEdge = 'review';
         nav.hidden = edge ? !active : collapsed;
         bar.hidden = edge || !collapsed;
@@ -137,10 +142,11 @@ export function createBottomVisualization() {
         if (button.dataset.sheet) {
             if (editor.saving) return;
             cancelDelete();
-            active = active === button.dataset.sheet ? '' : button.dataset.sheet;
-            if (!active) editor.cancel();
-            if (active && config.position === 'edge') lastEdge = active;
+            requestedSheet = requestedSheet === button.dataset.sheet ? '' : button.dataset.sheet;
+            if (!requestedSheet) editor.cancel();
+            if (requestedSheet && config.position === 'edge') lastEdge = requestedSheet;
         }
+        if (['edit', 'delete', 'sort'].includes(button.dataset.action)) requestedSheet = active;
         if (button.dataset.action === 'edit') editor.begin(raw);
         if (button.dataset.action === 'delete') {
             raw = getTableData(); deletion.begin(raw, active);
@@ -186,7 +192,7 @@ export function createBottomVisualization() {
         if (button.dataset.action === 'close') closePanel();
         if (button.dataset.action === 'collapse') { closePanel(); collapsed = true; }
         if (button.dataset.action === 'expand') collapsed = false;
-        if (button.dataset.action === 'launch') active = lastEdge;
+        if (button.dataset.action === 'launch') requestedSheet = lastEdge;
         render();
     };
     for (const surface of [panel, dock, launch]) scope.addEventListener(surface, 'click', handleClick);

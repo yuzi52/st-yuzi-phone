@@ -1,3 +1,4 @@
+const { createDeferred } = require('./helpers/deferred.cjs');
 const assert = require('assert/strict');
 const path = require('path');
 const { pathToFileURL } = require('url');
@@ -6,16 +7,6 @@ const ROOT = process.cwd();
 
 function moduleUrl(relativePath) {
     return `${pathToFileURL(path.join(ROOT, relativePath)).href}?t=${Date.now()}-${Math.random()}`;
-}
-
-function createDeferred() {
-    let resolve;
-    let reject;
-    const promise = new Promise((resolvePromise, rejectPromise) => {
-        resolve = resolvePromise;
-        reject = rejectPromise;
-    });
-    return { promise, resolve, reject };
 }
 
 async function flushAsync() {

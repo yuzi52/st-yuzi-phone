@@ -1,6 +1,6 @@
 // modules/cache-manager.js
 /**
- * Yuzi Phone - IndexedDB 缓存管理
+ * Yuzi Phone - 历史 IndexedDB 缓存清理
  */
 
 const DB_NAME = 'yuzi-phone-cache';
@@ -115,33 +115,8 @@ function withStore(storeName, mode, handler) {
     }));
 }
 
-export async function cacheSet(storeName, key, value, ttlMs = 0) {
-    const payload = {
-        v: value,
-        expiresAt: ttlMs > 0 ? Date.now() + ttlMs : 0,
-    };
-    await withStore(storeName, 'readwrite', store => store.put(payload, key));
-    return true;
-}
-
-export async function cacheGet(storeName, key) {
-    const data = await withStore(storeName, 'readonly', store => store.get(key));
-    if (!data) return undefined;
-    const expiresAt = Number(data.expiresAt || 0);
-    if (expiresAt > 0 && expiresAt <= Date.now()) {
-        await cacheRemove(storeName, key);
-        return undefined;
-    }
-    return data.v;
-}
-
 export async function cacheRemove(storeName, key) {
     await withStore(storeName, 'readwrite', store => store.delete(key));
-    return true;
-}
-
-export async function cacheClear(storeName) {
-    await withStore(storeName, 'readwrite', store => store.clear());
     return true;
 }
 

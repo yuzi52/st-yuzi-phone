@@ -1,3 +1,4 @@
+const { createDeferred } = require('./helpers/deferred.cjs');
 const assert = require('assert/strict');
 const fs = require('fs');
 const path = require('path');
@@ -28,16 +29,6 @@ async function loadBarrel() {
 
 function neverSettles() {
     return new Promise(() => {});
-}
-
-function createDeferred() {
-    let resolve;
-    let reject;
-    const promise = new Promise((resolvePromise, rejectPromise) => {
-        resolve = resolvePromise;
-        reject = rejectPromise;
-    });
-    return { promise, resolve, reject };
 }
 
 function wait(ms) {

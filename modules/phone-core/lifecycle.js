@@ -137,7 +137,6 @@ function initializePhoneRuntimeBindings(state = getPhoneCoreState()) {
     ensureRouteRenderSubscription(state);
     scheduleIdleApiDebugTask(state);
     initSmartRefreshListener();
-    scheduleShellWindowInteractions(state);
 
     logger.debug({
         action: 'bindings.init',
@@ -179,6 +178,7 @@ function hasCommittedPhoneRoutePage(state = getPhoneCoreState()) {
 function activatePhoneRuntimeState(state = getPhoneCoreState(), options = {}) {
     state.isDestroying = false;
     state.isPhoneActive = true;
+    scheduleShellWindowInteractions(state);
     startStatusClock(state);
     requestPhoneRuntimeActivationRoute(options);
     notifyPhoneActivity();

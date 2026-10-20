@@ -1,3 +1,4 @@
+const { createDeferred } = require('./helpers/deferred.cjs');
 const assert = require('assert/strict');
 const path = require('path');
 const { pathToFileURL } = require('url');
@@ -27,16 +28,6 @@ async function waitForState(label, predicate, timeoutMs = 2500) {
     }
     const suffix = lastError ? `：${lastError.message}` : '';
     throw new Error(`等待状态超时：${label}${suffix}`);
-}
-
-function createDeferred() {
-    let resolve;
-    let reject;
-    const promise = new Promise((resolvePromise, rejectPromise) => {
-        resolve = resolvePromise;
-        reject = rejectPromise;
-    });
-    return { promise, resolve, reject };
 }
 
 class FakeClock {

@@ -1,3 +1,4 @@
+const { createDeferred: deferred } = require('./helpers/deferred.cjs');
 const assert = require('node:assert/strict');
 const path = require('node:path');
 const { pathToFileURL } = require('node:url');
@@ -7,16 +8,6 @@ const ROOT = process.cwd();
 function importModule(relativePath) {
     const href = pathToFileURL(path.join(ROOT, relativePath)).href;
     return import(`${href}?contract=${Date.now()}-${Math.random()}`);
-}
-
-function deferred() {
-    let resolve;
-    let reject;
-    const promise = new Promise((nextResolve, nextReject) => {
-        resolve = nextResolve;
-        reject = nextReject;
-    });
-    return { promise, resolve, reject };
 }
 
 class FakeElement extends EventTarget {

@@ -28,9 +28,17 @@ export async function dialogueDigest(value) {
     return `${value.length}:${(first >>> 0).toString(16)}:${(second >>> 0).toString(16)}`;
 }
 
+async function audioIdentity({ chat, floor, fingerprint, dialogue, speechText = dialogue.text, speechControls, person }, signature) {
+    const controls = speechControls ? normalizeQQVoiceSpeechControls(speechControls) : null;
+    const id = 'audio:' + await dialogueDigest(JSON.stringify([chat, floor, fingerprint, dialogue.start, speechText, person.voice.voiceId, signature,
+        ...(controls ? [controls] : [])]));
+    return { id, controls };
+}
+
 export function createBodyDialogueVoice() {
     const playback = createVoicePlaybackController();
     const requests = new Map();
+    const rerollStates = new WeakMap();
     let current = null, generation = 0, batch = null;
     // Only the latest floor is tracked. Failed lines wait for an explicit click, including after a style rebuild.
     const failed = new Set();
@@ -50,6 +58,17 @@ export function createBodyDialogueVoice() {
         button.setAttribute('aria-label', loading
             ? selected ? '正在合成对白，完成后播放' : '正在预生成语音，点击后完成即播放'
             : playing ? '暂停朗读' : '播放对白');
+        const state = rerollStates.get(button);
+        if (state) {
+            state.button.hidden = !state.enabled || !state.cached || state.generation !== generation;
+            state.button.disabled = loading || requests.has(button);
+        }
+    };
+    const markCached = (button, cached) => {
+        const state = rerollStates.get(button);
+        if (state?.generation !== generation) return;
+        // A synthesis/cache read is newer than a background availability lookup.
+        state.cached = cached; state.checked = true; update(button);
     };
     playback.subscribe(() => update(current?.button));
     const cancelRequest = request => {
@@ -77,9 +96,9 @@ export function createBodyDialogueVoice() {
         for (const request of requests.values()) cancelRequest(request);
         if (resetFailures) { failed.clear(); connectionBlocked = false; }
     };
-    // Both entry points share the in-flight request as well as the existing persistent cache.
-    const getAudio = (args, owner = null) => {
-        const { card, chat, floor, fingerprint, dialogue, speechText = dialogue.text, speechControls = null, person, button, isCurrent } = args;
+    // Playback, pre-generation and reroll share requests and the same persistent cache entry.
+    const getAudio = (args, owner = null, reroll = false) => {
+        const { card, chat, floor, fingerprint, dialogue, speechText = dialogue.text, person, button, isCurrent } = args;
         const existing = requests.get(button);
         if (existing) {
             if (owner) { existing.batch = owner; owner.connection ||= existing.connection; }
@@ -88,7 +107,7 @@ export function createBodyDialogueVoice() {
         const request = { button, controller: new AbortController(), batch: owner, loading: false };
         const token = generation;
         const valid = () => token === generation && !request.controller.signal.aborted && isCurrent() && button.isConnected;
-        requests.set(button, request);
+        requests.set(button, request); update(button);
         request.promise = (async () => {
             const attempt = qqFailureLog.begin({ source: '正文朗读', kind: 'tts', scopeId: getQQV2RuntimeStatus().scopeId });
             try {
@@ -96,15 +115,14 @@ export function createBodyDialogueVoice() {
                 if (owner) owner.connection = request.connection;
                 const { connection, signature } = await request.connection;
                 if (!valid()) return;
-                const controls = speechControls ? normalizeQQVoiceSpeechControls(speechControls) : null;
-                const id = 'audio:' + await dialogueDigest(JSON.stringify([chat, floor, fingerprint, dialogue.start, speechText, person.voice.voiceId, signature,
-                    ...(controls ? [controls] : [])]));
+                const { id, controls } = await audioIdentity(args, signature);
                 if (!valid()) return;
                 request.id = id;
                 if (owner && failed.has(id)) return;
                 let media = await repository.getMedia(id);
                 if (!valid()) return;
-                if (!media) {
+                markCached(button, Boolean(media));
+                if (reroll || !media) {
                     request.loading = true; update(button);
                     const text = prepareQQVoiceText(speechText).text;
                     attempt.apiKey = connection.apiKey; attempt.model = connection.settings.model; attempt.stage = 'request';
@@ -113,6 +131,7 @@ export function createBodyDialogueVoice() {
                     if (!valid()) return;
                     await repository.putAudio({ id, card, chat, floor, fingerprint, personId: person.id, voiceId: person.voice.voiceId, signature }, media.blob);
                     if (!valid()) { await repository.pruneAudio(chat, entry => entry.id !== id); return; }
+                    markCached(button, true);
                     connectionBlocked = false;
                 }
                 failed.delete(id);
@@ -132,6 +151,27 @@ export function createBodyDialogueVoice() {
     return {
         stop,
         stopPreGeneration,
+        refreshReroll(items, enabled) {
+            let connection;
+            const token = generation;
+            for (const args of items) {
+                const { button, rerollButton, person, isCurrent } = args;
+                if (!rerollButton) continue;
+                const previous = rerollStates.get(button);
+                if (previous?.generation === token && previous.enabled === enabled) { update(button); continue; }
+                const state = { button: rerollButton, enabled, generation: token, cached: false, checked: false };
+                rerollStates.set(button, state); update(button);
+                if (!enabled || !person?.voice?.voiceId) continue;
+                connection ||= prepareConnection();
+                void (async () => {
+                    const { signature } = await connection;
+                    const { id } = await audioIdentity(args, signature);
+                    const cached = await repository.hasAudio(id);
+                    if (rerollStates.get(button) !== state || state.checked || token !== generation || !isCurrent() || !button.isConnected) return;
+                    state.cached = cached; state.checked = true; update(button);
+                })().catch(() => { /* Missing configuration is reported only on an explicit play action. */ });
+            }
+        },
         async preGenerate(key, items) {
             if (batch?.key === key) return;
             stopPreGeneration();
@@ -150,16 +190,20 @@ export function createBodyDialogueVoice() {
                 }
             }
         },
-        async play(args) {
+        async play(args, { reroll = false } = {}) {
             const { person, button, isCurrent } = args;
+            if (reroll) {
+                const state = rerollStates.get(button);
+                if (!state?.enabled || !state.cached || state.generation !== generation || requests.has(button)) return;
+            }
             if (current?.button === button && current.loading) return;
             if (!person?.voice?.voiceId) { showNotification('请先在正文人物管理中创建该人物并选择音色', 'info'); return; }
-            if (current?.button !== button) stopPlayback();
+            if (reroll || current?.button !== button) stopPlayback();
             const selection = { button, loading: true, id: '', request: null };
             current = selection; update(button);
             let playing = false;
             try {
-                selection.request = getAudio(args);
+                selection.request = getAudio(args, null, reroll);
                 const media = await selection.request.promise;
                 if (current !== selection) return;
                 if (!media || !isCurrent() || !button.isConnected) { stopPlayback(); return; }

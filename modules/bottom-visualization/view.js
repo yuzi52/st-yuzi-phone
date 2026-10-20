@@ -21,6 +21,14 @@ export function buildNavigation(raw, active = '') {
 export function buildTableContent(raw, key, descending = false, editor = null, deletion = null) {
     const context = resolveTableViewerContext(key, { initialTableData: raw });
     if (!context) return null;
+    return {
+        title: context.tableName,
+        count: context.rows.length,
+        get html() { return buildTableCardsHtml(context, key, descending, editor, deletion); },
+    };
+}
+
+function buildTableCardsHtml(context, key, descending, editor, deletion) {
     const { headers, rawHeaders, rows, tableName } = context;
     const entries = rows.map((row, index) => ({ row: Array.isArray(row) ? row : [], index }));
     if (descending) entries.reverse();
@@ -39,7 +47,7 @@ export function buildTableContent(raw, key, descending = false, editor = null, d
                     }).join('')}
                 </div>
             </article>`).join('');
-        return { title: tableName, count: rows.length, html: (style.scopedCss ? `<style>${style.scopedCss}</style>` : '') + (cards || `<p class="yuzi-bottom-empty">${t('暂无数据')}</p>`) };
+        return (style.scopedCss ? `<style>${style.scopedCss}</style>` : '') + (cards || `<p class="yuzi-bottom-empty">${t('暂无数据')}</p>`);
     }
     const deleteControl = (row, index) => {
         const label = `#${String(row[0] ?? index + 1)}`;
@@ -48,14 +56,14 @@ export function buildTableContent(raw, key, descending = false, editor = null, d
         const actionLabel = locked ? t('条目已锁定') : selected ? t('取消选择') : t('选择删除');
         return `<button type="button" class="phone-ios-mini-btn" data-action="toggle-delete-row" data-row-index="${index}" aria-pressed="${selected}" aria-label="${attr(`${actionLabel} ${label}`)}"${deletion.deleting || locked ? ' disabled' : ''}>${selected ? '✓ ' : ''}${html(label)}${locked ? ` · ${t('条目已锁定')}` : ''}</button>`;
     };
-    return { title: tableName, count: rows.length, html: entries.map(({ row, index }) => `
+    return entries.map(({ row, index }) => `
         <article class="yuzi-bottom-card" data-row="${attr(String(row[0] ?? index))}">
             <header class="yuzi-bottom-card-heading">${deleteControl(row, index)}</header>
             <dl>${headers.slice(1).map((header, i) => {
                 const value = String(row[i + 1] ?? '');
                 return value.trim() ? `<div><dt>${html(header)}</dt><dd>${html(value)}</dd></div>` : '';
             }).join('')}</dl>
-        </article>`).join('') || `<p class="yuzi-bottom-empty">${t('暂无数据')}</p>` };
+        </article>`).join('') || `<p class="yuzi-bottom-empty">${t('暂无数据')}</p>`;
 }
 
 export function getOptionTexts(raw) {

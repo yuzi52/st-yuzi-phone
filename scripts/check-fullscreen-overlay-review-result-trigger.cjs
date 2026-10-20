@@ -1,3 +1,4 @@
+const { createDeferred } = require('./helpers/deferred.cjs');
 const assert = require('assert/strict');
 const fs = require('fs');
 const path = require('path');
@@ -53,20 +54,6 @@ async function flushMicrotasks(turns = 16) {
     for (let index = 0; index < turns; index += 1) {
         await Promise.resolve();
     }
-}
-
-function createDeferred() {
-    let resolve;
-    let reject;
-    const promise = new Promise((resolvePromise, rejectPromise) => {
-        resolve = resolvePromise;
-        reject = rejectPromise;
-    });
-    return {
-        promise,
-        resolve,
-        reject,
-    };
 }
 
 function makeRawSnapshot({

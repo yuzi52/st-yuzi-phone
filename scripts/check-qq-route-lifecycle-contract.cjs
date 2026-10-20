@@ -1,18 +1,9 @@
+const { createDeferred: deferred } = require('./helpers/deferred.cjs');
 const assert = require('node:assert/strict');
 const path = require('node:path');
 const { pathToFileURL } = require('node:url');
 
 const load = (file) => import(pathToFileURL(path.resolve(file)).href);
-
-function deferred() {
-    let resolve;
-    let reject;
-    const promise = new Promise((nextResolve, nextReject) => {
-        resolve = nextResolve;
-        reject = nextReject;
-    });
-    return { promise, resolve, reject };
-}
 
 function bootstrap(scopeId = 'scope-a') {
     return { ok: true, context: { scopeId } };
