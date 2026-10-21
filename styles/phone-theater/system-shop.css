@@ -1,0 +1,125 @@
+/* 玉子市场：原型配色与卡片布局，导航、弹层和手机外壳由宿主提供。 */
+.yuzi-theater-shop {
+    --yuzi-theater-shop-caption-text: calc(var(--yuzi-theater-shop-caption-size) * var(--yuzi-phone-readable-text-scale, 1));
+    --yuzi-theater-shop-small-text: calc(var(--yuzi-theater-shop-small-size) * var(--yuzi-phone-readable-text-scale, 1));
+    --yuzi-theater-shop-bg: var(--yuzi-theater-shop-light-bg);
+    --yuzi-theater-shop-card: var(--yuzi-theater-shop-light-card);
+    --yuzi-theater-shop-wash: var(--yuzi-theater-shop-light-wash);
+    --yuzi-theater-shop-ink: var(--yuzi-theater-shop-light-ink);
+    --yuzi-theater-shop-muted: var(--yuzi-theater-shop-light-muted);
+    --yuzi-theater-shop-accent: var(--yuzi-theater-shop-light-accent);
+    --yuzi-theater-shop-accent-ink: var(--yuzi-theater-shop-light-accent-ink);
+    --yuzi-theater-shop-soft: var(--yuzi-theater-shop-light-soft);
+    --yuzi-theater-shop-on-accent: var(--yuzi-phone-color-white);
+    --yuzi-theater-shop-green: var(--yuzi-theater-shop-light-green);
+    --yuzi-theater-shop-blue: var(--yuzi-theater-shop-light-blue);
+    --yuzi-theater-shop-purple: var(--yuzi-theater-shop-light-purple);
+    --yuzi-theater-shop-orange: var(--yuzi-theater-shop-light-orange);
+    --yuzi-theater-shop-red: var(--yuzi-theater-shop-light-red);
+    --yuzi-theater-shop-black: var(--yuzi-theater-shop-light-black);
+    --yuzi-theater-shop-gold: var(--yuzi-theater-shop-light-gold);
+    --yuzi-phone-theater-surface: var(--yuzi-theater-shop-bg);
+    --yuzi-phone-theater-ink: var(--yuzi-theater-shop-ink);
+    --yuzi-phone-theater-line: transparent;
+    --yuzi-phone-home-region-background: var(--yuzi-theater-shop-bg);
+    --yuzi-theater-home-clearance: var(--yuzi-phone-home-indicator-hit-height);
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
+    color-scheme: light;
+    background: var(--yuzi-theater-shop-bg);
+    color: var(--yuzi-theater-shop-ink);
+    font-family: var(--yuzi-phone-font-family);
+    font-size: calc(var(--yuzi-theater-shop-body-size) * var(--yuzi-phone-readable-text-scale, 1));
+    line-height: var(--yuzi-theater-shop-line-height);
+}
+.yuzi-theater-shop[data-theme="dark"] {
+    color-scheme: dark;
+    --yuzi-theater-shop-bg: var(--yuzi-theater-shop-dark-bg);
+    --yuzi-theater-shop-card: var(--yuzi-theater-shop-dark-card);
+    --yuzi-theater-shop-wash: var(--yuzi-theater-shop-dark-wash);
+    --yuzi-theater-shop-ink: var(--yuzi-theater-shop-dark-ink);
+    --yuzi-theater-shop-muted: var(--yuzi-theater-shop-dark-muted);
+    --yuzi-theater-shop-accent: var(--yuzi-theater-shop-dark-accent);
+    --yuzi-theater-shop-accent-ink: var(--yuzi-theater-shop-dark-accent-ink);
+    --yuzi-theater-shop-soft: var(--yuzi-theater-shop-dark-soft);
+    --yuzi-theater-shop-on-accent: var(--yuzi-theater-shop-dark-button-ink);
+    --yuzi-theater-shop-green: var(--yuzi-theater-shop-dark-green);
+    --yuzi-theater-shop-blue: var(--yuzi-theater-shop-dark-blue);
+    --yuzi-theater-shop-purple: var(--yuzi-theater-shop-dark-purple);
+    --yuzi-theater-shop-orange: var(--yuzi-theater-shop-dark-orange);
+    --yuzi-theater-shop-red: var(--yuzi-theater-shop-dark-red);
+    --yuzi-theater-shop-black: var(--yuzi-phone-color-black);
+    --yuzi-theater-shop-gold: var(--yuzi-theater-shop-dark-gold);
+}
+.phone-page[data-yuzi-phone-bottom-bar="docked"] .yuzi-theater-shop { --yuzi-theater-home-clearance: 0px; }
+.yuzi-theater-shop *, .yuzi-theater-shop *::before { box-sizing: border-box; }
+.yuzi-theater-shop button { font-family: inherit; box-shadow: none; cursor: pointer; }
+.yuzi-theater-shop-scroll {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    overscroll-behavior: contain;
+    scrollbar-width: none;
+    padding: var(--yuzi-theater-shop-small-gap) var(--yuzi-theater-shop-gutter) calc(var(--yuzi-theater-shop-gutter) + var(--yuzi-theater-home-clearance));
+}
+.yuzi-theater-shop-scroll::-webkit-scrollbar { display: none; }
+.yuzi-theater-shop-tier-green { --yuzi-theater-shop-tier: var(--yuzi-theater-shop-green); }
+.yuzi-theater-shop-tier-blue { --yuzi-theater-shop-tier: var(--yuzi-theater-shop-blue); }
+.yuzi-theater-shop-tier-purple { --yuzi-theater-shop-tier: var(--yuzi-theater-shop-purple); }
+.yuzi-theater-shop-tier-orange { --yuzi-theater-shop-tier: var(--yuzi-theater-shop-orange); }
+.yuzi-theater-shop-tier-red { --yuzi-theater-shop-tier: var(--yuzi-theater-shop-red); }
+.yuzi-theater-shop-tier-black { --yuzi-theater-shop-tier: var(--yuzi-theater-shop-gold); }
+.yuzi-theater-shop-hero { padding: var(--yuzi-theater-shop-gutter); border-radius: var(--yuzi-theater-shop-hero-radius); background: var(--yuzi-theater-shop-wash); }
+.yuzi-theater-shop-brand { color: var(--yuzi-theater-shop-accent-ink); font-size: var(--yuzi-theater-shop-small-text); font-weight: var(--yuzi-theater-shop-strong-weight); letter-spacing: var(--yuzi-theater-shop-tracking); }
+.yuzi-theater-shop-head, .yuzi-theater-shop-section-head, .yuzi-theater-shop-task-foot, .yuzi-theater-shop-item-head, .yuzi-theater-shop-item-foot { display: flex; align-items: center; justify-content: space-between; gap: var(--yuzi-theater-shop-gap); }
+.yuzi-theater-shop-head { margin: var(--yuzi-theater-shop-gap) 0; }
+.yuzi-theater-shop-badge { display: inline-flex; align-items: center; gap: var(--yuzi-theater-shop-gap); min-width: 0; padding: var(--yuzi-theater-shop-small-gap) var(--yuzi-theater-shop-card-padding) var(--yuzi-theater-shop-small-gap) var(--yuzi-theater-shop-small-gap); border-radius: var(--yuzi-phone-radius-pill); background: var(--yuzi-theater-shop-card); color: var(--yuzi-theater-shop-tier); font-weight: var(--yuzi-theater-shop-weight); }
+.yuzi-theater-shop-badge > span { flex: none; display: grid; place-items: center; width: var(--yuzi-theater-shop-badge-size); height: var(--yuzi-theater-shop-badge-size); border-radius: var(--yuzi-phone-radius-pill); background: var(--yuzi-theater-shop-tier); color: var(--yuzi-theater-shop-on-accent); }
+.yuzi-theater-shop-tier-black .yuzi-theater-shop-badge { background: var(--yuzi-theater-shop-black); }
+.yuzi-theater-shop-points { display: flex; flex: none; align-items: baseline; gap: var(--yuzi-theater-shop-small-gap); color: var(--yuzi-theater-shop-accent-ink); font-variant-numeric: tabular-nums; }
+.yuzi-theater-shop-points b { font-size: calc(var(--yuzi-theater-shop-points-size) * var(--yuzi-phone-readable-text-scale, 1)); }
+.yuzi-theater-shop-points small, .yuzi-theater-shop-rank, .yuzi-theater-shop-hint, .yuzi-theater-shop-world, .yuzi-theater-shop-notice { font-size: var(--yuzi-theater-shop-caption-text); color: var(--yuzi-theater-shop-muted); }
+.yuzi-theater-shop-rank { display: flex; flex-wrap: wrap; justify-content: space-between; gap: var(--yuzi-theater-shop-small-gap); }
+.yuzi-theater-shop-progress { appearance: none; display: block; width: 100%; height: var(--yuzi-theater-shop-progress-height); margin-top: var(--yuzi-theater-shop-small-gap); border: 0; border-radius: var(--yuzi-phone-radius-pill); overflow: hidden; background: var(--yuzi-theater-shop-card); color: var(--yuzi-theater-shop-tier); accent-color: var(--yuzi-theater-shop-tier); }
+.yuzi-theater-shop-progress::-webkit-progress-bar { background: var(--yuzi-theater-shop-card); }
+.yuzi-theater-shop-progress::-webkit-progress-value { background: var(--yuzi-theater-shop-tier); border-radius: var(--yuzi-phone-radius-pill); }
+.yuzi-theater-shop-progress::-moz-progress-bar { background: var(--yuzi-theater-shop-tier); }
+.yuzi-theater-shop-section { margin-top: var(--yuzi-theater-shop-section-gap); }
+.yuzi-theater-shop-heading { display: flex; align-items: center; gap: var(--yuzi-theater-shop-gap); margin: 0 0 var(--yuzi-theater-shop-gap); font-size: inherit; font-weight: var(--yuzi-theater-shop-weight); }
+.yuzi-theater-shop-heading::before { content: ''; flex: none; width: var(--yuzi-theater-shop-progress-height); height: var(--yuzi-theater-shop-progress-height); border-radius: var(--yuzi-phone-radius-pill); background: var(--yuzi-theater-shop-accent); }
+.yuzi-theater-shop-section-head { margin-bottom: var(--yuzi-theater-shop-gap); }
+.yuzi-theater-shop-section-head .yuzi-theater-shop-heading { margin: 0; }
+.yuzi-theater-shop-hint { margin: 0 0 var(--yuzi-theater-shop-gap); }
+.yuzi-theater-shop-task { padding: var(--yuzi-theater-shop-gutter); border-radius: var(--yuzi-theater-shop-card-radius); background: var(--yuzi-theater-shop-card); }
+.yuzi-theater-shop-task-top { display: flex; align-items: center; flex-wrap: wrap; gap: var(--yuzi-theater-shop-gap); font-size: var(--yuzi-theater-shop-caption-text); }
+.yuzi-theater-shop-chip, .yuzi-theater-shop-status { padding: 0 var(--yuzi-theater-shop-gap); border-radius: var(--yuzi-phone-radius-md); background: var(--yuzi-theater-shop-wash); }
+.yuzi-theater-shop-difficulty { color: var(--yuzi-theater-shop-orange); }
+.yuzi-theater-shop-status { margin-left: auto; border-radius: var(--yuzi-phone-radius-pill); color: var(--yuzi-theater-shop-accent-ink); background: var(--yuzi-theater-shop-soft); }
+.yuzi-theater-shop-task.is-fail .yuzi-theater-shop-status { color: var(--yuzi-theater-shop-red); }
+.yuzi-theater-shop-task.is-abandon .yuzi-theater-shop-status { color: var(--yuzi-theater-shop-muted); background: var(--yuzi-theater-shop-wash); }
+.yuzi-theater-shop-task-name { margin: var(--yuzi-theater-shop-gap) 0 var(--yuzi-theater-shop-small-gap); font-size: calc(var(--yuzi-theater-shop-title-size) * var(--yuzi-phone-readable-text-scale, 1)); }
+.yuzi-theater-shop-task-description { margin: 0; color: var(--yuzi-theater-shop-muted); white-space: pre-wrap; overflow-wrap: anywhere; }
+.yuzi-theater-shop-task-foot { margin-top: var(--yuzi-theater-shop-card-padding); }
+.yuzi-theater-shop-task-foot strong { color: var(--yuzi-theater-shop-accent-ink); }
+.yuzi-theater-shop .yuzi-theater-shop-button { flex: none; min-height: 0; padding: var(--yuzi-theater-shop-small-gap) var(--yuzi-theater-shop-gap); border: 0; border-radius: var(--yuzi-phone-radius-xl); background: var(--yuzi-theater-shop-accent); color: var(--yuzi-theater-shop-on-accent); font-size: var(--yuzi-theater-shop-caption-text); font-weight: var(--yuzi-theater-shop-weight); line-height: inherit; }
+.yuzi-theater-shop .yuzi-theater-shop-button.is-soft { background: var(--yuzi-theater-shop-wash); color: var(--yuzi-theater-shop-muted); }
+.yuzi-theater-shop button:disabled { opacity: var(--yuzi-phone-nav-disabled-opacity); cursor: default; }
+.yuzi-theater-shop-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--yuzi-theater-shop-gap); }
+.yuzi-theater-shop-item { display: flex; flex-direction: column; min-width: 0; gap: var(--yuzi-theater-shop-small-gap); padding: var(--yuzi-theater-shop-card-padding); border-radius: var(--yuzi-phone-radius-3xl); background: color-mix(in srgb, var(--yuzi-theater-shop-tier) var(--yuzi-theater-shop-tint), var(--yuzi-theater-shop-card)); }
+.yuzi-theater-shop-grade { flex: none; padding: 0 var(--yuzi-theater-shop-small-gap); border-radius: var(--yuzi-phone-radius-sm); background: var(--yuzi-theater-shop-tier); color: var(--yuzi-theater-shop-on-accent); font-size: var(--yuzi-theater-shop-small-text); font-weight: var(--yuzi-theater-shop-weight); }
+.yuzi-theater-shop-world { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.yuzi-theater-shop-item-name { margin: 0; color: var(--yuzi-theater-shop-tier); font-size: inherit; overflow-wrap: anywhere; }
+.yuzi-theater-shop-item-description { flex: 1; margin: 0; color: var(--yuzi-theater-shop-muted); font-size: var(--yuzi-theater-shop-caption-text); white-space: pre-wrap; overflow-wrap: anywhere; }
+.yuzi-theater-shop-item-foot { flex-wrap: wrap; margin-top: var(--yuzi-theater-shop-small-gap); font-variant-numeric: tabular-nums; }
+.yuzi-theater-shop-item.yuzi-theater-shop-tier-black { background: var(--yuzi-theater-shop-black); color: var(--yuzi-theater-shop-gold); }
+.yuzi-theater-shop-item.yuzi-theater-shop-tier-black :is(.yuzi-theater-shop-item-description, .yuzi-theater-shop-world) { color: var(--yuzi-theater-shop-gold); }
+.yuzi-theater-shop-tier-black .yuzi-theater-shop-grade { color: var(--yuzi-theater-shop-black); }
+.yuzi-theater-shop-bag { display: flex; flex-wrap: wrap; gap: var(--yuzi-theater-shop-gap); }
+.yuzi-theater-shop-bag-item { padding: var(--yuzi-theater-shop-small-gap) var(--yuzi-theater-shop-card-padding); border: 0; border-radius: var(--yuzi-phone-radius-pill); background: color-mix(in srgb, var(--yuzi-theater-shop-tier) var(--yuzi-theater-shop-tint), var(--yuzi-theater-shop-card)); color: var(--yuzi-theater-shop-tier); font-size: inherit; }
+.yuzi-theater-shop-bag-item.yuzi-theater-shop-tier-black { background: var(--yuzi-theater-shop-black); }
+.yuzi-theater-shop-notice { margin: var(--yuzi-theater-shop-section-gap) 0 0; text-align: center; }
+.yuzi-theater-shop-empty { padding: var(--yuzi-theater-shop-section-gap) 0; color: var(--yuzi-theater-shop-muted); text-align: center; }

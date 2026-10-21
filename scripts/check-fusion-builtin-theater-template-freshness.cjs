@@ -15,6 +15,7 @@ const EXPECTED_BUILTIN_SHEET_KEYS = Object.freeze([
     'sheet_livestream_rooms',
     'sheet_small_calendar',
     'sheet_npc_diary_entries',
+    'sheet_system_shop',
     'sheet_summary',
 ]);
 const LEGACY_MESSAGE_RECORD_SHEET_KEY = 'sheet_IVu96w0X';
@@ -131,7 +132,7 @@ async function main() {
     const builtinSheetKeys = getSheetKeys(builtinModule.BUILTIN_THEATER_TEMPLATE);
     const expectedSheetKeys = getSheetKeys(expectedTemplate);
     assert.deepEqual([...builtinSheetKeys].sort(), [...expectedSheetKeys].sort(), 'builtin sheet 列表必须与双源合成模板一致');
-    assert.deepEqual([...builtinSheetKeys].sort(), [...EXPECTED_BUILTIN_SHEET_KEYS].sort(), '内置 Theater+纪要表必须只包含当前保留的六张 sheet');
+    assert.deepEqual([...builtinSheetKeys].sort(), [...EXPECTED_BUILTIN_SHEET_KEYS].sort(), '内置 Theater+纪要表必须只包含当前保留的七张 sheet');
     assert.equal(builtinSheetKeys.length, EXPECTED_BUILTIN_SHEET_KEYS.length, '内置 Theater+纪要表 sheet 数量必须与保留表集合一致');
     assert.ok(!builtinSheetKeys.includes(LEGACY_MESSAGE_RECORD_SHEET_KEY), '内置 Theater+纪要表不得恢复旧消息记录表');
     assert.ok(builtinSheetKeys.includes('sheet_summary'), '内置小剧场+纪要表必须包含 sheet_summary');

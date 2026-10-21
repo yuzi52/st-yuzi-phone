@@ -5,6 +5,56 @@
    ======================================== */
 
 :root {
+    /* 玉子市场：浅色奶油抹茶 / 深色黑粉，页面仅消费这些语义 token。 */
+    --yuzi-theater-shop-light-bg: #fbf8ef;
+    --yuzi-theater-shop-light-card: #fffdf8;
+    --yuzi-theater-shop-light-wash: #f2eee1;
+    --yuzi-theater-shop-light-ink: #3d3a33;
+    --yuzi-theater-shop-light-muted: #8c8676;
+    --yuzi-theater-shop-light-accent: #7fb08a;
+    --yuzi-theater-shop-light-accent-ink: #4f8a5d;
+    --yuzi-theater-shop-light-soft: #e9f2e3;
+    --yuzi-theater-shop-light-green: #4f9a62;
+    --yuzi-theater-shop-light-blue: #4f82bf;
+    --yuzi-theater-shop-light-purple: #8a6cc0;
+    --yuzi-theater-shop-light-orange: #c4802f;
+    --yuzi-theater-shop-light-red: #c95b6a;
+    --yuzi-theater-shop-light-black: #36322f;
+    --yuzi-theater-shop-light-gold: #ecd096;
+    --yuzi-theater-shop-dark-bg: #141013;
+    --yuzi-theater-shop-dark-card: #1f191d;
+    --yuzi-theater-shop-dark-wash: #2a2127;
+    --yuzi-theater-shop-dark-ink: #f6e8ef;
+    --yuzi-theater-shop-dark-muted: #a5909b;
+    --yuzi-theater-shop-dark-accent: #ff9cc2;
+    --yuzi-theater-shop-dark-accent-ink: #ffadcc;
+    --yuzi-theater-shop-dark-soft: #3a2431;
+    --yuzi-theater-shop-dark-button-ink: #2a1320;
+    --yuzi-theater-shop-dark-green: #93d3a6;
+    --yuzi-theater-shop-dark-blue: #93bdf0;
+    --yuzi-theater-shop-dark-purple: #c8aaf3;
+    --yuzi-theater-shop-dark-orange: #f5b984;
+    --yuzi-theater-shop-dark-red: #ff8a9c;
+    --yuzi-theater-shop-dark-gold: #f0c987;
+    --yuzi-theater-shop-gutter: 16px;
+    --yuzi-theater-shop-card-padding: 12px;
+    --yuzi-theater-shop-gap: 10px;
+    --yuzi-theater-shop-small-gap: 4px;
+    --yuzi-theater-shop-section-gap: 20px;
+    --yuzi-theater-shop-card-radius: 20px;
+    --yuzi-theater-shop-hero-radius: 22px;
+    --yuzi-theater-shop-badge-size: 24px;
+    --yuzi-theater-shop-progress-height: 6px;
+    --yuzi-theater-shop-body-size: 13px;
+    --yuzi-theater-shop-title-size: 17px;
+    --yuzi-theater-shop-points-size: 26px;
+    --yuzi-theater-shop-caption-size: 11px;
+    --yuzi-theater-shop-small-size: 10px;
+    --yuzi-theater-shop-weight: 700;
+    --yuzi-theater-shop-strong-weight: 800;
+    --yuzi-theater-shop-line-height: 1.5;
+    --yuzi-theater-shop-tracking: .1em;
+    --yuzi-theater-shop-tint: 10%;
     --yuzi-phone-color-black: #000000;
     --yuzi-phone-color-white: #ffffff;
 
@@ -100,6 +150,13 @@
     --yuzi-phone-status-font-weight: 590;
     --yuzi-phone-status-inline-padding: 24px;
     --yuzi-phone-status-level-gap: 7px;
+    --yuzi-phone-status-island-gap: 8px;
+    --yuzi-phone-dynamic-island-compact-width: clamp(48px, 22cqi, 78px);
+    --yuzi-phone-status-compact-font-size: clamp(12px, 5.5cqi, 17px);
+    --yuzi-phone-status-compact-icon-height: clamp(9px, 4cqi, 13px);
+    --yuzi-phone-status-compact-inline-padding: 10px;
+    --yuzi-phone-status-compact-level-gap: clamp(3px, 1.5cqi, 7px);
+    --yuzi-phone-status-compact-island-gap: 6px;
     --yuzi-phone-shell-temporary-layer-z-index: 20;
     --yuzi-phone-home-indicator-z-index: 21;
     --yuzi-phone-home-indicator-width: 132px;
@@ -207,23 +264,33 @@
     --yuzi-phone-nav-inline-actions-gap: clamp(4px, 1.5cqi, 6px);
     --yuzi-phone-nav-inline-action-padding-inline: clamp(4px, 2cqi, 8px);
 
-    /* Figma 02 设计画板：主屏动态应用槽 */
+    /* 主屏：等比例图标与随手机容器宽度调整的应用槽。 */
     --yuzi-phone-home-grid-columns: 4;
     --yuzi-phone-home-grid-block-size: 642px;
     --yuzi-phone-home-grid-padding-inline: 26px;
     --yuzi-phone-home-grid-padding-top: 28.666px;
     --yuzi-phone-home-grid-column-gap: 20.667px;
-    --yuzi-phone-home-grid-row-gap: 17.333px;
+    --yuzi-phone-home-grid-row-gap: 20px;
+    --yuzi-phone-home-grid-compact-padding-inline: 12px;
+    --yuzi-phone-home-grid-compact-gap: 10px;
+    --yuzi-phone-home-grid-compact-row-gap: 16px;
     --yuzi-phone-home-wallpaper-image: url("../../assets/phone-home-wallpaper-light.jpg");
-    --yuzi-phone-home-app-slot-width: 72px;
-    --yuzi-phone-home-app-slot-height: 83px;
+    --yuzi-phone-home-app-slot-width: 80px;
+    --yuzi-phone-home-app-slot-height: auto;
     --yuzi-phone-home-app-icon-size: 64px;
-    --yuzi-phone-home-app-icon-radius: var(--yuzi-phone-radius-2xl);
+    --yuzi-phone-home-app-icon-radius: 21.875%;
+    --yuzi-phone-home-app-glyph-size: 44cqi;
+    --yuzi-phone-home-app-glyph-weight: 600;
+    --yuzi-phone-home-app-icon-sheen: linear-gradient(160deg, rgba(255, 255, 255, 0.16), transparent 55%);
+    --yuzi-phone-home-app-icon-inset-shadow: inset 0 1px 1px rgba(255, 255, 255, 0.3), inset 0 -1px 1px rgba(0, 0, 0, 0.08);
+    --yuzi-phone-home-app-icon-shadow: 0 3px 8px rgba(0, 0, 0, 0.14);
     --yuzi-phone-home-app-label-gap: 5px;
     --yuzi-phone-home-app-label-size: 12px;
     --yuzi-phone-home-app-label-weight: 510;
+    --yuzi-phone-home-app-label-line-height: 1.35;
+    --yuzi-phone-home-app-label-compact-lines: 2;
     --yuzi-phone-home-app-label-color-on-dark: var(--yuzi-phone-color-text-primary);
-    --yuzi-phone-home-app-label-shadow-on-dark: 0 2px 25px var(--yuzi-phone-color-black);
+    --yuzi-phone-home-app-label-shadow-on-dark: 0 1px 3px rgba(0, 0, 0, 0.65);
     --yuzi-phone-home-app-label-color-on-light: rgba(20, 24, 28, 0.92);
     --yuzi-phone-home-app-label-shadow-on-light: 0 1px 3px rgba(255, 255, 255, 0.45);
     --yuzi-phone-home-app-label-color: var(--yuzi-phone-home-app-label-color-on-dark);
@@ -247,7 +314,7 @@
     --yuzi-phone-home-status-card-padding-inline: 14px;
     --yuzi-phone-home-status-card-radius: 18px;
 
-    /* Legacy home glass: preserve the new layout with the old material recipe. */
+    /* 主屏玻璃：Dock 与剧情状态卡共用细边框。 */
     --yuzi-phone-home-glass-border-width: 1px;
     --yuzi-phone-home-glass-border-color: rgba(255, 255, 255, 0.15);
     --yuzi-phone-home-dock-glass-background: rgba(255, 255, 255, 0.2);
@@ -259,7 +326,7 @@
         0 8px 32px 0 rgba(0, 0, 0, 0.2),
         inset 0 1px 1px rgba(255, 255, 255, 0.1);
 
-    /* Figma 02 设计画板：Dock */
+    /* Dock 恢复原底座尺寸；窄屏单独自适应，四个图标共用底板。 */
     --yuzi-phone-home-dock-height: 140px;
     --yuzi-phone-home-dock-padding-top: 20px;
     --yuzi-phone-home-dock-padding-inline: 17px;
@@ -273,6 +340,17 @@
     --yuzi-phone-home-dock-material-padding-block: 19px;
     --yuzi-phone-home-dock-material-padding-inline: 19px;
     --yuzi-phone-home-dock-material-icon-layout: space-between;
+    --yuzi-phone-home-dock-compact-padding: 10px;
+    --yuzi-phone-home-dock-compact-gap: 8px;
+    --yuzi-phone-home-dock-compact-radius: 24px;
+    --yuzi-phone-home-dock-settings-start: #9298a2;
+    --yuzi-phone-home-dock-settings-end: #515966;
+    --yuzi-phone-home-dock-visualizer-start: #39c7b1;
+    --yuzi-phone-home-dock-visualizer-end: #078f91;
+    --yuzi-phone-home-dock-database-start: #48b4ff;
+    --yuzi-phone-home-dock-database-end: #2269e8;
+    --yuzi-phone-home-dock-fusion-start: #ffbf58;
+    --yuzi-phone-home-dock-fusion-end: #f18722;
 
     --yuzi-phone-shadow-soft: 0 8px 18px rgba(0, 0, 0, 0.18);
     --yuzi-phone-shadow-medium: 0 10px 30px rgba(0, 0, 0, 0.2);

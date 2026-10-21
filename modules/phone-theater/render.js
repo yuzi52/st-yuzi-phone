@@ -161,7 +161,7 @@ export function renderTheaterScene(container, sceneId, options = {}) {
     try {
         if (viewModel.available && typeof viewModel.scene.mountBuiltin === 'function') {
             mountBuiltinTheater(container, {scene:viewModel.scene, sheetKey:state.navigationSheetKey, rawData, navigation:uiState.tableNavigation, lifecycle,
-                actions: options.actions, isVisible: options.isVisible, subscribeActivity: options.subscribeActivity});
+                actions: options.actions, readOnly: options.readOnly, isVisible: options.isVisible, subscribeActivity: options.subscribeActivity});
             return;
         }
         container.innerHTML = buildTheaterScenePageHtml(viewModel, uiState);

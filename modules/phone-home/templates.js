@@ -18,7 +18,8 @@ export function buildHomeShellStyleText({
     }
 
     styleChunks.push(`--yuzi-phone-home-app-icon-size:${appIconSize}px`);
-    styleChunks.push(`--yuzi-phone-home-app-icon-radius:${appIconRadius}px`);
+    // Keep the saved pixel radius proportional when either grid or Dock icons shrink.
+    styleChunks.push(`--yuzi-phone-home-app-icon-radius:${appIconRadius / appIconSize * 100}%`);
     styleChunks.push(`--yuzi-phone-home-grid-columns:${appGridColumns}`);
     styleChunks.push(`--yuzi-phone-home-grid-column-gap:${appGridGap}px`);
     styleChunks.push(`--yuzi-phone-home-dock-icon-size:${dockIconSize}px`);

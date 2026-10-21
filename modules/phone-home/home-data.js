@@ -1,5 +1,5 @@
 import { t } from '../i18n/index.js';
-import { getTextIcon, PHONE_ICONS } from './icons.js';
+import { PHONE_ICONS } from './icons.js';
 
 export function getHomeDockApps() {
     return [
@@ -7,14 +7,14 @@ export function getHomeDockApps() {
         {
             id: 'visualizer',
             name: t("可视化"),
-            icon: getTextIcon(t("可"), '#4DB6AC', '#009688'),
+            icon: PHONE_ICONS.visualizer,
             action: 'invoke',
             pendingMessage: t("正在打开可视化编辑器..."),
         },
         {
             id: 'db_settings',
             name: t("数据库"),
-            icon: getTextIcon(t("数"), '#5AC8FA', '#007AFF'),
+            icon: PHONE_ICONS.database,
             action: 'invoke',
             pendingMessage: t("正在打开数据库界面..."),
         },

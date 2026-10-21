@@ -130,8 +130,10 @@ function main() {
         contents.appearanceBuilder.includes('--yuzi-phone-toggle-preview-size'));
     check(results, 'buttonStylePage', '按钮样式页预览写入 Yuzi 独占尺寸变量',
         contents.buttonStylePage.includes('--yuzi-phone-toggle-preview-size'));
-    check(results, 'variableManager', '变量管理器图标复用首页 Yuzi 圆角变量',
-        contents.variableManager.includes('var(--yuzi-phone-home-app-icon-radius,12px)'));
+    check(results, 'variableManager', '变量管理器复用首页统一文字图标与 Yuzi 圆角样式',
+        contents.variableManager.includes("import { getTextIcon } from '../phone-home/icons.js'")
+        && contents.variableManager.includes('return getTextIcon(')
+        && contents.phoneHomeCss.includes('var(--yuzi-phone-home-app-icon-radius)'));
     check(results, 'shellSystemCss', '原生 checkbox 在 Yuzi 外壳范围内恢复浏览器勾选态', hasAll(contents.shellSystemCss, [
         'input.phone-settings-switch[type="checkbox"]',
         'input.phone-worldbook-entry-checkbox[type="checkbox"]',

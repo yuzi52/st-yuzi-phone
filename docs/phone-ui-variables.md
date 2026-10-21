@@ -1,5 +1,11 @@
 # 小手机 UI 变量
 
+## 系统商店
+
+系统商店表的内置页面使用 `.yuzi-theater-shop`，沿用原型的浅色奶油抹茶、深色黑粉、双列货架、任务卡和背包标签。颜色在 `00-phone-tokens.css` 的 `--yuzi-theater-shop-light-*` / `--yuzi-theater-shop-dark-*` 登记，间距、卡片、字号、品级底色浓度使用 `--yuzi-theater-shop-*` 语义 token；圆角复用 `--yuzi-phone-radius-*`，字体与可读缩放跟随手机主设置。
+
+导航复用 `buildBuiltinTheaterNav()`；确认购买、刷新、放弃、背包详情与晋升提示复用 `showConfirmDialog()` / `showAlertDialog()`，不带入原型手机壳、状态栏、独立弹层和测试面板。Home 留白沿用 docked 契约。底部保留现有标题栏、布局与留白，标题栏继续沿用宿主的点击限制；购买、刷新、放弃与背包使用和 App 共用实现。页面内容末尾固定提示“填表过程中不要购买东西哦~亲~”，不监听 AI 填表状态或禁用其间操作。
+
 ## 正文对话气泡
 
 正文美化模块列表在既有内置行后追加时间栏与用户模块，使用同一 `.yuzi-body-module`、`.yuzi-body-module-head`、`.yuzi-body-module-content`、`.phone-ios-switch` 和提示词编辑器。有附加提示词的内部开关同正文朗读嵌套展开；纯展示开关只显示一行。模块错误使用 `.phone-ios-group-footer` 和已有危险色 token。分组底部固定「导入模块／导出模块」，没有新模块预览或排序；预览仍只服务气泡。自带时间栏没有删除按钮，用户模块删除复用公共确认框。局部保存不重建页面，导入／删除保留滚动位置和未保存提示词草稿。
@@ -145,7 +151,7 @@ App 页面存在固定底栏时，在底栏根节点声明 `data-phone-bottom-ba
 
 ## 玻璃材质
 
-主屏继续沿用 Figma 的 Dock 尺寸、圆角和状态卡网格；仅材质恢复为旧 UI 的两套透明玻璃。二者共用细边框，但透明度和模糊强度不同。
+主屏 Dock 恢复原有玻璃底座尺寸、圆角、留白与材质；窄屏保留自适应收缩。剧情状态卡继续沿用原有网格与材质。二者共用细边框，但透明度和模糊强度不同。
 
 | 部位 | token | 值 |
 | --- | --- | --- |
@@ -163,13 +169,13 @@ App 页面存在固定底栏时，在底栏根节点声明 `data-phone-bottom-ba
 | --- | --- | --- |
 | 网格 | `--yuzi-phone-home-grid-columns` / `--yuzi-phone-home-grid-block-size` | `4` / `642px` |
 | 网格间距 | `--yuzi-phone-home-grid-padding-inline` / `--yuzi-phone-home-grid-padding-top` | `26px` / `28.666px` |
-| 网格间隙 | `--yuzi-phone-home-grid-column-gap` / `--yuzi-phone-home-grid-row-gap` | `20.667px` / `17.333px` |
+| 网格间隙 | `--yuzi-phone-home-grid-column-gap` / `--yuzi-phone-home-grid-row-gap` | `20.667px` / `20px` |
 | 首排角标留白 | `--yuzi-phone-home-grid-first-row-badge-clearance` | `6px`（仅剧情状态卡存在时） |
 | 默认壁纸 | `--yuzi-phone-home-wallpaper-image` | 项目内 `assets/phone-home-wallpaper-light.jpg`（Figma `195:2718`） |
-| 应用槽 | `--yuzi-phone-home-app-slot-width` / `--yuzi-phone-home-app-slot-height` | `72px` / `83px` |
-| 应用图标 | `--yuzi-phone-home-app-icon-size` / `--yuzi-phone-home-app-icon-radius` | `64px` / 默认 `14px` |
+| 应用槽 | `--yuzi-phone-home-app-slot-width` / `--yuzi-phone-home-app-slot-height` | `80px` / `auto`；随图标和名称撑开 |
+| 应用图标 | `--yuzi-phone-home-app-icon-size` / `--yuzi-phone-home-app-icon-radius` | `64px` / `21.875%`；圆角设置仍保存像素值，运行时按设置的图标尺寸换算为百分比 |
 | 应用名称 | `--yuzi-phone-home-app-label-gap` / `--yuzi-phone-home-app-label-size` / `--yuzi-phone-home-app-label-weight` | `5px` / `12px` / `510` |
-| 深色背景上的应用名称 | `--yuzi-phone-home-app-label-color-on-dark` / `--yuzi-phone-home-app-label-shadow-on-dark` | 白色 / `0 2px 25px #000` |
+| 深色背景上的应用名称 | `--yuzi-phone-home-app-label-color-on-dark` / `--yuzi-phone-home-app-label-shadow-on-dark` | 白色 / `0 1px 3px rgba(0,0,0,.65)` |
 | 浅色背景上的应用名称 | `--yuzi-phone-home-app-label-color-on-light` / `--yuzi-phone-home-app-label-shadow-on-light` | `rgba(20, 24, 28, 0.92)` / `0 1px 3px rgba(255, 255, 255, 0.45)` |
 | 当前应用名称 | `--yuzi-phone-home-app-label-color` / `--yuzi-phone-home-app-label-shadow` | 默认指向深色背景组；由白色/黑色外观设置切换 |
 | 首页图标入场 | `--yuzi-phone-home-app-enter-duration` / `--yuzi-phone-home-app-enter-easing` / `--yuzi-phone-home-app-enter-start-scale` | `0.3s` / `ease` / `0.7`；duration 同时供 QQ 加载转圈复用 |
@@ -180,11 +186,17 @@ App 页面存在固定底栏时，在底栏根节点声明 `data-phone-bottom-ba
 
 应用网格只消费现有 `buildHomeScreenViewModel()` 数据。Figma 中的示例 App 仅定义槽位外观，不能写入生产列表。QQ 主屏图标保持既有运行时图标来源，允许 `appIcons.__qq__` 覆盖；不得新增 Figma QQ 图标资源。
 
+普通表格、变量、审核、QQ 与小剧场共用 `getTextIcon()` 和 `.phone-dock-text-icon` 底板。文字使用 `--yuzi-phone-home-app-glyph-size`（`44cqi`）与 `--yuzi-phone-home-app-glyph-weight`（`600`）；容器是每个 `.phone-app-icon`，不会再读取 Dock 尺寸。底板使用 `--yuzi-phone-home-app-icon-sheen`、`--yuzi-phone-home-app-icon-inset-shadow`，图标外层共用 `--yuzi-phone-home-app-icon-shadow`，上传图片仍优先。
+
+常规网格铺满手机可用宽度，各列随屏幕横向均匀展开，行高由内容决定。手机内屏不超过 `340px` 时，以内部变量 `--yuzi-phone-home-grid-effective-columns` 切换三列，并按应用槽和间距限宽居中，原列数设置不回写；`--yuzi-phone-home-grid-compact-padding-inline/gap/row-gap` 分别为 `12px/10px/16px`。名称行高消费 `--yuzi-phone-home-app-label-line-height`（`1.35`），窄屏最多 `--yuzi-phone-home-app-label-compact-lines`（`2`）行，仍跟随可读缩放。
+
+外壳以 `yuzi-phone-shell` 容器查询为状态栏预留居中的灵动岛列，正常间隔使用 `--yuzi-phone-status-island-gap`（`8px`）。不超过 `340px` 时使用 `--yuzi-phone-dynamic-island-compact-width`、`--yuzi-phone-status-compact-font-size/icon-height/inline-padding/level-gap/island-gap` 同步收紧岛宽、字体、设备图标和间距；继续使用原有本地状态图标，顶部安全高度不变。两个 `340px` 容器查询阈值是 CSS 条件，不能通过自定义变量配置。
+
 ## Dock
 
 | token | 值 |
 | --- | --- |
-| `--yuzi-phone-home-dock-height` | `140px` |
+| `--yuzi-phone-home-dock-height` | `140px`；窄屏为 `auto` |
 | `--yuzi-phone-home-dock-padding-top` / `--yuzi-phone-home-dock-padding-inline` / `--yuzi-phone-home-dock-padding-bottom` | `20px` / `17px` / `17px` |
 | `--yuzi-phone-home-dock-columns` / `--yuzi-phone-home-dock-icon-size` | `4` / `64px` |
 | `--yuzi-phone-home-dock-label-display` | `none` |
@@ -193,6 +205,8 @@ App 页面存在固定底栏时，在底栏根节点声明 `data-phone-bottom-ba
 | `--yuzi-phone-home-dock-material-icon-layout` | `space-between` |
 
 Dock 仍消费现有四个运行时入口；隐藏可视标签不等于删除名称或无障碍名称。
+
+默认设置、可视化、数据库、缝合分别使用齿轮、面板、数据库与拼图的本地矢量图形；共用文字图标底板、等比例圆角和同一 SVG 画布，没有素材内嵌背景或重复留白。配色使用 `--yuzi-phone-home-dock-settings/visualizer/database/fusion-start/end`（石墨灰、青绿、蓝、暖橙）。常规底座使用原尺寸与 `space-between` 排列，不随小图标缩窄。窄屏底座高度为 `auto`，宽度受四个图标与内边距总宽限制；`--yuzi-phone-home-dock-compact-padding/gap/radius` 分别为 `10px/8px/24px`。
 
 ## 设置分组列表与公共弹层（新功能美化先查这里）
 

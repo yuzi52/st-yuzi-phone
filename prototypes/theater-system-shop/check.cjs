@@ -65,7 +65,8 @@ const cell = key => get(`cell-${key}`).value;
 // 静态入口与初始化核对，模拟 DOM 不冒充浏览器布局测试。
 test('HTML 资源齐全，保留标准标题栏和七字段编辑器', () => {
     assert.equal(sources.length, 9);
-    for (const m of html.matchAll(/(?:src|href)="(\.\/theater-system-shop\/[^\"]+)"/g))n        assert.ok(fs.existsSync(path.resolve(base, '..', m[1])), m[1]);
+    for (const m of html.matchAll(/(?:src|href)="(\.\/theater-system-shop\/[^\"]+)"/g)) {
+        assert.ok(fs.existsSync(path.resolve(base, '..', m[1])), m[1]);
     }
     assert.ok(html.includes('</html>'));
     for (const key of ['task', 'status', 'bag', 'shop', 'refresh', 'points', 'title']) {

@@ -7,6 +7,7 @@ const EXPECTED_BUILTIN_SHEET_KEYS = Object.freeze([
     'sheet_livestream_rooms',
     'sheet_small_calendar',
     'sheet_npc_diary_entries',
+    'sheet_system_shop',
     'sheet_summary',
 ]);
 const LEGACY_MESSAGE_RECORD_SHEET_KEY = 'sheet_IVu96w0X';

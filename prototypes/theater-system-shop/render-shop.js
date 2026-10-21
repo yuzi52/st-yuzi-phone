@@ -8,7 +8,7 @@
 
     function renderOdds(tier) {
         const parts = D.ODDS[tier].map((w, i) => (w ? `${D.TIERS[i].zh}${w}%` : '')).filter(Boolean);
-        $('odds').textContent = `「${D.TIERS[tier].name}」出货率：${parts.join(' · ')}`;
+        $('odds').textContent = `「${D.TIERS[tier].name}」出货参考：${parts.join(' · ')}`;
     }
 
     function itemButton(it, i, points) {

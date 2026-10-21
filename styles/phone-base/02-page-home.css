@@ -35,11 +35,13 @@
 }
 
 .phone-app-grid {
+    --yuzi-phone-home-grid-effective-columns: var(--yuzi-phone-home-grid-columns);
     flex: 1 1 var(--yuzi-phone-home-grid-block-size);
+    width: 100%;
     min-height: 0;
     display: grid;
-    grid-template-columns: repeat(var(--yuzi-phone-home-grid-columns), minmax(0, 1fr));
-    grid-auto-rows: var(--yuzi-phone-home-app-slot-height);
+    grid-template-columns: repeat(var(--yuzi-phone-home-grid-effective-columns), minmax(0, 1fr));
+    grid-auto-rows: max-content;
     column-gap: var(--yuzi-phone-home-grid-column-gap);
     row-gap: var(--yuzi-phone-home-grid-row-gap);
     padding:
@@ -62,7 +64,8 @@
 }
 
 .phone-app-item {
-    width: min(100%, var(--yuzi-phone-home-app-slot-width));
+    width: 100%;
+    min-width: 0;
     height: var(--yuzi-phone-home-app-slot-height);
     display: flex;
     flex-direction: column;
@@ -92,6 +95,7 @@
 }
 
 .phone-app-icon {
+    container-type: inline-size;
     width: min(100%, var(--yuzi-phone-home-app-icon-size));
     aspect-ratio: 1;
     display: flex;
@@ -102,6 +106,7 @@
     position: relative;
     border-radius: var(--yuzi-phone-home-app-icon-radius);
     background: transparent;
+    box-shadow: var(--yuzi-phone-home-app-icon-shadow);
 }
 
 .phone-app-icon:active,
@@ -129,12 +134,11 @@
 
 .phone-app-label {
     width: 100%;
-    max-width: var(--yuzi-phone-home-app-slot-width);
     overflow: hidden;
     color: var(--yuzi-phone-home-app-label-color);
     font-size: calc(var(--yuzi-phone-home-app-label-size) * var(--yuzi-phone-readable-text-scale, 1));
     font-weight: var(--yuzi-phone-home-app-label-weight);
-    line-height: normal;
+    line-height: var(--yuzi-phone-home-app-label-line-height);
     text-align: center;
     text-overflow: ellipsis;
     text-shadow: var(--yuzi-phone-home-app-label-shadow);
@@ -212,8 +216,10 @@
     align-items: center;
     justify-content: center;
     box-sizing: border-box;
-    background: linear-gradient(135deg, var(--yuzi-phone-dock-text-icon-start), var(--yuzi-phone-dock-text-icon-end));
+    background: var(--yuzi-phone-home-app-icon-sheen), linear-gradient(145deg, var(--yuzi-phone-dock-text-icon-start), var(--yuzi-phone-dock-text-icon-end));
     color: var(--yuzi-phone-color-white);
+    box-shadow: var(--yuzi-phone-home-app-icon-inset-shadow);
+    text-shadow: none;
 }
 
 .phone-dock-text-icon-glyph-wrap {
@@ -226,9 +232,51 @@
 
 .phone-dock-text-icon-glyph {
     font-family: var(--yuzi-phone-font-family);
-    font-size: calc(var(--yuzi-phone-home-dock-icon-size) * 0.44);
-    font-weight: var(--yuzi-phone-status-font-weight);
+    font-size: var(--yuzi-phone-home-app-glyph-size);
+    font-weight: var(--yuzi-phone-home-app-glyph-weight);
     line-height: 1;
+}
+
+/* Respond to the phone's width, including when it is resized on a wide browser. */
+@container yuzi-phone-screen (max-width: 340px) {
+    .phone-app-grid {
+        --yuzi-phone-home-grid-effective-columns: 3;
+        --yuzi-phone-home-grid-padding-inline: var(--yuzi-phone-home-grid-compact-padding-inline);
+        --yuzi-phone-home-grid-column-gap: var(--yuzi-phone-home-grid-compact-gap);
+        --yuzi-phone-home-grid-row-gap: var(--yuzi-phone-home-grid-compact-row-gap);
+        max-width: calc(
+            var(--yuzi-phone-home-grid-effective-columns) * max(var(--yuzi-phone-home-app-slot-width), var(--yuzi-phone-home-app-icon-size)) +
+            (var(--yuzi-phone-home-grid-effective-columns) - 1) * var(--yuzi-phone-home-grid-column-gap) +
+            2 * var(--yuzi-phone-home-grid-padding-inline)
+        );
+        align-self: center;
+    }
+
+    .phone-app-grid .phone-app-label {
+        display: -webkit-box;
+        -webkit-box-orient: vertical;
+        -webkit-line-clamp: var(--yuzi-phone-home-app-label-compact-lines);
+        white-space: normal;
+        overflow-wrap: anywhere;
+    }
+
+    .phone-dock {
+        --yuzi-phone-home-dock-height: auto;
+        --yuzi-phone-home-dock-padding-inline: var(--yuzi-phone-home-grid-compact-padding-inline);
+        --yuzi-phone-home-dock-material-height: auto;
+        --yuzi-phone-home-dock-material-padding-block: var(--yuzi-phone-home-dock-compact-padding);
+        --yuzi-phone-home-dock-material-padding-inline: var(--yuzi-phone-home-dock-compact-padding);
+        --yuzi-phone-home-dock-material-radius: var(--yuzi-phone-home-dock-compact-radius);
+    }
+
+    .phone-dock-material {
+        width: min(100%, var(--yuzi-phone-home-dock-material-width), calc(
+            var(--yuzi-phone-home-dock-columns) * var(--yuzi-phone-home-dock-icon-size) +
+            (var(--yuzi-phone-home-dock-columns) - 1) * var(--yuzi-phone-home-dock-compact-gap) +
+            2 * (var(--yuzi-phone-home-dock-material-padding-inline) + var(--yuzi-phone-home-glass-border-width))
+        ));
+        gap: var(--yuzi-phone-home-dock-compact-gap);
+    }
 }
 
 /* --- Story Status --- */

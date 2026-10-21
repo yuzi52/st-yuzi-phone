@@ -21,15 +21,29 @@ function buildPhoneNavIcon(pathData) {
     return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="${pathData}"/></svg>`;
 }
 
+function buildAppIcon(content, colorA, colorB) {
+    return `<div class="phone-dock-text-icon" style="--yuzi-phone-dock-text-icon-start:${escapeHtmlAttr(colorA)};--yuzi-phone-dock-text-icon-end:${escapeHtmlAttr(colorB)};">${content}</div>`;
+}
+
+function buildDockIcon(name, shapes) {
+    return buildAppIcon(
+        `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${shapes}</svg>`,
+        `var(--yuzi-phone-home-dock-${name}-start)`,
+        `var(--yuzi-phone-home-dock-${name}-end)`,
+    );
+}
+
 export const PHONE_ICONS = {
     signal: `<img class="phone-status-icon" src="${PHONE_STATUS_SIGNAL_ICON}" alt="" aria-hidden="true">`,
     wifi: `<img class="phone-status-icon" src="${PHONE_STATUS_WIFI_ICON}" alt="" aria-hidden="true">`,
     battery: `<img class="phone-status-icon" src="${PHONE_STATUS_BATTERY_ICON}" alt="" aria-hidden="true">`,
     back: buildPhoneNavIcon(PHONE_NAV_ICON_PATHS.back),
     forward: buildPhoneNavIcon(PHONE_NAV_ICON_PATHS.forward),
-    gear: `<svg viewBox="0 0 48 48" fill="none"><rect x="4" y="4" width="40" height="40" rx="10" fill="#636366"/><circle cx="24" cy="24" r="8" stroke="white" stroke-width="2.5"/><circle cx="24" cy="24" r="3" fill="white"/><path d="M24 12v4M24 32v4M12 24h4M32 24h4M16.5 16.5l2.8 2.8M28.7 28.7l2.8 2.8M31.5 16.5l-2.8 2.8M19.3 28.7l-2.8 2.8" stroke="white" stroke-width="2.2" stroke-linecap="round"/></svg>`,
+    gear: buildDockIcon('settings', '<path d="M21 10h6l1 4 3 2 4-1 3 5-3 3v3l3 3-3 5-4-1-3 2-1 4h-6l-1-4-3-2-4 1-3-5 3-3v-3l-3-3 3-5 4 1 3-2z"/><circle cx="24" cy="24.5" r="6"/>'),
+    visualizer: buildDockIcon('visualizer', '<rect x="11" y="12" width="26" height="20" rx="4" fill="currentColor" fill-opacity=".12"/><path d="M11 19h26M21 19v13M16 37h16"/><path d="m26 27 3-3 3 3"/>'),
+    database: buildDockIcon('database', '<ellipse cx="24" cy="13" rx="12" ry="5" fill="currentColor" fill-opacity=".16"/><path d="M12 13v22c0 2.8 5.4 5 12 5s12-2.2 12-5V13M12 24c0 2.8 5.4 5 12 5s12-2.2 12-5"/>'),
     refresh: `<svg viewBox="0 0 48 48" fill="none"><defs><linearGradient id="grefresh" x1="0%" y1="0%" x2="100%" y2="100%"><stop offset="0%" stop-color="#4DB6AC"/><stop offset="100%" stop-color="#00695C"/></linearGradient></defs><rect x="4" y="4" width="40" height="40" rx="10" fill="url(#grefresh)"/><path d="M16 17a10 10 0 0117 2" stroke="white" stroke-width="3" stroke-linecap="round" fill="none"/><path d="M33 14v6h-6" stroke="white" stroke-width="2.5" stroke-linecap="round" fill="none"/><path d="M32 31a10 10 0 01-17-2" stroke="white" stroke-width="3" stroke-linecap="round" fill="none"/><path d="M15 34v-6h6" stroke="white" stroke-width="2.5" stroke-linecap="round" fill="none"/></svg>`,
-    puzzle: `<svg viewBox="0 0 48 48" fill="none"><rect x="4" y="4" width="40" height="40" rx="10" fill="#FF9F0A"/><path d="M14 20h6v-2a3 3 0 016 0v2h6v6h-2a3 3 0 000 6h2v6H14V20z" fill="white"/></svg>`,
+    puzzle: buildDockIcon('fusion', '<path d="M12 17h8v-3a4 4 0 0 1 8 0v3h8v9h-3a4 4 0 0 0 0 8h3v4H12v-9h3a4 4 0 0 0 0-8h-3z" fill="currentColor" fill-opacity=".16"/>'),
     upload: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M12 16V4M12 4l-4 4M12 4l4 4"/><path d="M4 17v2a2 2 0 002 2h12a2 2 0 002-2v-2"/></svg>`,
     phone: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2" width="12" height="20" rx="3"/><line x1="10" y1="18" x2="14" y2="18"/></svg>`,
 };
@@ -58,21 +72,14 @@ export function getIconForSheet(sheetName) {
     const firstChar = name.charAt(0).toUpperCase();
     const colors = getHashColorPair(name);
 
-    return `
-        <div style="width: 100%; height: 100%; background: linear-gradient(135deg, ${colors[0]}, ${colors[1]});
-        display: flex; align-items: center; justify-content: center; font-size: 26px; font-weight: 600; color: #ffffff; border-radius: var(--yuzi-phone-home-app-icon-radius); box-sizing: border-box;">
-            ${escapeHtml(firstChar)}
-        </div>
-    `;
+    return getTextIcon(firstChar, ...colors);
 }
 
 export function getTextIcon(letter, colorA, colorB) {
     const text = String(letter || '').trim().charAt(0) || 'A';
-    return `
-        <div class="phone-dock-text-icon" style="--yuzi-phone-dock-text-icon-start:${escapeHtmlAttr(colorA)};--yuzi-phone-dock-text-icon-end:${escapeHtmlAttr(colorB)};">
-            <span class="phone-dock-text-icon-glyph-wrap">
-                <span class="phone-dock-text-icon-glyph">${escapeHtml(text)}</span>
-            </span>
-        </div>
-    `;
+    return buildAppIcon(
+        `<span class="phone-dock-text-icon-glyph-wrap"><span class="phone-dock-text-icon-glyph">${escapeHtml(text)}</span></span>`,
+        colorA,
+        colorB,
+    );
 }

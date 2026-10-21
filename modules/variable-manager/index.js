@@ -8,6 +8,7 @@ import { createRuntimeScope } from '../runtime-manager.js';
 import { navigateBack } from '../phone-core/routing.js';
 import { getPhoneCoreState } from '../phone-core/state.js';
 import { escapeHtml } from '../utils/dom-escape.js';
+import { getTextIcon } from '../phone-home/icons.js';
 import { getFloorVariablesAsync, getLastMessageId, isMvuAvailable } from './variable-api.js';
 import { flattenToGroups, renderGroupsHtml } from './flat-view.js';
 import { buildVariableManagerPageHtml } from './templates.js';
@@ -370,9 +371,5 @@ export const VARIABLE_MANAGER_APP = {
  * 获取变量管理器图标 SVG
  */
 export function getVariableManagerIcon() {
-    return `
-        <div style="width:100%;height:100%;background:linear-gradient(135deg,#7C4DFF,#536DFE);display:flex;align-items:center;justify-content:center;font-size:26px;font-weight:600;color:#fff;border-radius:var(--yuzi-phone-home-app-icon-radius,12px);box-sizing:border-box;">
-            ${t`变`}
-        </div>
-    `;
+    return getTextIcon(t`变`, '#7C4DFF', '#536DFE');
 }

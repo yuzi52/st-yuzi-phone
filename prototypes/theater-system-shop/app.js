@@ -47,11 +47,16 @@
             message: `花费 ${it.price} 点，剩余 ${pts - it.price} 点。购买后放进我的背包。`,
             confirmText: '购买',
             onConfirm: () => {
+                const latestItems = P.parseShop(row.shop);
+                const latest = latestItems[i];
+                const currentPoints = P.firstInt(row.points, 0);
+                if (!latest || latest.soldOut || latest.raw !== it.raw) return UI.toast('货架已更新，请重新选择商品');
+                if (currentPoints < latest.price) return UI.toast(`点数不足，还差 ${latest.price - currentPoints} 点`);
                 // 一次写回三格：点数、背包（带效果）、商店售空标记
-                row.points = String(pts - it.price);
-                row.bag = P.appendBag(row.bag, P.bagEntry(it));
-                items[i].soldOut = true;
-                row.shop = P.serializeShop(items);
+                row.points = String(currentPoints - latest.price);
+                row.bag = P.appendBag(row.bag, P.bagEntry(latest));
+                latest.soldOut = true;
+                row.shop = P.serializeShop(latestItems);
                 log('ui', `购买「${it.name}」：点数 −${it.price}，背包追加（含效果），商店标记【已售空】`);
                 UI.toast(`已放进背包：${it.name}`);
                 render();
@@ -68,7 +73,10 @@
             message: `花费 ${D.REFRESH_COST} 点，剩余 ${pts - D.REFRESH_COST} 点。下回合玉子会把整个货架换新。`,
             confirmText: '刷新',
             onConfirm: () => {
-                row.points = String(pts - D.REFRESH_COST);
+                if (P.parseRefresh(row.refresh)) return UI.toast('已经申请过了，下回合整架换新');
+                const currentPoints = P.firstInt(row.points, 0);
+                if (currentPoints < D.REFRESH_COST) return UI.toast(`点数不足，刷新需要 ${D.REFRESH_COST} 点`);
+                row.points = String(currentPoints - D.REFRESH_COST);
                 row.refresh = D.REFRESH.yes;
                 log('ui', `刷新货架：点数 −${D.REFRESH_COST}，刷新状态写为「已刷新」`);
                 render();

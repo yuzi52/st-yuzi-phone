@@ -44,7 +44,7 @@ export function mountBuiltinTheater(container, options, deps = {}) {
     });
     const theme={mode:getSettings().phoneThemeMode === 'dark' ? 'dark':'light'};
     const guarded=action=>()=>{if(active())return action();};
-    const context={root,signal,theme,...assets,userName:getFreshSillyTavernContext()?.name1 || '我',
+    const context={root,signal,theme,...assets,isCurrent:active,readOnly:!!options.readOnly,userName:getFreshSillyTavernContext()?.name1 || '我',
         getState:()=>({...snapshot,canPrevious:!navigation.previous?.disabled && !!navigation.previous?.target,canNext:!navigation.next?.disabled && !!navigation.next?.target}),
         subscribe:listener=>{listeners.add(listener);return()=>listeners.delete(listener);},
         mountImages:()=>imageController.mount(),

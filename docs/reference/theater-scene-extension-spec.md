@@ -196,6 +196,8 @@ scene 内容中的用户数据必须使用转义函数：
 
 ## 6. 交互规则
 
+`systemShop` 使用内置 `mountBuiltin(context)`，交易只写「系统商店」当前单行，复用 `updateTableRow()`，不在通用小剧场核心中增加商店分支。内置 context 的 `isCurrent()` 校验页面与聊天归属，`readOnly` 在底部挂载中用于限制公共标题栏导航、原表编辑和删除管理，不用于禁用系统商店内容区的购买、刷新、放弃与使用；这些内容操作和 App 共用实现。导航继续走 `context.actions`，公共确认框随页面卸载清理。
+
 通用删除态由 [`modules/phone-theater/interactions.js`](../../modules/phone-theater/interactions.js) 统一处理。
 
 scene 专属交互放在 `bindInteractions(container, context)`：
