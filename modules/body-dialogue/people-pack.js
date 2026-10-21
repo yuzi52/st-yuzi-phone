@@ -2,6 +2,7 @@ import { fileToDataUrl, loadImage } from '../settings-app/services/media-upload/
 import { normalizeAvatarFrameTransform } from '../qq-v2/resources/avatar-frame-transform.js';
 import { normalizeBubbleStyle } from '../qq-v2/resources/appearance-contract.js';
 import { normalizeBodyDialogueLanguage } from './config.js';
+import { BODY_DIALOGUE_EMOTIONS } from './emotions.js';
 
 const FORMAT = 'yuzi-phone-body-dialogue-people';
 const IMAGE_BYTES = 8 * 1024 * 1024;
@@ -43,25 +44,45 @@ function decoration(source, slot) {
 export async function exportBodyDialoguePeoplePack(records) {
     const people = [];
     let imageBytes = 0;
+    const encodeImage = async (asset, slot, label) => {
+        if (!asset) return null;
+        if (!(asset.blob instanceof Blob) || !asset.blob.size || !/^image\/[a-z0-9.+-]+$/i.test(asset.blob.type)) {
+            throw new Error(`${label}图片无法读取`);
+        }
+        if (asset.blob.size > IMAGE_BYTES) throw new Error('单张图片不能超过 8MB');
+        imageBytes += Math.ceil(asset.blob.size / 3) * 4;
+        if (imageBytes > BODY_DIALOGUE_PACK_BYTES) throw new Error('人物配置包不能超过 64MB');
+        return { dataUrl: await fileToDataUrl(asset.blob), ...decoration(asset, slot) };
+    };
     for (const record of records) {
         const person = personFields(record);
         for (const slot of slots) {
-            const asset = record[slot];
-            person[slot] = null;
-            if (!asset) continue;
-            if (!(asset.blob instanceof Blob) || !asset.blob.size || !/^image\/[a-z0-9.+-]+$/i.test(asset.blob.type)) {
-                throw new Error(`${person.name}的${slot === 'avatar' ? '头像' : slot === 'frame' ? '头像框' : '气泡'}图片无法读取`);
-            }
-            if (asset.blob.size > IMAGE_BYTES) throw new Error('单张图片不能超过 8MB');
-            imageBytes += Math.ceil(asset.blob.size / 3) * 4;
-            if (imageBytes > BODY_DIALOGUE_PACK_BYTES) throw new Error('人物配置包不能超过 64MB');
-            person[slot] = { dataUrl: await fileToDataUrl(asset.blob), ...decoration(asset, slot) };
+            person[slot] = await encodeImage(record[slot], slot, `${person.name}的${slot === 'avatar' ? '头像' : slot === 'frame' ? '头像框' : '气泡'}`);
+        }
+        person.emotionAvatars = {};
+        for (const { id, label } of BODY_DIALOGUE_EMOTIONS) {
+            person.emotionAvatars[id] = await encodeImage(record.emotionAvatars?.[id], 'avatar', `${person.name}的${label}头像`);
         }
         people.push(person);
     }
     const pack = { format: FORMAT, schemaVersion: 1, people };
     if (new Blob([JSON.stringify(pack)]).size > BODY_DIALOGUE_PACK_BYTES) throw new Error('人物配置包不能超过 64MB');
     return pack;
+}
+
+async function decodeImage(asset, slot, name, isCurrent) {
+    if (!isCurrent()) throw new Error('角色卡已切换或页面已关闭，已取消读取');
+    if (asset === null) return null;
+    if (!isObject(asset) || typeof asset.dataUrl !== 'string') throw new Error(`${name}的图片配置缺失或无效`);
+    const comma = asset.dataUrl.indexOf(',');
+    const match = /^data:(image\/[a-z0-9.+-]+);base64$/i.exec(asset.dataUrl.slice(0, comma));
+    if (!match || asset.dataUrl.length - comma - 1 > Math.ceil(IMAGE_BYTES / 3) * 4) throw new Error('图片必须是内嵌数据，且不能超过 8MB');
+    let binary;
+    try { binary = atob(asset.dataUrl.slice(comma + 1)); } catch { throw new Error('图片 Base64 数据损坏'); }
+    if (!binary.length || binary.length > IMAGE_BYTES) throw new Error('图片为空或超过 8MB');
+    const blob = new Blob([Uint8Array.from(binary, char => char.charCodeAt(0))], { type: match[1].toLowerCase() });
+    await loadImage(asset.dataUrl);
+    return { blob, ...decoration(asset, slot) };
 }
 
 /** Decode and validate the entire file before opening a write transaction. */
@@ -79,20 +100,15 @@ export async function readBodyDialoguePeoplePack(source, isCurrent = () => true)
         if (names.has(person.name)) throw new Error(`配置包内存在重复姓名：${person.name}`);
         names.add(person.name);
         for (const slot of slots) {
-            if (!isCurrent()) throw new Error('角色卡已切换或页面已关闭，已取消读取');
-            const asset = sourcePerson[slot];
-            person[slot] = null;
-            if (asset === null) continue;
-            if (!isObject(asset) || typeof asset.dataUrl !== 'string') throw new Error(`${person.name}的图片配置缺失或无效`);
-            const comma = asset.dataUrl.indexOf(',');
-            const match = /^data:(image\/[a-z0-9.+-]+);base64$/i.exec(asset.dataUrl.slice(0, comma));
-            if (!match || asset.dataUrl.length - comma - 1 > Math.ceil(IMAGE_BYTES / 3) * 4) throw new Error('图片必须是内嵌数据，且不能超过 8MB');
-            let binary;
-            try { binary = atob(asset.dataUrl.slice(comma + 1)); } catch { throw new Error('图片 Base64 数据损坏'); }
-            if (!binary.length || binary.length > IMAGE_BYTES) throw new Error('图片为空或超过 8MB');
-            const blob = new Blob([Uint8Array.from(binary, char => char.charCodeAt(0))], { type: match[1].toLowerCase() });
-            await loadImage(asset.dataUrl);
-            person[slot] = { blob, ...decoration(asset, slot) };
+            person[slot] = await decodeImage(sourcePerson[slot], slot, person.name, isCurrent);
+        }
+        const avatars = sourcePerson.emotionAvatars ?? {};
+        if (!isObject(avatars) || Object.keys(avatars).some(id => !BODY_DIALOGUE_EMOTIONS.some(emotion => emotion.id === id))) {
+            throw new Error(`${person.name}的情绪头像配置无效`);
+        }
+        person.emotionAvatars = {};
+        for (const { id } of BODY_DIALOGUE_EMOTIONS) {
+            person.emotionAvatars[id] = await decodeImage(avatars[id] ?? null, 'avatar', person.name, isCurrent);
         }
         people.push(person);
     }

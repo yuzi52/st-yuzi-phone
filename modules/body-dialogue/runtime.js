@@ -147,7 +147,7 @@ function applySettings() {
     const next = readEffectiveConfig(), previous = settingsSnapshot || next;
     settingsSnapshot = next;
     const keys = Object.keys(next).filter(key => key !== 'prompts' && previous[key] !== next[key]);
-    const structural = keys.some(key => ['enabled', 'avatar', 'voice', 'bubble', 'bilingual'].includes(key));
+    const structural = keys.some(key => ['enabled', 'avatar', 'emotion', 'voice', 'bubble', 'bilingual'].includes(key));
     const speechChanged = keys.includes('prosody') || (keys.includes('readOriginal') && next.bilingual);
     if (structural) { configVersion++; voice?.stop(); }
     else if (speechChanged) voice?.stop();
@@ -300,7 +300,7 @@ async function peopleChanged(card, changes) {
     if (promptChanged) projectionVersion++;
     if (changes.some(({ previous, person, mediaChanged }) => mediaChanged || JSON.stringify(previous) !== JSON.stringify(person))) {
         loadedCard = null;
-        const visualKeys = ['id', 'name', 'avatar', 'frame', 'bubble', 'voice'];
+        const visualKeys = ['id', 'name', 'avatar', 'emotionAvatars', 'frame', 'bubble', 'voice'];
         if (changes.some(({ previous, person, mediaChanged }) => mediaChanged
             || visualKeys.some(key => JSON.stringify(previous?.[key]) !== JSON.stringify(person?.[key])))) {
             configVersion++; voice?.stop();
@@ -379,7 +379,8 @@ export const bodyDialogueService = {
         const token = generation;
         const snapshot = structuredClone(draft);
         const { person, previous } = await repository.savePerson(card, snapshot, () => token === generation && getBodyDialogueScope().card === card);
-        await peopleChanged(card, [{ previous, person, mediaChanged: ['avatar', 'frame', 'bubble'].some(key => snapshot[key]?.blob instanceof Blob) }]);
+        await peopleChanged(card, [{ previous, person, mediaChanged:
+            [snapshot.avatar, snapshot.frame, snapshot.bubble, ...Object.values(snapshot.emotionAvatars || {})].some(asset => asset?.blob instanceof Blob) }]);
         return person;
     },
     async deletePerson(card, id) {

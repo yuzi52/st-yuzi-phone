@@ -1,6 +1,7 @@
 import { parseQQVoiceText } from '../qq-v2/voice/emotion-tags.js';
 import { decorateQQAvatar, decorateQQBubble } from '../qq-v2/ui/appearance.js';
 import { parseBodyDialogue } from './config.js';
+import { getBodyDialogueEmotion } from './emotions.js';
 import { bodyDialogueRepository as repository } from './repository.js';
 import { matchBodyModules, createBodyModuleView } from './beautify-modules.js';
 
@@ -33,6 +34,7 @@ function createDialogueImages() {
 }
 
 export function createDialogueView({ dialogue, config, person, userName = '', onPlay, images: sharedImages = null }) {
+    const emotion = config.avatar && config.emotion ? getBodyDialogueEmotion(dialogue.emotion) : null;
     const node = element('span', `yuzi-body-dialogue${config.bubble ? '' : ' is-editorial'}${dialogue.name && dialogue.name === userName && config.align === 'right' ? ' is-self' : ''}`);
     node.setAttribute('data-yuzi-body-dialogue', '');
     let applied = {};
@@ -68,15 +70,34 @@ export function createDialogueView({ dialogue, config, person, userName = '', on
     if (config.avatar && dialogue.name) {
         const avatar = element('span', 'yuzi-body-avatar', Array.from(dialogue.name)[0]);
         avatar.setAttribute('aria-hidden', 'true'); node.append(avatar);
-        void load(person?.avatar, url => {
-            const image = element('img', 'yuzi-body-avatar-image'); image.alt = ''; image.src = url;
-            image.onerror = () => { if (alive) avatar.replaceChildren(document.createTextNode(Array.from(dialogue.name)[0])); };
-            avatar.replaceChildren(image);
-        });
+        const candidates = [emotion && person?.emotionAvatars?.[emotion.id], person?.avatar].filter(Boolean);
+        const showAvatar = async index => {
+            const asset = candidates[index];
+            if (!alive || !asset) return;
+            try {
+                const url = await images.load(asset);
+                if (!alive) return;
+                if (!url) { await showAvatar(index + 1); return; }
+                const image = element('img', 'yuzi-body-avatar-image'); image.alt = '';
+                image.onload = () => { if (alive) avatar.replaceChildren(image); };
+                image.onerror = () => { void showAvatar(index + 1); };
+                image.src = url;
+            } catch { await showAvatar(index + 1); }
+        };
+        void showAvatar(0);
         void load(person?.frame, url => decorateQQAvatar(avatar, url, person.frame.avatarFrameTransform));
     }
     const stack = element('span', 'yuzi-body-stack'); node.append(stack);
-    if (config.avatar && dialogue.name) stack.append(element('span', 'yuzi-body-name', dialogue.name));
+    if (config.avatar && dialogue.name) {
+        const speaker = element('span', 'yuzi-body-speaker');
+        speaker.append(element('span', 'yuzi-body-name', dialogue.name));
+        if (emotion) {
+            const label = element('span', 'phone-ios-badge yuzi-body-emotion', emotion.label);
+            label.style.setProperty('--yuzi-body-emotion-color', emotion.color);
+            speaker.append(label);
+        }
+        stack.append(speaker);
+    }
     const bubble = element('span', 'yuzi-body-bubble'); stack.append(bubble);
     const openingQuote = config.bubble ? null : element('span', 'yuzi-body-quote is-pair', '「');
     const closingQuote = config.bubble ? null : element('span', 'yuzi-body-quote');

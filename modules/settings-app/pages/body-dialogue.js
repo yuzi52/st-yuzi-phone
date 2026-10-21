@@ -4,7 +4,7 @@ import { bindSettingsGroupedControls } from '../ui/settings-controls.js';
 import { showSettingsSheet } from '../ui/settings-layer.js';
 import { showConfirmDialog } from '../ui/confirm-dialog.js';
 import { showToast } from '../ui/toast.js';
-import { pickImageFile } from '../services/media-upload/picker.js';
+import { pickImageFiles } from '../services/media-upload/raw-picker.js';
 import { bodyDialogueService as service } from '../../body-dialogue/runtime.js';
 import { bodyDialogueDefaultPrompts, BODY_DIALOGUE_NUMBERS, composeBodyDialoguePrompt, normalizeBodyDialogueLanguage } from '../../body-dialogue/config.js';
 import { createDialogueView } from '../../body-dialogue/renderer.js';
@@ -14,6 +14,7 @@ import { BODY_DIALOGUE_PACK_BYTES, readBodyDialoguePeoplePack } from '../../body
 import { pickJsonPackFile } from '../../qq-v2/ui/json-pack-actions.js';
 import { downloadTextFile } from '../services/media-upload/download.js';
 import { createBodyModuleSettings } from './body-modules.js';
+import { BODY_DIALOGUE_EMOTIONS } from '../../body-dialogue/emotions.js';
 
 const chevron = '<span class="phone-ios-row-chevron" aria-hidden="true">›</span>';
 const switchControl = (key, checked, label, disabled = false) => `<span class="phone-ios-switch"><input type="checkbox" role="switch" data-body-setting="${key}" aria-label="${attr(label)}" ${checked ? 'checked' : ''} ${disabled ? 'disabled' : ''}><span class="phone-ios-switch-track" aria-hidden="true"></span></span>`;
@@ -41,7 +42,7 @@ export function createBodyDialoguePage({ container, state, render, pageRuntime }
     const promptEditor = (key, owner) => {
         const dirty = drafts[key] !== config.prompts[key];
         const id = `yuzi-body-prompt-${owner}`;
-        const label = { name: '姓名规则 · 头像与朗读共用', base: '基础提示词', bilingual: '双语提示词', tone: '语气标记提示词',
+        const label = { name: '姓名规则 · 头像与朗读共用', emotion: '情绪提示词', base: '基础提示词', bilingual: '双语提示词', tone: '语气标记提示词',
             prosody: '语速与表现力提示词', punctuation: '标点表达提示词' }[key];
         return `<div class="yuzi-body-prompt-editor"><label class="phone-ios-field-label" for="${id}">${label}</label>
             <textarea class="phone-ios-field" id="${id}" data-body-prompt="${key}">${esc(drafts[key])}</textarea>
@@ -99,8 +100,8 @@ export function createBodyDialoguePage({ container, state, render, pageRuntime }
         const preview = q('[data-body-preview]');
         preview.replaceChildren();
         const narration = document.createElement('p'); narration.className = 'yuzi-body-preview-narration'; narration.textContent = '傍晚，门口传来轻轻的脚步声。'; preview.append(narration);
-        for (const dialogue of [{ name: '小玉', text: '你终于来了。', originalText: config.bilingual ? 'やっと来てくれたんだね。' : '' },
-            { name: scope.userName || '旅人', text: '嗯，让你久等了。', originalText: config.bilingual ? 'うん、待たせちゃったね。' : '' }]) {
+        for (const dialogue of [{ name: '小玉', emotion: '开心', text: '你终于来了。', originalText: config.bilingual ? 'やっと来てくれたんだね。' : '' },
+            { name: scope.userName || '旅人', emotion: '平静', text: '嗯，让你久等了。', originalText: config.bilingual ? 'うん、待たせちゃったね。' : '' }]) {
             const view = createDialogueView({ dialogue, config, userName: scope.userName || '旅人', onPlay: () => toast('这是样式预览，不会调用语音服务') });
             preview.append(view.node); previewViews.push(view);
         }
@@ -143,7 +144,8 @@ export function createBodyDialoguePage({ container, state, render, pageRuntime }
             <section class="phone-ios-group"><label class="phone-ios-row"><span class="phone-ios-row-label">启用正文对话气泡</span>${switchControl('enabled', config.enabled, '启用正文对话气泡')}</label>${numberRow('layers')}</section>
             <p class="phone-ios-group-footer">角色卡主世界书 · D0 · 顺序 999 · 蓝灯</p>
             ${section('正文美化模块', disclosure('base', '基础格式', promptEditor('base', 'base'))
-                + disclosure('avatar', '头像与姓名', promptEditor('name', 'avatar'), 'avatar')
+                + disclosure('avatar', '头像与姓名', promptEditor('name', 'avatar')
+                    + disclosure('emotion', '情绪', promptEditor('emotion', 'emotion'), 'emotion'), 'avatar')
                 + disclosure('bilingual', '双语模式', promptEditor('bilingual', 'bilingual'), 'bilingual')
                 + disclosure('voice', '正文朗读', promptEditor('name', 'voice')
                     + `<label class="phone-ios-row"><span class="phone-ios-row-label">语音预生成</span>${switchControl('preGenerate', config.preGenerate, '语音预生成')}</label><p class="phone-ios-group-footer">正文生成完成后，按顺序提前生成最新一楼的对白语音，仅缓存，不自动播放。</p>`
@@ -190,7 +192,7 @@ export function createBodyDialoguePage({ container, state, render, pageRuntime }
                 if (previous.bubble !== config.bubble) paint();
                 else {
                     updateControls();
-                    if (['avatar', 'voice', 'bilingual'].some(key => previous[key] !== config[key])) paintPreview();
+                    if (['avatar', 'emotion', 'voice', 'bilingual'].some(key => previous[key] !== config[key])) paintPreview();
                     else updatePreview();
                 }
             }
@@ -250,6 +252,7 @@ export function createBodyDialoguePage({ container, state, render, pageRuntime }
         if (!service.getScope().card || busy) return;
         personCard = service.getScope().card; const token = ++personVersion;
         personDraft = person ? structuredClone(person) : { name: '', language: '', avatar: null, frame: null, bubble: null, voice: null };
+        personDraft.emotionAvatars ||= {};
         if (!person) {
             busy = true;
             try { Object.assign(personDraft, await randomDialogueAppearance()); }
@@ -264,31 +267,36 @@ export function createBodyDialoguePage({ container, state, render, pageRuntime }
         closeSheet();
         const urls = []; let alive = true;
         const release = () => { alive = false; urls.splice(0).forEach(url => URL.revokeObjectURL(url)); };
-        const slots = [['avatar', '头像'], ['frame', '头像框'], ['bubble', '气泡'], ['voice', '音色']];
+        const slots = [['avatar', '默认头像'], ...(config.emotion ? [['emotions', '情绪头像']] : []), ['frame', '头像框'], ['bubble', '气泡'], ['voice', '音色']];
         sheet = showSettingsSheet({ title: draft.id ? '编辑人物' : '新建人物', runtime: pageRuntime, onClose: release, className: 'phone-settings-page',
+            doneText: '保存', onDone: overlay => {
+                if (busy || !alive || !validPerson(token)) return false;
+                busy = true;
+                const controls = [...overlay.querySelectorAll('button, input')];
+                controls.forEach(control => { control.disabled = true; });
+                void service.savePerson(personCard, draft).then(async () => {
+                    if (alive && validPerson(token)) { closeSheet(); await loadPeople(); toast('人物已保存'); }
+                }).catch(handleError).finally(() => { busy = false; controls.forEach(control => { control.disabled = false; }); });
+                return false;
+            },
             bodyHtml: `<section class="phone-ios-group"><label class="phone-ios-row is-block"><span class="phone-ios-field-label">姓名</span><input class="phone-ios-field" data-person-name value="${attr(draft.name)}" placeholder="填写正文中的姓名" autocomplete="off"></label></section>
-                ${section('形象与声音', slots.map(([key, label]) => `<button type="button" class="phone-ios-row is-tappable" data-person-slot="${key}"><span class="phone-ios-row-label">${label}</span><span class="phone-ios-row-value" data-person-slot-value="${key}">${key === 'voice' ? esc(draft.voice?.name || '未设置') : draft[key] ? `<img class="phone-ios-thumb" alt="${label}" data-person-thumb="${key}">` : '未设置'}${chevron}</span></button>`).join('')
+                ${section('形象与声音', slots.map(([key, label]) => `<button type="button" class="phone-ios-row is-tappable" data-person-slot="${key}"><span class="phone-ios-row-label">${label}</span><span class="phone-ios-row-value" data-person-slot-value="${key}">${key === 'emotions' ? `${BODY_DIALOGUE_EMOTIONS.filter(({ id }) => draft.emotionAvatars[id]).length} / ${BODY_DIALOGUE_EMOTIONS.length}` : key === 'voice' ? esc(draft.voice?.name || '未设置') : draft[key] ? `<img class="phone-ios-thumb" alt="${label}" data-person-thumb="${key}">` : '未设置'}${chevron}</span></button>`).join('')
                     + `<label class="phone-ios-row"><span class="phone-ios-row-label">语言</span><input class="phone-ios-inline-input" type="text" data-person-language aria-label="语言" value="${attr(normalizeBodyDialogueLanguage(draft.language))}" placeholder="默认" autocomplete="off"></label>`)}
-                <p class="phone-ios-group-footer">头像可上传并裁剪；仓库素材选取后独立保存。</p>
-                <section class="phone-ios-group">${action('save-person', '保存人物')}${draft.id ? action('delete-person', '删除人物', true) : ''}</section>` });
+                <p class="phone-ios-group-footer">头像上传保留原图；仓库素材选取后独立保存。</p>
+                ${draft.id ? `<section class="phone-ios-group">${action('delete-person', '删除人物', true)}</section>` : ''}` });
         if (!sheet) return;
         const name = sheet.overlay.querySelector('[data-person-name]');
         sheet.bind(name, 'input', () => { draft.name = name.value; });
         const language = sheet.overlay.querySelector('[data-person-language]');
         sheet.bind(language, 'input', () => { draft.language = language.value; });
         sheet.bind(sheet.overlay, 'click', event => {
+            if (busy) return;
             const slot = event.target.closest('[data-person-slot]')?.dataset.personSlot;
+            if (slot === 'emotions') { showEmotionAvatars(); return; }
             if (slot) { void selectAsset(slot).catch(handleError); return; }
             const actionId = event.target.closest('[data-body-action]')?.dataset.bodyAction;
-            if (actionId === 'save-person') {
-                if (busy) return;
-                busy = true;
-                void service.savePerson(personCard, draft).then(async () => {
-                    if (validPerson(token)) { closeSheet(); await loadPeople(); toast('人物已保存'); }
-                }).catch(handleError).finally(() => { busy = false; });
-            }
             if (actionId === 'delete-person') {
-                if (busy || !validPerson(token)) return;
+                if (!validPerson(token)) return;
                 closeSheet(); closeConfirmation();
                 confirmation = showConfirmDialog(container, '删除人物', `删除“${draft.name}”的正文人物资料？不会删除 QQ 仓库的原素材。`, () => {
                     if (busy || !validPerson(token)) return;
@@ -306,6 +314,61 @@ export function createBodyDialoguePage({ container, state, render, pageRuntime }
                 const url = URL.createObjectURL(media.blob); urls.push(url); image.src = url;
             }).catch(handleError);
         }
+    }
+    function showEmotionAvatars() {
+        if (!validPerson(personVersion) || !config.emotion) return;
+        closeSheet();
+        const draft = personDraft, token = personVersion, urls = new Map();
+        let alive = true;
+        const release = () => { alive = false; urls.forEach(url => URL.revokeObjectURL(url)); urls.clear(); };
+        sheet = showSettingsSheet({ title: '情绪头像', runtime: pageRuntime, className: 'phone-settings-page', onClose: release,
+            doneText: '返回', onDone: () => { showPerson(); return false; },
+            bodyHtml: `<section class="phone-ios-group"><div class="phone-ios-icon-grid yuzi-body-emotion-grid">${BODY_DIALOGUE_EMOTIONS.map(({ id, label }) => `
+                <div class="yuzi-body-emotion-slot">
+                    <button type="button" class="phone-ios-icon-cell" data-person-emotion="${id}" aria-label="上传${label}头像">
+                        <span class="phone-ios-icon-cell-art"><span data-emotion-placeholder aria-hidden="true">＋</span><img data-emotion-image alt="" hidden></span>
+                        <span class="phone-ios-icon-cell-label">${label}</span>
+                    </button>
+                    <button type="button" class="phone-ios-mini-btn is-danger" data-clear-emotion="${id}" aria-label="清空${label}头像" hidden>清空</button>
+                </div>`).join('')}</div></section>`,
+            footer: '点按头像上传或替换，圆点表示已设置；未设置时使用默认头像。返回后点“保存”生效。' });
+        if (!sheet) return;
+        const overlay = sheet.overlay;
+        const paintEmotion = id => {
+            const asset = draft.emotionAvatars[id], button = overlay.querySelector(`[data-person-emotion="${id}"]`);
+            const image = button.querySelector('[data-emotion-image]'), placeholder = button.querySelector('[data-emotion-placeholder]');
+            if (urls.has(id)) { URL.revokeObjectURL(urls.get(id)); urls.delete(id); }
+            button.classList.toggle('is-custom', Boolean(asset));
+            overlay.querySelector(`[data-clear-emotion="${id}"]`).hidden = !asset;
+            image.onload = image.onerror = null;
+            image.hidden = true; image.removeAttribute('src'); placeholder.hidden = false;
+            if (!asset) return;
+            void (asset.blob ? Promise.resolve(asset) : bodyDialogueRepository.getMedia(asset.mediaId)).then(media => {
+                if (!alive || !validPerson(token) || draft.emotionAvatars[id] !== asset || !media?.blob) return;
+                const url = URL.createObjectURL(media.blob); urls.set(id, url);
+                image.onload = () => { if (alive) { image.hidden = false; placeholder.hidden = true; } };
+                image.onerror = () => { image.hidden = true; placeholder.hidden = false; };
+                image.src = url;
+            }).catch(handleError);
+        };
+        BODY_DIALOGUE_EMOTIONS.forEach(({ id }) => paintEmotion(id));
+        sheet.bind(overlay, 'click', event => {
+            if (busy || !alive || !validPerson(token)) return;
+            const upload = event.target.closest('[data-person-emotion]');
+            if (upload) {
+                const id = upload.dataset.personEmotion;
+                pickImageFiles(([selected]) => {
+                    if (!alive || !validPerson(token)) return;
+                    draft.emotionAvatars[id] = { blob: selected.file }; paintEmotion(id);
+                }, { runtime: pageRuntime, multiple: false, maxSizeMB: 8, onError: message => { if (alive && validPerson(token)) toast(message, true); } });
+            }
+            const clear = event.target.closest('[data-clear-emotion]');
+            if (clear) {
+                const id = clear.dataset.clearEmotion;
+                draft.emotionAvatars[id] = null; paintEmotion(id);
+                overlay.querySelector(`[data-person-emotion="${id}"]`).focus({ preventScroll: true });
+            }
+        });
     }
     async function selectAsset(slot) {
         const token = personVersion, library = await readDialogueLibrary();
@@ -328,7 +391,7 @@ export function createBodyDialoguePage({ container, state, render, pageRuntime }
         const urls = []; let alive = true, active = 0; const pending = []; let observer;
         const release = () => { alive = false; observer?.disconnect(); urls.splice(0).forEach(url => URL.revokeObjectURL(url)); };
         sheet = showSettingsSheet({ title: '图片资料', runtime: pageRuntime, onClose: release, doneText: '返回', onDone: () => { showPerson(); return false; },
-            bodyHtml: `<section class="phone-ios-group">${action('unset', '不使用此素材')}${slot === 'avatar' ? action('upload', '上传头像并裁剪') : ''}</section>
+            bodyHtml: `<section class="phone-ios-group">${action('unset', '不使用此素材')}${slot === 'avatar' ? action('upload', '上传头像') : ''}</section>
                 <section class="phone-ios-group"><div class="phone-ios-icon-grid yuzi-body-library">${assets.map((_asset, index) => `<button type="button" class="phone-ios-icon-cell" data-body-asset-index="${index}" aria-label="选择素材 ${index + 1}"><img class="phone-ios-thumb" alt="素材 ${index + 1}"></button>`).join('')}</div>${assets.length ? '' : '<p class="phone-ios-row-empty">仓库暂无素材</p>'}</section>` });
         if (!sheet) return;
         const run = () => {
@@ -355,11 +418,9 @@ export function createBodyDialoguePage({ container, state, render, pageRuntime }
             }
             if (actionId === 'unset') { personDraft[slot] = null; showPerson(); }
             if (actionId === 'upload') {
-                closeSheet();
-                pickImageFile(async dataUrl => {
-                    const blob = await (await fetch(dataUrl)).blob();
-                    if (validPerson(token)) { personDraft.avatar = { blob }; showPerson(); }
-                }, { runtime: pageRuntime, cropPreset: 'toggle-cover-circle', cropTitle: '裁剪头像', onCancel: () => showPerson(), onError: message => { toast(message, true); showPerson(); } });
+                pickImageFiles(([selected]) => {
+                    if (alive && validPerson(token)) { personDraft.avatar = { blob: selected.file }; showPerson(); }
+                }, { runtime: pageRuntime, multiple: false, maxSizeMB: 8, onError: message => { if (alive && validPerson(token)) toast(message, true); } });
             }
         });
     }

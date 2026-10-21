@@ -1,5 +1,6 @@
 import { QQ_VOICE_PROMPT_RULE, QQ_VOICE_TAG_GUIDE } from '../qq-v2/voice/emotion-tags.js';
 import { normalizeQQVoiceSpeechControls } from '../qq-v2/voice/speech-controls.js';
+import { BODY_DIALOGUE_EMOTIONS } from './emotions.js';
 
 const BILINGUAL_RULE = '人物对白先输出自然连贯的日语原文，再翻译成中文，中文采用动漫汉化组翻译风格。';
 const TONE_RULE = `请结合剧情、人物情绪和说话习惯，主动使用以下声音标记，让对白像真人说话一样自然生动。
@@ -18,10 +19,11 @@ const PROSODY_RULE = `请结合当前剧情、人物性格、情绪和说话习�
 
 按实际语境选择，不必刻意使用极端值；无明显需要时，使用语速1、表现力0.7。`;
 const namedDialogue = (config, name, content, parameters = '1,0.7') =>
-    `「${name}|${content}${config.voice && config.prosody ? `|${parameters}` : ''}」`;
+    `「${name}|${config.avatar && config.emotion ? `${name === '姓名' ? '情绪' : '平静'}|` : ''}${content}${config.voice && config.prosody ? `|${parameters}` : ''}」`;
 export const BODY_DIALOGUE_PROMPTS = Object.freeze({
     base: '正文中人物说出口的对白用「」包裹',
     name: '对白格式为「姓名|对白」，姓名使用人物真名，同一人物保持一致。',
+    emotion: `从下方情绪标签中，选择一个适合当前对白的标签。\n${BODY_DIALOGUE_EMOTIONS.map(emotion => emotion.label).join('、')}`,
     bilingual: `${BILINGUAL_RULE}按以下两行成对输出：\n「日语台词」\n「中文翻译」`,
     tone: `${TONE_RULE}\n\n例如：「小玉|你终于来了……[slight pause][sad]我还以为你不会来了。[whispering]下次别让我等这么久，好吗？」`,
     prosody: PROSODY_RULE,
@@ -54,6 +56,7 @@ const previousTonePrompts = promptModes.map(config => ({
 const legacyProsodyRule = `${PROSODY_RULE.replaceAll('表现力', '张力')}\n\n在对白最后追加“|语速,张力”。`;
 const defaultVariants = [BODY_DIALOGUE_PROMPTS,
     ...promptModes.map(bodyDialogueDefaultPrompts),
+    ...promptModes.map(config => bodyDialogueDefaultPrompts({ ...config, avatar: true, emotion: true })),
     { bilingual: '人物对白按以下两行成对输出，日语自然连贯，中文动漫汉化组翻译：\n「日语台词」\n「中文翻译」' },
     ...previousTonePrompts,
     ...promptModes.map((config, index) => ({
@@ -74,6 +77,7 @@ export const BODY_DIALOGUE_MODULES = Object.freeze([
     { id: 'base', prompt: 'base', active: () => true },
     { id: 'bilingual', prompt: 'bilingual', active: config => config.bilingual },
     { id: 'avatar', prompt: 'name', identity: true, active: config => config.avatar },
+    { id: 'emotion', prompt: 'emotion', active: config => config.avatar && config.emotion },
     { id: 'voice', prompt: 'name', identity: true, active: config => config.voice },
     { id: 'prosody', prompt: 'prosody', active: config => config.voice && config.prosody },
     { id: 'punctuation', prompt: 'punctuation', active: config => config.voice && config.punctuation },
@@ -96,6 +100,7 @@ export function normalizeBodyDialogue(value = {}) {
     const source = value && typeof value === 'object' ? value : {};
     const config = {
         enabled: source.enabled === true, avatar: source.avatar !== false,
+        emotion: source.emotion === true,
         voice: source.voice === true, tone: source.tone === true, bubble: source.bubble !== false,
         prosody: source.prosody === true, punctuation: source.punctuation === true,
         bilingual: source.bilingual === true, readOriginal: source.readOriginal === true, preGenerate: source.preGenerate === true,
@@ -135,12 +140,21 @@ export function bodyDialogueUsesPersonLanguages(config) {
 export function composeBodyDialoguePrompt(config, people = [], modulePrompt = '') {
     if (!config.enabled) return '';
     const { identity, prompts } = bodyDialogueFormat(config);
+    const defaultName = defaultVariants.some(variant => variant.name === config.prompts.name);
     const mergeDefaults = config.bilingual && identity && config.prompts.bilingual === BODY_DIALOGUE_PROMPTS.bilingual
-        && defaultVariants.some(variant => variant.name === config.prompts.name);
-    const blocks = prompts.filter(key => key !== 'tone' && !(mergeDefaults && key === 'name')).map(key =>
-        mergeDefaults && key === 'bilingual'
-            ? `${BILINGUAL_RULE}姓名使用人物真名，同一人物保持一致。按以下两行成对输出，格式：\n「日语台词」\n${namedDialogue(config, '姓名', '中文翻译', '语速,表现力')}`
-            : config.prompts[key]);
+        && defaultName;
+    const emotion = prompts.includes('emotion') ? config.prompts.emotion : '';
+    const blocks = prompts.filter(key => !['tone', 'emotion'].includes(key) && !(mergeDefaults && key === 'name')).flatMap(key => {
+        if (mergeDefaults && key === 'bilingual') return [
+            `${BILINGUAL_RULE}\n姓名使用人物真名，同一人物保持一致。按以下两行成对输出。`, emotion,
+            `格式：\n「日语台词」\n${namedDialogue(config, '姓名', '中文翻译', '语速,表现力')}`,
+        ];
+        if (key === 'name' && emotion) return defaultName ? [
+            `姓名使用人物真名，同一人物保持一致。${config.bilingual ? '按以下两行成对输出。' : ''}`, emotion,
+            `格式：\n${config.bilingual ? '「原文台词」\n' : ''}${namedDialogue(config, '姓名', config.bilingual ? '中文翻译' : '对白', '语速,表现力')}`,
+        ] : [emotion, config.prompts.name];
+        return config.prompts[key];
+    });
     if (bodyDialogueUsesPersonLanguages(config)) {
         for (const person of people) {
             const language = normalizeBodyDialogueLanguage(person.language);
@@ -159,13 +173,18 @@ export function parseBodyDialogue(text, config) {
     const identity = bodyDialogueFormat(config).identity;
     const result = [];
     for (const match of String(text).matchAll(/「([^「」]+)」/gu)) {
-        const fields = match[1].split('|');
-        if (fields.length > 3 || (fields.length >= 2 && !identity)) continue;
-        const name = fields.length >= 2 ? fields[0].trim() : '';
-        const content = fields[fields.length >= 2 ? 1 : 0].trim();
+        const fields = match[1].split('|').map(field => field.trim());
+        if (fields.length > 4 || (fields.length >= 2 && !identity)) continue;
+        // Parse saved formats independently of the switch; numeric tails belong to legacy speech controls.
+        const hasEmotion = fields.length === 4 || (fields.length === 3
+            && !/^[+-]?(?:\d+(?:\.\d*)?|\.\d+)?\s*[,，]\s*[+-]?(?:\d+(?:\.\d*)?|\.\d+)?$/u.test(fields[2]));
+        const name = fields.length >= 2 ? fields[0] : '';
+        const content = fields[hasEmotion ? 2 : fields.length >= 2 ? 1 : 0];
         if (!content || (fields.length >= 2 && !name)) continue;
-        const controls = fields.length === 3 ? fields[2].split(/[,，]/u) : null;
+        const controls = fields.length === 4 ? fields[3].split(/[,，]/u)
+            : fields.length === 3 && !hasEmotion ? fields[2].split(/[,，]/u) : null;
         result.push({ start: match.index, end: match.index + match[0].length, raw: match[0], name, text: content,
+            emotion: hasEmotion ? fields[1] : '',
             ...(controls ? { speechControls: normalizeQQVoiceSpeechControls({
                 speed: controls.length === 2 && controls[0].trim() ? Number(controls[0]) : undefined,
                 temperature: controls.length === 2 && controls[1].trim() ? Number(controls[1]) : undefined,

@@ -1,4 +1,5 @@
 import { normalizeBodyDialogueLanguage } from './config.js';
+import { BODY_DIALOGUE_EMOTIONS } from './emotions.js';
 
 let database;
 function openDatabase() {
@@ -57,15 +58,20 @@ function personName(draft) {
 function writePerson(store, card, draft, old) {
     const id = old?.id || globalThis.crypto?.randomUUID?.() || `person-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
     const person = { id, card, name: personName(draft), language: normalizeBodyDialogueLanguage(draft.language), voice: draft.voice || null };
-    for (const slot of ['avatar', 'frame', 'bubble']) {
-        const asset = draft[slot], id = `${person.id}:${slot}`;
+    const writeImage = (slot, asset, previous) => {
+        const id = `${person.id}:${slot}`;
         if (asset?.blob instanceof Blob) {
             store('media').put({ id, card, blob: asset.blob });
             const { blob: _blob, ...metadata } = asset;
-            person[slot] = { ...metadata, mediaId: id };
-        } else if (asset?.mediaId && asset.mediaId === old?.[slot]?.mediaId) person[slot] = old[slot];
-        else { person[slot] = null; store('media').delete(id); }
-    }
+            return { ...metadata, mediaId: id };
+        }
+        if (asset?.mediaId && asset.mediaId === previous?.mediaId) return previous;
+        store('media').delete(id);
+        return null;
+    };
+    for (const slot of ['avatar', 'frame', 'bubble']) person[slot] = writeImage(slot, draft[slot], old?.[slot]);
+    person.emotionAvatars = Object.fromEntries(BODY_DIALOGUE_EMOTIONS.map(({ id }) =>
+        [id, writeImage(`emotion:${id}`, draft.emotionAvatars?.[id], old?.emotionAvatars?.[id])]));
     store('people').put(person);
     return { person, previous: old };
 }
@@ -88,9 +94,9 @@ export const bodyDialogueRepository = {
             const people = await result(store('people').index('card').getAll(card));
             // One consistent snapshot; never load unrelated generated audio or other cards.
             return Promise.all(people.map(async person => {
-                for (const slot of ['avatar', 'frame', 'bubble']) if (person[slot]) {
-                    const media = await result(store('media').get(person[slot].mediaId));
-                    person[slot] = { ...person[slot], blob: media?.blob };
+                for (const asset of [person.avatar, person.frame, person.bubble, ...Object.values(person.emotionAvatars || {})]) if (asset) {
+                    const media = await result(store('media').get(asset.mediaId));
+                    asset.blob = media?.blob;
                 }
                 return person;
             }));
@@ -150,6 +156,7 @@ export const bodyDialogueRepository = {
             if (person?.card !== card) return;
             store('people').delete(id);
             for (const slot of ['avatar', 'frame', 'bubble']) store('media').delete(`${id}:${slot}`);
+            for (const emotion of BODY_DIALOGUE_EMOTIONS) store('media').delete(`${id}:emotion:${emotion.id}`);
             for (const entry of await result(store('audio').index('card').getAll(card))) {
                 if (entry.personId === id) { store('audio').delete(entry.id); store('media').delete(entry.id); }
             }
