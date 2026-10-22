@@ -29,13 +29,13 @@ export function createPresetStateSnapshot(options = {}) {
     });
 }
 
-export function createTableSnapshot(rawData, sheetKey) {
+export function createTableSnapshot(rawData, sheetKey, options = {}) {
     const key = String(sheetKey ?? '').trim();
     const sheet = rawData?.[key];
     if (!key || !sheet || !Array.isArray(sheet.content)) return null;
     const rawHeaders = Array.isArray(sheet.content[0]) ? sheet.content[0] : [];
     const headers = rawHeaders.map((header, index) => String(header ?? '').trim() || `列${index + 1}`);
-    const rows = sheet.content.slice(1).filter(Array.isArray);
+    const rows = options.includeRows === false ? [] : sheet.content.slice(1).filter(Array.isArray);
     return deepFreeze(cloneValue({
         sheetKey: key,
         tableName: String(sheet.name || key).trim() || key,

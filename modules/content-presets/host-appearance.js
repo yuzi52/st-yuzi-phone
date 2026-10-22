@@ -25,13 +25,15 @@ function fontState(getFontFamily) {
     });
 }
 
-function createReadonlySource(readState, subscribeSettings) {
+function createReadonlySource(readState, subscribeSettings, settingKey) {
     return Object.freeze({
         getState: () => readState(),
         subscribe(listener) {
             if (typeof listener !== 'function') return NOOP;
             try {
-                const unsubscribe = subscribeSettings?.(() => listener(readState()));
+                const unsubscribe = subscribeSettings?.((detail) => {
+                    if (!detail?.key || detail.key === settingKey) listener(readState());
+                });
                 return typeof unsubscribe === 'function' ? unsubscribe : NOOP;
             } catch {
                 return NOOP;
@@ -52,8 +54,8 @@ export function createContentPresetHostAppearance(options = {}) {
     const subscribeSettings = options.subscribeSettings || subscribePhoneSettingsUpdates;
 
     return Object.freeze({
-        theme: createReadonlySource(() => themeState(getSettings), subscribeSettings),
-        font: createReadonlySource(() => fontState(getFontFamily), subscribeSettings),
+        theme: createReadonlySource(() => themeState(getSettings), subscribeSettings, 'phoneThemeMode'),
+        font: createReadonlySource(() => fontState(getFontFamily), subscribeSettings, 'appearanceFontLibrary'),
     });
 }
 

@@ -21,11 +21,6 @@ function tableDisplayEnabled(config, sheetKey) {
     return !choices || typeof choices !== 'object' || choices[sheetKey] !== false;
 }
 
-function tableLabelBySheetKey(rawData, sheetKey) {
-    return buildTableNavigationCatalog(rawData)
-        .find(entry => entry.sheetKey === sheetKey)?.tableName || sheetKey;
-}
-
 function pageBindingIsActive(index, source) {
     const binding = asMap(index?.pageByTable || index?.activeByTable).get(source.originSheetKey);
     return text(binding?.presetId) === text(source.presetId)
@@ -125,9 +120,11 @@ export function createContentPresetImageGenerationHost(options = {}) {
                 asMap(getIndex?.()?.pageByTable || getIndex?.()?.activeByTable),
                 asMap(getIndex?.()?.popupByTable),
             );
+            if (!directory.bySheetKey.size) return Object.freeze([]);
+            const tableNames = new Map(buildTableNavigationCatalog(rawData).map(entry => [entry.sheetKey, entry.tableName]));
             return Object.freeze([...directory.bySheetKey.entries()].map(([sheetKey, registrations]) => Object.freeze({
                 sheetKey,
-                tableName: tableLabelBySheetKey(rawData, sheetKey),
+                tableName: tableNames.get(sheetKey) || sheetKey,
                 usageCount: registrations.length,
             })));
         },

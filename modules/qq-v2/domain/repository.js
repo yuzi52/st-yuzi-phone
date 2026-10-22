@@ -1190,6 +1190,31 @@ export function createQQV2Repository(options = {}) {
         });
     };
 
+    const findMessagePage = async (scopeId, conversationId, { beforeSequence, fromSequence, limit = 50 } = {}) => {
+        if (fromSequence !== undefined && (!Number.isSafeInteger(fromSequence) || fromSequence < 0 || beforeSequence !== undefined)) {
+            throw new QQV2DomainError(t("消息窗口起点无效"), 'message_window_invalid');
+        }
+        const state = await stateStore.read();
+        const scope = getScope(state, scopeId, false);
+        if (!scope.conversations[conversationId]) return null;
+        const before = Number.isInteger(Number(beforeSequence)) ? Number(beforeSequence) : Number.POSITIVE_INFINITY;
+        const size = Math.max(1, Math.min(200, Number(limit) || 50));
+        // ponytail: 根状态仍需全量读取；只为本页构建展示模型，存储拆分另行评估。
+        const eligible = Object.values(scope.messages)
+            .filter((message) => message.conversationId === conversationId && Number(message.sequence) < before)
+            .sort((left, right) => left.sequence - right.sequence);
+        let selected = fromSequence === undefined ? eligible.slice(-size)
+            : eligible.filter(message => Number(message.sequence) >= fromSequence);
+        // If the entire visible window was deleted, reveal the latest surviving page.
+        if (fromSequence !== undefined && selected.length === 0) selected = eligible.slice(-50);
+        const items = selected.map((message) => messageWithQuote(scope, message));
+        return {
+            items,
+            hasMore: eligible.length > items.length,
+            nextBeforeSequence: items[0]?.sequence ?? null,
+        };
+    };
+
     return Object.freeze({
         async listAssistantConversationTargets(characterId) {
             const state = await stateStore.read();
@@ -1442,6 +1467,22 @@ export function createQQV2Repository(options = {}) {
             const scope = getScope(state, scopeId, false);
             const conversation = scope.conversations[asText(conversationId, 256)];
             return conversation ? conversationSummary(scope, conversation) : null;
+        },
+        async getChatContextData(scopeId, conversationId) {
+            const state = await stateStore.read();
+            const scope = getScope(state, scopeId, false);
+            const conversation = scope.conversations[asText(conversationId, 256)];
+            if (!conversation) return null;
+            return {
+                summary: conversationSummary(scope, conversation),
+                selfProfile: copy(scope.selfProfile),
+                people: Object.values(scope.people).map((person) => ({
+                    personId: person.personId,
+                    formalName: person.formalName,
+                    voiceId: person.voiceId,
+                    assistantCharacterId: person.assistantCharacterId,
+                })),
+            };
         },
         async getConversation(scopeId, conversationId) {
             const state = await stateStore.read();
@@ -1961,30 +2002,18 @@ export function createQQV2Repository(options = {}) {
                 .sort((left, right) => left.sequence - right.sequence)
                 .map((message) => messageWithQuote(scope, message));
         },
-        async listMessagePage(scopeId, conversationId, { beforeSequence, fromSequence, limit = 50 } = {}) {
-            if (fromSequence !== undefined && (!Number.isSafeInteger(fromSequence) || fromSequence < 0 || beforeSequence !== undefined)) {
-                throw new QQV2DomainError(t("消息窗口起点无效"), 'message_window_invalid');
-            }
+        async findMessageFacts(scopeId, messageIds) {
             const state = await stateStore.read();
             const scope = getScope(state, scopeId, false);
-            const empty = { items: [], hasMore: false, nextBeforeSequence: null };
-            if (!scope.conversations[conversationId]) return empty;
-            const before = Number.isInteger(Number(beforeSequence)) ? Number(beforeSequence) : Number.POSITIVE_INFINITY;
-            const size = Math.max(1, Math.min(200, Number(limit) || 50));
-            // ponytail: 根状态仍需全量读取；只为本页构建展示模型，存储拆分另行评估。
-            const eligible = Object.values(scope.messages)
-                .filter((message) => message.conversationId === conversationId && Number(message.sequence) < before)
-                .sort((left, right) => left.sequence - right.sequence);
-            let selected = fromSequence === undefined ? eligible.slice(-size)
-                : eligible.filter(message => Number(message.sequence) >= fromSequence);
-            // If the entire visible window was deleted, reveal the latest surviving page.
-            if (fromSequence !== undefined && selected.length === 0) selected = eligible.slice(-50);
-            const items = selected.map((message) => messageWithQuote(scope, message));
-            return {
-                items,
-                hasMore: eligible.length > items.length,
-                nextBeforeSequence: items[0]?.sequence ?? null,
-            };
+            const ids = [...new Set(Array.isArray(messageIds) ? messageIds.map((id) => asText(id, 256)).filter(Boolean) : [])];
+            return ids.map((id) => scope.messages[id]).filter(Boolean)
+                .sort((left, right) => left.sequence - right.sequence)
+                .map(({ messageId, conversationId, senderType }) => ({ messageId, conversationId, senderType }));
+        },
+        findMessagePage,
+        async listMessagePage(scopeId, conversationId, options = {}) {
+            return await findMessagePage(scopeId, conversationId, options)
+                ?? { items: [], hasMore: false, nextBeforeSequence: null };
         },
         async appendMessages(scopeId, conversationId, inputs, operationOptions = {}) {
             return transactScoped(scopeId, operationOptions, (state) => {
@@ -2195,6 +2224,18 @@ export function createQQV2Repository(options = {}) {
             const state = await stateStore.read();
             const scope = getScope(state, scopeId, false);
             return Object.values(scope.assets).filter((asset) => !conversationId || asset.conversationId === conversationId).map(copy);
+        },
+        async listExistingMediaAssets(scopeId, references) {
+            const state = await stateStore.read();
+            const scope = getScope(state, scopeId, false);
+            return (Array.isArray(references) ? references : []).flatMap((reference) => {
+                const assetId = asText(reference?.assetId, 256);
+                const kind = reference?.kind === 'voice' ? 'voice' : 'media';
+                const asset = kind === 'voice'
+                    ? scope.voiceAssets[assetId]
+                    : scope.assets[assetId] || findImageLibraryAsset(state, assetId);
+                return asset ? [{ kind, assetId }] : [];
+            });
         },
         async getMediaAsset(scopeId, assetId) {
             const state = await stateStore.read();

@@ -4,7 +4,7 @@ import { listMatchingDisplays, listMatchingPageItems, matchesDisplayTarget } fro
 
 export function buildContentPresetCatalog(rawData, presets = [], pageByTable = new Map(), popupByTable = new Map(), bottomByTable = new Map()) {
     const entries = buildTableNavigationCatalog(rawData).map(entry => {
-        const snapshot = createTableSnapshot(rawData, entry.sheetKey);
+        const snapshot = createTableSnapshot(rawData, entry.sheetKey, { includeRows: false });
         return { entry, snapshot, table: { tableName: snapshot?.tableName || entry.tableName, headers: snapshot?.rawHeaders || [] } };
     });
     const displaySources = listMatchingDisplays(presets, entries.map(value => value.table));

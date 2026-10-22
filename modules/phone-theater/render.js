@@ -6,8 +6,11 @@ import { buildTableNavigationControlState } from '../table-navigation/controls.j
 import { createRuntimeScrollPreserver } from '../ui-runtime/scroll-preserver-core.js';
 import {
     buildTheaterSceneViewModel,
+    buildTheaterTableIndex,
     resolveTheaterNavigationSheetKey,
+    resolveTheaterSceneTables,
 } from './data.js';
+import { getTheaterSceneDefinition } from './config.js';
 import { buildTheaterScenePageHtml } from './templates.js';
 import { bindTheaterSceneInteractions } from './interactions.js';
 
@@ -138,9 +141,13 @@ export function renderTheaterScene(container, sceneId, options = {}) {
         renderTheaterScene(container, state.sceneId, nextRenderOptions);
     };
     const rawData = options.initialTableData || getTableData();
-    const viewModel = buildTheaterSceneViewModel(rawData, state.sceneId);
+    const scene = getTheaterSceneDefinition(state.sceneId);
+    const builtinTables = typeof scene?.mountBuiltin === 'function'
+        ? resolveTheaterSceneTables(rawData, scene, { index: buildTheaterTableIndex(rawData, { includeRows: false }) })
+        : null;
+    const viewModel = builtinTables?.available ? builtinTables : buildTheaterSceneViewModel(rawData, state.sceneId);
     state.navigationSheetKey = resolveTheaterNavigationSheetKey(rawData, viewModel, options.navigationSheetKey);
-    const uiState = buildUiState(state, viewModel);
+    const uiState = builtinTables?.available ? {} : buildUiState(state, viewModel);
     if (options.readOnly) { uiState.canEdit = false; uiState.canDelete = false; }
     uiState.tableNavigation = state.navigationSheetKey
         ? buildTableNavigationControlState(rawData, state.navigationSheetKey, {

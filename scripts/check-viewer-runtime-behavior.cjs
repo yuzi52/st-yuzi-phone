@@ -199,6 +199,93 @@ async function testGenericRuntimeStartOrder(genericRuntimeModule) {
     assert.deepEqual(order, ['bind', 'render']);
 }
 
+async function testGenericRuntimeRefreshBoundaries(genericRuntimeModule) {
+    installDomGlobals();
+    let lockReads = 0;
+    window.AutoCardUpdaterAPI = {
+        exportTableAsJson: () => ({ sheet_refresh: { name: 'Refresh table', content: [['name'], ['fresh']] } }),
+        getTableLockState: () => { lockReads += 1; return { rows: [], cols: [], cells: [] }; },
+    };
+    let listRenders = 0;
+    let detailRenders = 0;
+    let patches = 0;
+    let setListRefreshHandler;
+    const frames = new Map();
+    let nextFrame = 0;
+    const runtime = genericRuntimeModule.createGenericTableViewerRuntime(new FakeHTMLElement(), {
+        sheetKey: 'sheet_refresh', tableName: 'Refresh table', headers: ['name'], rawHeaders: ['name'], rows: [['old']],
+    }, {
+        viewerRuntime: {
+            requestAnimationFrame(callback) { const id = ++nextFrame; frames.set(id, callback); return id; },
+            cancelAnimationFrame(id) { frames.delete(id); },
+        },
+        renderListPage(options) {
+            listRenders += 1;
+            setListRefreshHandler = options.setListRefreshHandler;
+            setListRefreshHandler(() => {
+                patches += 1;
+                options.state.syncLockState(options.getTableLockState(options.sheetKey));
+            });
+        },
+        renderDetailPage() { detailRenders += 1; },
+    });
+    runtime.start();
+    lockReads = 0;
+    runtime.refreshListAfterDataMutation();
+    assert.equal(patches, 1, '本地刷新中的锁同步不得再次派发列表刷新');
+    assert.equal(lockReads, 1);
+    lockReads = 0;
+    runtime.handleTableUpdate();
+    assert.equal(patches, 2, '外部更新只经状态订阅刷新一次列表');
+    assert.equal(lockReads, 2);
+
+    runtime.state.set('listSearchQuery', 'a');
+    runtime.state.set('listSearchQuery', 'ab');
+    assert.equal(frames.size, 1, '搜索仍合并到同一帧');
+    const frame = frames.values().next().value;
+    frames.clear();
+    frame();
+    assert.equal(patches, 3);
+
+    runtime.state.enterDetailMode(0);
+    runtime.handleTableUpdate();
+    assert.equal(detailRenders, 1, '外部更新仍显式刷新详情');
+    assert.equal(patches, 3, '详情不得消费遗留列表 handler');
+    runtime.state.returnToListMode();
+    const patchesBeforeFallback = patches;
+    setListRefreshHandler(null);
+    runtime.handleTableUpdate();
+    assert.equal(listRenders, 2, '未注册局部 handler 时保留整页回退');
+    assert.equal(patches, patchesBeforeFallback);
+}
+
+async function testDetailRenderLockSnapshot() {
+    installDomGlobals();
+    const { renderGenericDetailPage } = await import(toModuleUrl('modules/table-viewer/detail-page-renderer.js'));
+    const locks = await import(toModuleUrl('modules/phone-core/data-api/lock-repository.js'));
+    const headers = Array.from({ length: 80 }, (_, index) => `field_${index}`);
+    const rows = [headers.map((_, index) => `value_${index}`)];
+    for (const [lockState, expectedLockedFields] of [
+        [{ rows: [], cols: [1], cells: ['0:2'] }, 2],
+        [{ rows: [0], cols: [], cells: [] }, 80],
+    ]) {
+        let lockReads = 0;
+        window.AutoCardUpdaterAPI = { getTableLockState: () => { lockReads += 1; return lockState; } };
+        const container = new FakeHTMLElement();
+        const state = { rowIndex: 0, draftValues: {}, syncLockState(value) { this.lockState = value; } };
+        renderGenericDetailPage({
+            container, state, sheetKey: 'sheet_locks', headers, rawHeaders: headers, rows,
+            ddlFieldMetadata: { byRawIndex: { 0: { type: 'text' } } },
+            getTableLockState: locks.getTableLockState,
+            isTableRowLocked: locks.isTableRowLocked,
+            isTableCellLocked: locks.isTableCellLocked,
+        });
+        assert.equal(lockReads, 1, '80 字段详情渲染仅读取一次锁快照');
+        assert.equal((container.innerHTML.match(/phone-generic-slot-detail-field is-locked/g) || []).length, expectedLockedFields,
+            '行锁、列锁和精确单元格锁保持原显示语义');
+    }
+}
+
 async function main() {
     installDomGlobals();
     const { runtimeModule, genericRuntimeModule, callbacksModule } = await importViewerModules();
@@ -207,12 +294,16 @@ async function main() {
     await testViewingSheetLeaseRace(callbacksModule);
     await testViewerRuntimeSuppressDepth(runtimeModule);
     await testGenericRuntimeStartOrder(genericRuntimeModule);
+    await testGenericRuntimeRefreshBoundaries(genericRuntimeModule);
+    await testDetailRenderLockSnapshot();
 
     console.log('[viewer-runtime-behavior-check] passed');
     console.log('- viewer session startup and cleanup order');
     console.log('- viewing sheet lease ownership');
     console.log('- external update suppression depth');
     console.log('- generic runtime bind then render order');
+    console.log('- generic refresh coalescing, detail and missing-handler fallback');
+    console.log('- detail render uses one lock snapshot');
 }
 
 main().catch((error) => {

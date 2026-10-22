@@ -3,20 +3,13 @@ import { PHONE_BEAUTIFY_STORE_KEY, PHONE_BEAUTIFY_TEMPLATE_SCHEMA_VERSION } from
 import { BUILTIN_TEMPLATES } from './defaults.js';
 import { normalizeTemplate } from './normalize.js';
 import {
-    deepClone,
     normalizeString,
     nowTs,
     sanitizeId,
     unwrapAnnotatedValue,
 } from './core.js';
 
-function getBuiltinTemplateMap() {
-    const map = new Map();
-    BUILTIN_TEMPLATES.forEach((template) => {
-        map.set(template.id, deepClone(template));
-    });
-    return map;
-}
+const BUILTIN_TEMPLATE_IDS = new Set(BUILTIN_TEMPLATES.map(template => template.id));
 
 function normalizeBindings(rawBindings, validTemplateIdSet) {
     const source = unwrapAnnotatedValue(rawBindings);
@@ -43,7 +36,6 @@ function normalizeBindings(rawBindings, validTemplateIdSet) {
 function normalizeTemplateStore(rawStore) {
     const source = unwrapAnnotatedValue(rawStore);
     const src = source && typeof source === 'object' ? source : {};
-    const builtinMap = getBuiltinTemplateMap();
 
     const userTemplates = [];
     const userIdSet = new Set();
@@ -56,7 +48,7 @@ function normalizeTemplateStore(rawStore) {
             });
             if (!normalized) return;
 
-            if (builtinMap.has(normalized.id)) {
+            if (BUILTIN_TEMPLATE_IDS.has(normalized.id)) {
                 normalized.id = sanitizeId(`${normalized.id}.user`, `user.template.${idx + 1}`);
             }
 
@@ -71,13 +63,13 @@ function normalizeTemplateStore(rawStore) {
         });
     }
 
-    const validTemplateIdSet = new Set([...builtinMap.keys(), ...userIdSet]);
+    const validTemplateIdSet = new Set([...BUILTIN_TEMPLATE_IDS, ...userIdSet]);
 
     const updatedAt = Number(unwrapAnnotatedValue(src.updatedAt));
 
     return {
         schemaVersion: PHONE_BEAUTIFY_TEMPLATE_SCHEMA_VERSION,
-        updatedAt: Number.isFinite(updatedAt) ? updatedAt : nowTs(),
+        updatedAt: Number.isFinite(updatedAt) ? updatedAt : 0,
         templates: userTemplates,
         bindings: normalizeBindings(src.bindings, validTemplateIdSet),
     };

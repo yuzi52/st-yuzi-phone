@@ -1107,6 +1107,7 @@
     --yuzi-qq-settings-detail-card-padding-block: 0px;
     --yuzi-qq-settings-detail-card-padding-inline: 0px;
     --yuzi-qq-settings-detail-group-radius: var(--yuzi-qq-secondary-group-radius);
+    --yuzi-qq-image-library-grid-item-size: 72px;
     --yuzi-qq-image-library-grid-gap: 10px;
     --yuzi-qq-image-library-grid-padding-block: 14px;
     --yuzi-qq-image-library-grid-padding-inline: 12px;

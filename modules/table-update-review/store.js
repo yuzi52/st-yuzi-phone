@@ -94,7 +94,8 @@ export function subscribeReviewState(callback) {
 export function getReviewTableBySheetKey(sheetKey) {
     const key = String(sheetKey || '').trim();
     if (!key) return null;
-    return cloneState().tables.find((table) => table.sheetKey === key) || null;
+    const table = currentState.tables.find((table) => table.sheetKey === key);
+    return table ? cloneTable(table) : null;
 }
 
 export function getUpdatedRowsForSheet(sheetKey) {

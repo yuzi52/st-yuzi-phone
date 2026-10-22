@@ -795,6 +795,18 @@ export function validateSetting(key, value) {
     }
 }
 
+const WHOLE_SETTINGS_FINALIZED_KEYS = new Set([
+    'appIcons',
+    'hiddenTableApps',
+    'appIconOrigins',
+    'appearanceResourcePool',
+    'appearanceFontLibrary',
+    'worldbookReadingSelection',
+    'worldbookReadingBlockedKeywords',
+    'imageGeneration',
+    'tableContentReplacement',
+]);
+
 export function validateSettings(settings) {
     const validated = {
         ...defaultSettings,
@@ -811,6 +823,14 @@ export function validateSettings(settings) {
     }
 
     for (const [key, value] of Object.entries(settings)) {
+        // 下方已有专门处理；非法对象值仍走原校验，保留告警与回退行为。
+        if (WHOLE_SETTINGS_FINALIZED_KEYS.has(key)
+            && (key === 'worldbookReadingBlockedKeywords'
+                || value === null
+                || value === undefined
+                || isPlainObject(value))) {
+            continue;
+        }
         const result = validateSetting(key, value);
         if (result.removed) {
             continue;

@@ -187,7 +187,7 @@ sequenceDiagram
 维护规则：
 
 - 新增 route 必须同步改 [`loadRouteRenderer()`](../modules/phone-core/route-renderer.js:30)。
-- 如果希望首开不白屏，还要同步维护 [`ROUTE_MODULES`](../modules/phone-core/preload.js:32)。
+- 扩展版与脚本版都加载同一份单 bundle，路由代码随构建包含，不维护额外预热清单。
 - 异步渲染必须尊重 [`routeRenderToken`](../modules/phone-core/state.js:31)，不能绕开现有 token 防护。
 
 ### 3.4 全局应用标题栏深模块
@@ -470,6 +470,7 @@ flowchart LR
 - [`bindHomeGridInteractions()`](../modules/phone-home/interactions.js:37)、[`bindHomeDockInteractions()`](../modules/phone-home/interactions.js:82)：绑定点击交互。
 - [`TABLE_UPDATE_REVIEW_APP_ID`](../modules/table-update-review/constants.js:1) 由 [`buildHomeScreenViewModel()`](../modules/phone-home/view-model.js:23) 作为系统 App 注入 Home，route 固定为 [`TABLE_UPDATE_REVIEW_ROUTE`](../modules/table-update-review/constants.js:2)。
 - [`QQ_APP`](../modules/qq-v2/app-definition.js) 是 QQ 在 Home 与外观设置间共享的系统 App 定义；稳定 id 为 `__qq__`、route 为 `qq`，隐藏状态使用 `hiddenTableApps.__qq__`，自定义图标使用 `appIcons.__qq__`。
+- 首页 QQ 未读投影通过 `currentContext()` 前后核对聊天作用域，不为身份检查读取完整设置；旧注入 Facade 没有该查询时仍回退 `bootstrap()`，过期结果继续丢弃。
 
 维护规则：
 
@@ -489,6 +490,8 @@ flowchart LR
 - [`createViewerRuntime()`](../modules/table-viewer/runtime.js:64)：管理 viewer 生命周期、外部表更新监听、草稿预览。
 - [`renderGenericListPage()`](../modules/table-viewer/list-page-renderer.js:473)：通用表列表页渲染和局部 patch。
 - [`bindGenericListPageController()`](../modules/table-viewer/list-page-controller.js:521)：通用表列表事件委托。
+
+列表本地刷新统一经过 `runSubscribedListRefresh()`，外部表更新在列表模式由状态订阅刷新一次；详情模式和局部 handler 缺失时保留显式刷新。详情绘制只读取一次锁快照，并用本轮 rows/cols/cells Set 判定显示状态；保存、删除和切换锁仍执行实时校验。
 
 #### 6.2.1 Table Viewer 入口分流
 
@@ -734,6 +737,8 @@ Appearance 页面服务统一由 [`appearance-settings.js`](../modules/settings-
 
 字体库运行时只读当前 family 时使用 `getAppearanceFontFamily()`，复用原有字体校验与解析；内容预设外观桥不再构建字体管理页 ViewModel、容量统计或 JSON 深复制用户字体列表。管理页仍使用原 ViewModel，字体加载、订阅、存储与作者公开 CSS 变量保持不变。
 
+外观桥主题源只响应 `phoneThemeMode`，字体源只响应 `appearanceFontLibrary`；无 key 的整体重置或兼容通知仍刷新两者。窗口坐标等无关设置不会触发外观读取或 CSS 变量写入，作者声明和纯模拟接口不变。
+
 字体库链路：
 
 1. 字体视图模型、导入、选择、删除和运行时应用集中在 [`font-library-service.js`](../modules/settings-app/services/appearance-settings/font-library-service.js:1)。
@@ -798,6 +803,8 @@ Beautify 现在包含两套职责严格隔离的系统：
 
 两套系统可以同时存在于 Table Viewer 的分派链中，但存储、写入、绑定和页面管理入口不得混用。
 
+工坊、展示和生图来源目录通过 `createTableSnapshot(..., { includeRows: false })` 只复制并冻结表名与表头；作者运行时仍接收默认的完整只读快照。生图来源名称在单次读取中共用导航目录，不缓存宿主可能原地修改的表数据。
+
 #### 6.4.1 内置默认与历史兼容
 
 核心常量在 [`constants.js`](../modules/phone-beautify-templates/constants.js:1)：
@@ -805,7 +812,7 @@ Beautify 现在包含两套职责严格隔离的系统：
 - 通用模板类型：[`PHONE_TEMPLATE_TYPE_GENERIC`](../modules/phone-beautify-templates/constants.js:1)，值为 `generic_table_template`。
 - 内置通用表模板：`builtin.generic.table.v1`。
 
-用户模板 store 使用设置字段 [`PHONE_BEAUTIFY_STORE_KEY`](../modules/phone-beautify-templates/constants.js:8)。[`readTemplateStore()`](../modules/phone-beautify-templates/store.js:93) 从 settings 读取并归一化；[`saveTemplateStore()`](../modules/phone-beautify-templates/store.js:86) 会重新 normalize、写入 [`schemaVersion`](../modules/phone-beautify-templates/store.js:79)、更新时间戳，并保存到 settings。
+用户模板 store 使用设置字段 [`PHONE_BEAUTIFY_STORE_KEY`](../modules/phone-beautify-templates/constants.js:8)。[`readTemplateStore()`](../modules/phone-beautify-templates/store.js) 从 settings 读取并归一化；缺失或非法的 `updatedAt` 读取为 `0`，有效历史时间戳保持原值，避免纯读取使缓存版本随时间变化。内置模板冲突检查只读取预先收集的 ID，不复制完整模板。[`saveTemplateStore()`](../modules/phone-beautify-templates/store.js) 仍在保存时重新 normalize、写入 `schemaVersion`、更新当前时间戳，并保存到 settings；读取不会补写旧数据。
 
 旧用户的 `templates`、`bindings`、`user` source mode 和用户 active template 仍会被读取。这条链路只用于方案 A 的历史兼容：用户没有主动恢复时，升级、启动、打开设置或打开表格都不得自动清理旧配置。`bindings` 是 sheetKey → templateId 的表级绑定，优先级高于 active 模板；它和内置模板中的 `render.fieldBindings` 完全不同，恢复操作不得删除后者。
 
@@ -831,7 +838,7 @@ Beautify 现在包含两套职责严格隔离的系统：
 - `bindSheetToBeautifyTemplate()`
 - `clearSheetBeautifyBinding()`
 
-底层 [`saveTemplateStore()`](../modules/phone-beautify-templates/store.js:86) 没有删除，因为历史读取归一化和受控系统维护仍依赖 store 模型；它不是产品端重新开放旧用户模板管理的许可。新模板工坊的导入导出由 `content-presets` 独立实现，不得调用旧 import/export API。
+底层 [`saveTemplateStore()`](../modules/phone-beautify-templates/store.js) 没有删除，因为历史读取归一化和受控系统维护仍依赖 store 模型；它不是产品端重新开放旧用户模板管理的许可。新模板工坊的导入导出由 `content-presets` 独立实现，不得调用旧 import/export API。
 
 #### 6.4.4 旧 Beautify 恢复内置默认兼容 API
 
@@ -879,6 +886,7 @@ Beautify 现在包含两套职责严格隔离的系统：
 
 - Object URL 必须通过 [`revokeFusionDownloadUrl()`](../modules/phone-fusion/runtime.js:7) 清理。
 - 页面切换前必须走 [`cleanupFusionPageResources()`](../modules/phone-fusion/runtime.js:27)。
+- 一次合并复用已建立的选择模型，合入界面的勾选和冲突策略后调用 `buildMergedFusionTemplate()`；最终输出继续独立复制，公开 `buildFusionMergeResult()` 的行为保持不变。
 - [`setFusionDownloadUrl()`](../modules/phone-fusion/runtime.js:19) 设置新下载 URL 前会 revoke 旧 URL；空合并分支在写入空结果前调用 [`clearFusionResult()`](../modules/phone-fusion/runtime.js:114)，避免旧下载入口和 Object URL 泄漏。该行为由 [`scripts/check-fusion-object-url-behavior.cjs`](../scripts/check-fusion-object-url-behavior.cjs) 守护。
 - 新增 Fusion 输出路径必须继续覆盖“先有旧 URL、再生成空结果”的行为测试，不能只验证成功合并路径。
 - 模板导入结果只接受旧版布尔 `true` 或普通对象且 `success === true`；`{ success:false, message }` 必须按真实失败透传，null、undefined、数组、字符串和缺少严格 success 的对象必须拒绝。
@@ -900,6 +908,8 @@ Theater 是“把表格数据投影成场景页面”的子系统。它不是 Ta
 #### 内置默认美化挂载
 
 广场、论坛、日记和直播通过 scene 的可选 `mountBuiltin` hook 使用[原生页面运行时](../modules/phone-theater/builtin/runtime.js)，不经过工坊导入或修改绑定。路由仍先尝试当前用户应用的内容预设，只有原有默认渲染分支才进入该 hook。小日历继续使用原场景，并消费全局白天／黑夜配色。
+
+原生场景先使用 `includeRows:false` 的表索引确认可用性与导航目标，直接挂载自身快照，不再提前构建旧场景 ViewModel。无原生 hook 或主表缺失时保留完整旧路径，生命周期、只读参数与滚动恢复仍由原入口管理。
 
 广场、日记及论坛导航复用 `phone-core/navigation-ui.js` 的顶部几何，但论坛列表保持“左右箭头＋发现／关注”的单行导航，详情作者靠左；直播不增加独立标题栏。小日记标题栏使用主题实色背景且不进行背景模糊。字体库覆盖只扩展到内置作用域。图片控件在 detached 路由准备阶段也必须绘制初始状态，不能等待用户进入详情后才同步开关。
 
@@ -1132,6 +1142,8 @@ Theater 样式入口是 [`styles/06-phone-theater.css`](../styles/06-phone-theat
 
 Variable Manager 是系统 App，不依赖表格 sheet。它从 SillyTavern 当前聊天的楼层变量读取数据，把嵌套变量拍平成手机内的卡片视图，并提供新增、编辑、删除能力。
 
+字段数量在构建节点时累加，对象节点复用子节点已计算的数量，普通分组不因每次追加重新遍历；空对象、数组和 MVU 元组的原计数及删除语义保持不变。
+
 核心入口：
 
 - [`renderVariableManager()`](../modules/variable-manager/index.js:233)：变量管理器路由入口。
@@ -1302,13 +1314,14 @@ Variable Manager 样式集中在 [`styles/12-variable-manager.css`](../styles/12
 
 Table Update Review 是系统 App，不绑定单张 sheet。它负责监听表格数据净变化，把变更聚合成审核列表，并提供从审核项跳转到通用表详情页的入口。
 
+按 sheetKey 查询时先定位目标表，再通过 `cloneTable()` 返回独立副本，不复制整份审核状态。浮层协调器的变化记录与表签名共用同一次归一化排序结果，保持签名、重复记录编号和接受基线不变。
+
 核心入口：
 
 - [`TABLE_UPDATE_REVIEW_APP_ID`](../modules/table-update-review/constants.js:1)：Home 主屏系统 App id，当前为 `table-update-review`。
 - [`TABLE_UPDATE_REVIEW_ROUTE`](../modules/table-update-review/constants.js:2)：审核页 route，当前为 `table-update-review`。
 - [`buildHomeScreenViewModel()`](../modules/phone-home/view-model.js:23)：把审核 App 作为 `isSystemApp` 注入 Home App 列表。
 - [`loadRouteRenderer()`](../modules/phone-core/route-renderer.js:30)：识别 `table-update-review` route 并动态加载审核页渲染器。
-- [`ROUTE_MODULES`](../modules/phone-core/preload.js:32)：包含 `../table-update-review/index.js`，确保审核页入口参与 route module preload。
 - [`renderTableUpdateReview()`](../modules/table-update-review/index.js:112)：审核页路由入口。
 - [`startTableUpdateReviewService()`](../modules/table-update-review/service.js:155)：启动表格净变化监听与审核状态更新。
 - [`bindTableUpdateReviewInteractions()`](../modules/table-update-review/interactions.js:37)：绑定审核页交互，包括进入对应表格行详情。
@@ -1491,6 +1504,7 @@ graph TD
 
 - Window runtime 被 dispose 后必须重建；[`destroyPhoneWindowInteractions()`](../modules/window/runtime.js:12) 是当前正确模式。
 - 拖拽和缩放只保存容器位置与尺寸，不应触发业务页面刷新。
+- 松手后的坐标与尺寸使用一次 `savePhoneSettingsPatch()`，悬浮按钮位置同样批量保存；字段验证、逐字段通知和宿主保存防抖继续保留。
 - 新增容器级 pointer 交互必须使用 [`getWindowInteractionRuntime()`](../modules/window/runtime.js:8)，不要裸绑 window 或 document。
 - 尺寸约束要同时检查 [`settings/schema.js`](../modules/settings/schema.js:159) 的设置校验范围和 [`resolveResizeBounds()`](../modules/window/resize.js:10) 的运行时范围，两个事实源不一致会制造保存值与运行行为分裂。
 
@@ -1504,6 +1518,10 @@ graph TD
 - 普通媒体保持零空闲缓存；聊天/资料背景、头像和表情分别使用独立的有限租约缓存，当前上限为 8、48、96。删除图片资料时必须同步失效头像与背景缓存，恢复 DOM 快照时不得引用已释放的 Blob URL。
 - 图片资料页复用 [`createLazyLoader()`](../modules/utils/observers.js)，以二级页滚动容器为观察 root、在可见区前后 `180px` 预取；图片与表情共用最多 4 个并发媒体任务并使用异步解码。每轮 QQ render 和 destroy 都必须断开旧 observer、丢弃未开始任务，过期 token 不得应用迟到结果。
 - Facade 高频通知由 QQ route lifecycle 合并为“一个进行中刷新 + 一个最新待刷新”。保存动作仍以运行时状态为事实源，但同一波通知不得并发重建多份页面。
+- 已挂载 QQ 的刷新只用轻量 `currentContext()` 核对作用域，首次挂载仍走完整 bootstrap。聊天页通过 `chatContext()` 聚合会话、当前资料、必要设置与音色绑定，并与消息窗口并发读取；初始化与设置迁移完成后，核心事实查询为 4 次 root read、0 次写入，冷媒体租约读取另计。`messages()` 在同次分页读取中判断会话是否存在，不再先读取完整设置和会话。
+- 本地发送、批次发送、编辑、删除、撤回、转账处理及资料素材操作，按通知 `reason` 和 `conversationId` 精确合并自有变化；每个完整操作独立结算草稿、选择和弹层后请求刷新，批次操作复用原始草稿保存函数而不嵌套刷新。AI、失败、其他会话和未知通知仍正常进入刷新队列。资料控件原地保存与图库局部删除继续使用各自既有交互。
+- 媒体显示租约清扫通过 Repository 批量查询资源元数据存在性，按 kind 与 assetId 区分，不读取 Blob；实际渲染和播放仍使用完整资源查询。主动周期按已提交消息 ID 批量读取归属，不扫描全部候选历史，旧注入仓库保留回退。
+- 提示词准备仅复用本次请求或主动周期已有的 scope 人物、群和会话资料，手动请求透传已读取的表情目录来源；历史与引用读取、提交时身份权限校验继续走原入口，不建立跨请求缓存。
 - 小手机 resize start 只关闭临时交互层并恢复当前视图锚点，不得为了响应 CSS 尺寸变化重建业务页面。
 
 #### 消息窗口与隐藏恢复
@@ -1556,7 +1574,7 @@ graph TD
 
 ## 9. 新增功能前检查清单
 
-- 新增 route：是否更新 [`loadRouteRenderer()`](../modules/phone-core/route-renderer.js:30) 和 [`ROUTE_MODULES`](../modules/phone-core/preload.js:32)。
+- 新增 route：是否更新 [`loadRouteRenderer()`](../modules/phone-core/route-renderer.js:30)。
 - 新增页面：是否有 runtime、dispose、容器移除清理。
 - 新增表格写入：是否走 [`enqueueTableMutation()`](../modules/phone-core/data-api/mutation-queue.js:9)。
 - 新增数据库 query：是否使用有界超时，并明确方法未发布、null、异常和超时的降级结果；禁止增加 probe SQL，底层 `null` 诊断必须校验 method 与调用时间。
@@ -1576,7 +1594,7 @@ graph TD
 - 新增缓存：是否选择正确存储层，settings、专用 IndexedDB repository、IndexedDB cache 的事实源边界是否清楚。
 - 新增或修改持久 IndexedDB 用户资产仓库：是否有专用 repository、容量限制、页面层禁用裸 IndexedDB，并确认 [`check-p1-storage-boundary-contract.cjs`](../scripts/check-p1-storage-boundary-contract.cjs:1) 与对应业务契约脚本，例如 [`check-appearance-pack-repository-contract.cjs`](../scripts/check-appearance-pack-repository-contract.cjs:1)，已在 `npm run check` 中通过。
 - 新增窗口交互：是否使用 [`getWindowInteractionRuntime()`](../modules/window/runtime.js:8)，并确认销毁后可重建。
-- 新增发布前改动：是否执行 [`npm run lint`](../package.json:13)、[`npm run check`](../package.json:11)、[`npm run check:ci`](../package.json:12)、[`npm run build`](../package.json:8)，并确认 [`manifest.json`](../manifest.json:6) 指向的 `dist/yuzi-phone.bundle.js` 与 `dist/yuzi-phone.bundle.css` 已由构建产物更新。源码、样式、版本字段或 loader 变化后，`dist/` 如有差异必须纳入交付。
+- 新增发布前改动：是否执行 [`npm run lint`](../package.json:13)、一次 [`npm run check:ci`](../package.json:12)、[`npm run build`](../package.json:8)，并确认 [`manifest.json`](../manifest.json:6) 指向的 `dist/yuzi-phone.bundle.js` 与 `dist/yuzi-phone.bundle.css` 已由构建产物更新。源码、样式、版本字段或 loader 变化后，`dist/` 如有差异必须纳入交付。
 - 新增文档事实：是否放入 [`docs/`](README.md) 或 [`docs/reference/`](reference)，并确认所有相对链接可跳转；未实施计划只能放入 [`plans/`](../plans)。
 - 新增或修改表格模板事实源：是否优先修改 [`tables/sources/`](../tables/sources) 下的 Markdown 文件，并通过 [`npm run tables:check`](../package.json:17) 与 [`npm run tables:build`](../package.json:18) 生成 [`tables/generated/`](../tables/generated) 产物；不要手工修改 generated JSON 伪装成事实源。
 - 当前正式表源是 [`tables/sources/小剧场2.1`](../tables/sources/小剧场2.1) 与 [`tables/sources/纪要`](../tables/sources/纪要)；[`tables/sources/恋爱特化参考`](../tables/sources/恋爱特化参考) 是参考源，必须保留在 source contract 中，但不要把参考源误写成运行时正式表。

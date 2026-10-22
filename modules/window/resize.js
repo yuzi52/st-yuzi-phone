@@ -1,10 +1,10 @@
-import { PHONE_CONTAINER_SIZE_LIMITS, constrainPosition, savePhoneSetting } from '../settings.js';
+import { PHONE_CONTAINER_SIZE_LIMITS, constrainPosition, savePhoneSettingsPatch } from '../settings.js';
 import { RESIZE_BOUND_ATTR, getWindowInteractionRuntime } from './runtime.js';
 import { clearPhoneTemporaryLayers } from '../phone-core/shell-temporary-layer-host.js';
 
 const resizeDeps = {
     constrainPosition,
-    savePhoneSetting,
+    savePhoneSettingsPatch,
     getWindowInteractionRuntime,
 };
 
@@ -123,10 +123,12 @@ export function initPhoneShellResize() {
             phoneEl.style.left = constrained.x + 'px';
             phoneEl.style.top = constrained.y + 'px';
 
-            resizeDeps.savePhoneSetting('phoneContainerX', constrained.x);
-            resizeDeps.savePhoneSetting('phoneContainerY', constrained.y);
-            resizeDeps.savePhoneSetting('phoneContainerWidth', phoneEl.offsetWidth);
-            resizeDeps.savePhoneSetting('phoneContainerHeight', phoneEl.offsetHeight);
+            resizeDeps.savePhoneSettingsPatch({
+                phoneContainerX: constrained.x,
+                phoneContainerY: constrained.y,
+                phoneContainerWidth: phoneEl.offsetWidth,
+                phoneContainerHeight: phoneEl.offsetHeight,
+            });
 
             pointerId = null;
             dir = '';

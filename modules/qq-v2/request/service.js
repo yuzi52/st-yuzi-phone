@@ -371,9 +371,12 @@ export function createQQV2RequestService(options = {}) {
             history: messages,
             currentMessage: pending.at(-1),
             preset: promptPreset,
+            stickers,
         }));
-        const stickerCatalog = buildQQV2StickerCatalog(stickers);
-        const stickerReferences = requestBuild.stickerReferences ?? stickerCatalog.references;
+        const stickerCatalog = requestBuild.stickerReferences === null || requestBuild.stickerDescriptions === null
+            ? buildQQV2StickerCatalog(stickers)
+            : null;
+        const stickerReferences = requestBuild.stickerReferences ?? stickerCatalog?.references;
         const promptMessages = requestBuild.messages;
         if (!isCurrentEntry(entry)) return;
         entry.diagnostic.stage = 'request';
@@ -404,7 +407,7 @@ export function createQQV2RequestService(options = {}) {
                 visibleMessageRefs,
                 stickers: new Set(Object.keys(stickerReferences)),
                 stickerReferences,
-                stickerDescriptions: requestBuild.stickerDescriptions ?? stickerCatalog.descriptions,
+                stickerDescriptions: requestBuild.stickerDescriptions ?? stickerCatalog?.descriptions,
                 storyTime,
                 handledUserSequences,
                 scopeSession: entry.scopeSession,

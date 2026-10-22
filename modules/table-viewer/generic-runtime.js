@@ -347,7 +347,7 @@ export function createGenericTableViewerRuntime(container, context, hooks = {}) 
 
     const refreshListAfterDataMutation = () => {
         if (state.mode === 'list' && typeof activeListRefreshHandler === 'function') {
-            activeListRefreshHandler([]);
+            runSubscribedListRefresh([]);
             return;
         }
         renderKeepScroll();
@@ -375,7 +375,9 @@ export function createGenericTableViewerRuntime(container, context, hooks = {}) 
             deletingSelection: false,
             pendingExternalTableUpdate: null,
         });
-        refreshListAfterDataMutation();
+        if (state.mode !== 'list' || typeof activeListRefreshHandler !== 'function') {
+            refreshListAfterDataMutation();
+        }
     };
 
     const bind = () => {

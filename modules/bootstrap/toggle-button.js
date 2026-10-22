@@ -4,7 +4,7 @@ import { applyAppearanceFontLibrary } from '../settings-app/services/appearance-
 import {
     defaultSettings,
     getPhoneSettings,
-    savePhoneSetting,
+    savePhoneSettingsPatch,
     getDefaultPhoneTogglePosition,
     isMobileDevice,
     constrainPosition,
@@ -117,8 +117,7 @@ export function applyPhoneTogglePosition(btn, options = {}) {
             && (constrained.x !== targetX || constrained.y !== targetY));
 
     if (shouldPersist) {
-        savePhoneSetting('phoneToggleX', constrained.x);
-        savePhoneSetting('phoneToggleY', constrained.y);
+        savePhoneSettingsPatch({ phoneToggleX: constrained.x, phoneToggleY: constrained.y });
     }
 
     return constrained;
@@ -257,8 +256,10 @@ function bindPhoneToggleDraggable(btn, onToggle) {
         btn.classList.remove('dragging');
 
         if (hasMoved) {
-            savePhoneSetting('phoneToggleX', parseInt(btn.style.left, 10));
-            savePhoneSetting('phoneToggleY', parseInt(btn.style.top, 10));
+            savePhoneSettingsPatch({
+                phoneToggleX: parseInt(btn.style.left, 10),
+                phoneToggleY: parseInt(btn.style.top, 10),
+            });
         }
 
         if (!hasMoved && Date.now() - startTime < 300 && typeof onToggle === 'function') {

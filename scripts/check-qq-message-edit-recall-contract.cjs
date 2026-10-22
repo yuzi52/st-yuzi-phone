@@ -95,11 +95,12 @@ async function main() {
 
     // Execute the actual UI draft-restoration path with a small isolated harness.
     const source = fs.readFileSync('modules/qq-v2/ui/app.js', 'utf8');
-    const body = source.slice(source.indexOf('    const recallMessage = async'), source.indexOf('    const openMessageQuickMenu ='));
+    const body = source.slice(source.indexOf('    const recallMessage ='), source.indexOf('    const openMessageQuickMenu ='));
     const drafts = new Map([['c', '现有草稿']]);
     let original = { type: 'text', content: '撤回正文' };
-    const recall = new Function('t', 'currentScopeKey', 'facade', 'disposed', 'drafts', 'clearOverlay', 'loadMessages', 'render', body + '\nreturn recallMessage;')(t,
-        () => 'scope', { intent: { recallMessage: async () => ({ ok: true, result: { recalledMessage: original } }) } }, false, drafts, () => {}, async () => {}, async () => {},
+    const withLocalRefresh = (_conversationId, _reasons, task) => task();
+    const recall = new Function('t', 'currentScopeKey', 'facade', 'disposed', 'drafts', 'clearOverlay', 'withLocalRefresh', body + '\nreturn recallMessage;')(t,
+        () => 'scope', { intent: { recallMessage: async () => ({ ok: true, result: { recalledMessage: original } }) } }, false, drafts, () => {}, withLocalRefresh,
     );
     await recall('c', 'm');
     assert.equal(drafts.get('c'), '现有草稿\n撤回正文');
@@ -111,7 +112,7 @@ async function main() {
         await recall('c', 'm');
         assert.equal(drafts.get('c'), '撤回正文');
     }
-    const editorBody = source.slice(source.indexOf('    const openMessageEditor ='), source.indexOf('    const recallMessage = async'));
+    const editorBody = source.slice(source.indexOf('    const openMessageEditor ='), source.indexOf('    const recallMessage ='));
     const elements = [];
     const saved = [];
     let dialog;
@@ -122,10 +123,10 @@ async function main() {
         elements.push(element);
         return element;
     };
-    const editor = new Function('t', 'createElement', 'createButton', 'clearOverlay', 'facade', 'loadMessages', 'render', 'shouldSubmitComposerKey', 'showDialog', editorBody + '\nreturn openMessageEditor;')(t,
+    const editor = new Function('t', 'createElement', 'createButton', 'clearOverlay', 'facade', 'withLocalRefresh', 'shouldSubmitComposerKey', 'showDialog', editorBody + '\nreturn openMessageEditor;')(t,
         makeElement, makeElement, () => { closes += 1; },
         { intent: { editMessage: async (input) => { saved.push(input); return editorResult; } } },
-        async () => {}, async () => {}, () => false, (value) => { dialog = value; },
+        withLocalRefresh, () => false, (value) => { dialog = value; },
     );
     editor('c', { messageId: 'm', type: 'text', content: '原文' });
     const input = elements[1];

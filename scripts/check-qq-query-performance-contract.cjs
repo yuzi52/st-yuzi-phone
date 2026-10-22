@@ -17,7 +17,12 @@ async function testConversationReadsAndMessagePages() {
     const { createQQV2ProductionRuntime } = await importModule('modules/qq-v2/application/production-runtime.js');
     const base = createMemoryQQV2StateStore();
     let reads = 0;
-    const stateStore = { ...base, async read() { reads += 1; return base.read(); } };
+    let mediaReads = 0;
+    const stateStore = {
+        ...base,
+        async read() { reads += 1; return base.read(); },
+        async readMedia(key) { mediaReads += 1; return base.readMedia(key); },
+    };
     const repository = createQQV2Repository({ stateStore });
     const scopeId = 'st:character:alice:perf';
     const runtime = createQQV2ProductionRuntime({
@@ -56,6 +61,37 @@ async function testConversationReadsAndMessagePages() {
         const inserted = await repository.appendMessages(scopeId, conversationId, inputs);
         await repository.appendMessages(scopeId, conversationId, [{ ...inputs[0], quoteMessageId: inserted[0].messageId }]);
         const all = await repository.listMessages(scopeId, conversationId);
+        reads = 0;
+        assert.deepEqual(await repository.findMessageFacts(scopeId, [
+            inserted[1].messageId, 'missing', inserted[0].messageId, inserted[1].messageId,
+        ]), all.slice(0, 2).map(({ messageId, conversationId, senderType }) => ({
+            messageId, conversationId, senderType,
+        })), '提交消息按 ID 查询、去重并维持会话历史顺序');
+        assert.equal(reads, 1, '批量定位已提交消息只读一次状态，不构建完整历史和引用');
+
+        const scopeAsset = await repository.saveScopeAsset(scopeId, { kind: 'avatar', blob: new Blob(['avatar']) });
+        const libraryAsset = await repository.saveImageLibraryAsset(scopeId, { library: 'avatar', blob: new Blob(['library']) });
+        const [voiceMessage] = await repository.appendMessages(scopeId, bob.conversation.conversationId, [{
+            senderId: bob.person.personId, senderType: 'person', type: 'voice', content: '语音', storyTime: '',
+        }]);
+        const voice = await repository.saveMessageVoice(scopeId, bob.conversation.conversationId, voiceMessage.messageId, {
+            blob: new Blob(['voice'], { type: 'audio/mpeg' }), mimeType: 'audio/mpeg', generatedAt: 1700000000000,
+        });
+        reads = 0;
+        mediaReads = 0;
+        const existingAssets = [
+            { kind: 'media', assetId: scopeAsset.assetId },
+            { kind: 'media', assetId: libraryAsset.assetId },
+            { kind: 'voice', assetId: voice.voiceAssetId },
+        ];
+        assert.deepEqual(await repository.listExistingMediaAssets(scopeId, [
+            ...existingAssets,
+            { kind: 'voice', assetId: scopeAsset.assetId },
+            { kind: 'media', assetId: voice.voiceAssetId },
+            { kind: 'media', assetId: 'missing' },
+        ]), existingAssets, '批量存在性查询覆盖作用域图片、共享图片及语音，并区分类型');
+        assert.equal(reads, 1, '资源租约存在性批量查询只读一次状态');
+        assert.equal(mediaReads, 0, '资源租约存在性批量查询不读取 Blob');
         const collected = [];
         let beforeSequence;
         do {

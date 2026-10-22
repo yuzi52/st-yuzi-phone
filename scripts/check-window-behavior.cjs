@@ -233,7 +233,7 @@ async function testDragBehavior(runtimeModule, dragModule) {
     dragModule.__test__setDeps({
         getWindowInteractionRuntime: () => runtimeStub,
         constrainPosition: (x, y) => ({ x, y }),
-        savePhoneSetting: (key, value) => saveCalls.push({ key, value }),
+        savePhoneSettingsPatch: (patch) => saveCalls.push(patch),
     });
 
     dragModule.initPhoneShellDrag();
@@ -269,8 +269,7 @@ async function testDragBehavior(runtimeModule, dragModule) {
     assert.equal(phoneEl.style.top, '180px');
     assert.equal(phoneEl.style.transform, '');
     assert.deepEqual(saveCalls, [
-        { key: 'phoneContainerX', value: 160 },
-        { key: 'phoneContainerY', value: 180 },
+        { phoneContainerX: 160, phoneContainerY: 180 },
     ]);
 
     runtimeStub.dispose();
@@ -289,7 +288,7 @@ async function testResizeBehavior(runtimeModule, resizeModule, temporaryLayerMod
     resizeModule.__test__setDeps({
         getWindowInteractionRuntime: () => runtimeStub,
         constrainPosition: (x, y) => ({ x: x + 5, y: y + 6 }),
-        savePhoneSetting: (key, value) => saveCalls.push({ key, value }),
+        savePhoneSettingsPatch: (patch) => saveCalls.push(patch),
     });
 
     resizeModule.initPhoneShellResize();
@@ -322,10 +321,7 @@ async function testResizeBehavior(runtimeModule, resizeModule, temporaryLayerMod
     runtimeStub.listeners.find((item) => item.target === phoneEl.resizeHandle && item.type === 'pointerup').handler(up);
 
     assert.deepEqual(saveCalls, [
-        { key: 'phoneContainerX', value: 35 },
-        { key: 'phoneContainerY', value: 46 },
-        { key: 'phoneContainerWidth', value: 400 },
-        { key: 'phoneContainerHeight', value: 730 },
+        { phoneContainerX: 35, phoneContainerY: 46, phoneContainerWidth: 400, phoneContainerHeight: 730 },
     ]);
 
     runtimeStub.dispose();

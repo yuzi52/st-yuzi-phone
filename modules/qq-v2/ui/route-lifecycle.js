@@ -56,7 +56,9 @@ export function createQQRouteLifecycle({
                 refreshPending = false;
                 const epoch = visibilityEpoch;
                 try {
-                    const snapshot = await facade.query.bootstrap?.();
+                    const snapshot = await (app && typeof facade.query.currentContext === 'function'
+                        ? facade.query.currentContext()
+                        : facade.query.bootstrap?.());
                     if (!isActive()) return false;
                     if (epoch !== visibilityEpoch || !canRender()) { defer(); continue; }
                     if (snapshot?.ok !== true) { showReadFailure(); continue; }
@@ -66,6 +68,7 @@ export function createQQRouteLifecycle({
                         activeScopeId = asScopeId(snapshot);
                         app = createApp({ facade, shell, scopeId: activeScopeId,
                             isCurrent: isActive, isVisible: canRender, onDeferredRender: defer,
+                            onRefreshRequested: () => { defer(); return drain(); },
                             onError: showToastOnce,
                         });
                         try { app.mount(page); } catch (error) { app.destroy?.(); app = null; throw error; }

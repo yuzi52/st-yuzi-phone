@@ -62,13 +62,13 @@ function createChangeRecords(changes = []) {
     });
 }
 
-function buildTableSignature(sessionKey, chatKey, table) {
+function buildTableSignature(sessionKey, chatKey, table, changeRecords) {
     const sheetKey = normalizeText(table?.sheetKey);
     return JSON.stringify({
         sessionKey,
         chatKey,
         sheetKey,
-        changes: normalizeChanges(table?.changes),
+        changes: changeRecords.map(record => record.change),
     });
 }
 
@@ -115,13 +115,16 @@ function normalizeReadyTables(result) {
             && Array.isArray(table?.changes)
             && table.changes.length > 0
         ))
-        .map(({ table, sheetKey }) => ({
-            table,
-            sheetKey,
-            changeRecords: createChangeRecords(table.changes),
-            signatureKey: `${chatKey}\u001f${sessionKey}\u001f${sheetKey}`,
-            signature: buildTableSignature(sessionKey, chatKey, table),
-        }));
+        .map(({ table, sheetKey }) => {
+            const changeRecords = createChangeRecords(table.changes);
+            return {
+                table,
+                sheetKey,
+                changeRecords,
+                signatureKey: `${chatKey}\u001f${sessionKey}\u001f${sheetKey}`,
+                signature: buildTableSignature(sessionKey, chatKey, table, changeRecords),
+            };
+        });
 }
 
 function isPlainSnapshot(value) {

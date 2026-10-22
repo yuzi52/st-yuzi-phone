@@ -1,9 +1,9 @@
-import { constrainPosition, savePhoneSetting } from '../settings.js';
+import { constrainPosition, savePhoneSettingsPatch } from '../settings.js';
 import { DRAG_BOUND_ATTR, getWindowInteractionRuntime } from './runtime.js';
 
 const dragDeps = {
     constrainPosition,
-    savePhoneSetting,
+    savePhoneSettingsPatch,
     getWindowInteractionRuntime,
 };
 
@@ -110,8 +110,10 @@ export function initPhoneShellDrag() {
 
         const left = parseInt(phoneEl.style.left, 10);
         const top = parseInt(phoneEl.style.top, 10);
-        dragDeps.savePhoneSetting('phoneContainerX', Number.isFinite(left) ? left : 0);
-        dragDeps.savePhoneSetting('phoneContainerY', Number.isFinite(top) ? top : 0);
+        dragDeps.savePhoneSettingsPatch({
+            phoneContainerX: Number.isFinite(left) ? left : 0,
+            phoneContainerY: Number.isFinite(top) ? top : 0,
+        });
 
         pointerId = null;
         hasMoved = false;

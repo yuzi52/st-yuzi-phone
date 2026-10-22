@@ -89,7 +89,11 @@ export function renderGenericDetailPage(options = {}) {
         return;
     }
 
-    state.syncLockState(getTableLockState(sheetKey));
+    const lockState = getTableLockState(sheetKey);
+    state.syncLockState(lockState);
+    const lockedRows = new Set(lockState.rows);
+    const lockedCols = new Set(lockState.cols);
+    const lockedCells = new Set(lockState.cells);
 
     const genericStylePayload = createGenericTemplateStylePayload(genericMatch, 'detail');
     const effectiveDdlFieldMetadata = resolveDetailDdlFieldMetadata({
@@ -117,8 +121,10 @@ export function renderGenericDetailPage(options = {}) {
         sheetKey,
         rowsCount: rows.length,
         saving: state.saving,
-        isTableRowLocked,
-        isTableCellLocked,
+        isTableRowLocked: (_sheetKey, rowIndex) => lockedRows.has(Number(rowIndex)),
+        isTableCellLocked: (_sheetKey, rowIndex, colIndex) => lockedRows.has(Number(rowIndex))
+            || lockedCols.has(Number(colIndex))
+            || lockedCells.has(`${Number(rowIndex)}:${Number(colIndex)}`),
     });
 
     container.innerHTML = buildGenericDetailPageHtml({

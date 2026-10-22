@@ -46,7 +46,7 @@ export function flattenToGroups(data, options = {}) {
             depth: 0,
         }, normalizeOptions);
         miscGroup.nodes.push(node);
-        miscGroup.leafCount = countLeafNodes(miscGroup.nodes);
+        miscGroup.leafCount += 1;
     }
 
     return groups;
@@ -138,7 +138,7 @@ function countLeafNodes(nodes) {
     return nodes.reduce((total, node) => {
         if (!node || typeof node !== 'object') return total;
         if (node.kind === 'object') {
-            return total + countLeafNodes(node.children);
+            return total + node.leafCount;
         }
         return total + 1;
     }, 0);

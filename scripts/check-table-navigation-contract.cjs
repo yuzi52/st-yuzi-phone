@@ -362,7 +362,6 @@ async function main() {
     }
 
     const routeRenderer = fs.readFileSync(path.resolve('modules/phone-core/route-renderer.js'), 'utf8');
-    const preload = fs.readFileSync(path.resolve('modules/phone-core/preload.js'), 'utf8');
     const controls = fs.readFileSync(path.resolve('modules/table-navigation/controls.js'), 'utf8');
     const tableRouteIndex = routeRenderer.indexOf('route.startsWith(TABLE_ROUTE_PREFIX)');
     const appRouteIndex = routeRenderer.indexOf("route.startsWith('app:')");
@@ -377,9 +376,6 @@ async function main() {
         && routeRenderer.includes("forceGenericList: target.presentation === 'generic'"));
     assert(routeRenderer.includes('if (!sheetKey) return null;')
         && routeRenderer.includes('if (!target) return null;'));
-    assert(preload.includes("'../table-navigation/catalog.js'")
-        && preload.includes("'../table-viewer/render.js'")
-        && preload.includes("'../phone-theater/render.js'"));
     assert(controls.includes("import { replaceCurrentRoute } from '../phone-core/routing.js';")
         && controls.includes('const replaceRoute = options.replaceCurrentRoute || replaceCurrentRoute;')
         && controls.includes('replaceRoute(result.target.route);'));

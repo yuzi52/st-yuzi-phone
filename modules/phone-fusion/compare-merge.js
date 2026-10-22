@@ -9,7 +9,7 @@ import { createLocalJsonSourceModel } from './source-model.js';
 import {
     FUSION_CONFLICT_TYPES,
     FUSION_CONFLICT_STRATEGIES,
-    buildFusionMergeResult,
+    buildMergedFusionTemplate,
     buildFusionSelectionModel,
 } from './merge-model.js';
 import { clearFusionResult, setFusionDownloadUrl } from './runtime.js';
@@ -200,7 +200,8 @@ export function performFusionMerge(container, sourceA, sourceB) {
     const sourceEntries = createSourceEntries(sourceA, sourceB);
     const baseSelectionModel = buildFusionSelectionModel(sourceEntries);
     const overrides = collectSelectionOverrides(container, baseSelectionModel);
-    const { mergedTemplate } = buildFusionMergeResult(sourceEntries, { overrides });
+    const selectionModel = baseSelectionModel.map(item => ({ ...item, ...overrides[item.id] }));
+    const mergedTemplate = buildMergedFusionTemplate(selectionModel);
     const sheetCount = renderMergedDownload(container, mergedTemplate);
     return { mergedTemplate, sheetCount };
 }

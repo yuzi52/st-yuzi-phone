@@ -21,14 +21,13 @@ SillyTavern 独立手机扩展，提供手机主屏、QQ 实时聊天、通用�
 
 ```cmd
 npm run lint
-npm run check
 npm run check:ci
-npm run tables:check
-npm run tables:build
 npm run build
 ```
 
-`dist/` 必须提交；SillyTavern `auto_update` 只拉取仓库内容，不会替用户执行构建。表格模板事实源位于 `tables/sources/`，正式表源为 `小剧场2.1` 与 `纪要`，`恋爱特化参考` 是参考源；修改表源后必须先通过 `tables:check`，再用 `tables:build` 更新 `tables/generated/`。
+`check:ci` 与 `check` 运行同一套检查，只额外防止没有发现检查脚本时空跑成功；发布流程运行一次 `check:ci` 即可。
+
+`dist/` 必须提交；SillyTavern `auto_update` 只拉取仓库内容，不会替用户执行构建。表格模板事实源位于 `tables/sources/`，正式表源为 `小剧场2.1` 与 `纪要`，`恋爱特化参考` 是参考源；修改表源时，先用 `tables:build` 更新 `tables/generated/`，再运行 `tables:check` 校验，随后执行上述检查与构建。
 
 脚本版 loader 互斥与 `window.__YUZI_PHONE_INSTANCE__` singleton guard 由 `scripts/check-script-loader-contract.cjs` 检查；版本字段由 `scripts/check-extension-version-contract.cjs` 检查；表源边界由 `scripts/check-table-sources-contract.cjs` 检查。release/dist 交付通过构建、CI 的产物与提交状态检查，以及发布前人工验收确认。
 

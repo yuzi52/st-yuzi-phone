@@ -86,7 +86,12 @@ export function createWorldbookReadingCatalog({ source, preferences, blockedKeyw
                     const bookName = String(ref?.bookName ?? '').trim();
                     const uid = String(ref?.uid ?? '').trim();
                     if (!bookName || !uid) continue;
-                    next[bookName] = { ...asObject(next[bookName]), [uid]: false };
+                    // Reuse this operation's copy; computed keys retain their original semantics.
+                    if (!Object.hasOwn(next, bookName) || bookName === '__proto__' || uid === '__proto__') {
+                        next[bookName] = { ...asObject(next[bookName]), [uid]: false };
+                    } else {
+                        next[bookName][uid] = false;
+                    }
                 }
             } else if (selected === true) {
                 for (const ref of asArray(refs)) {

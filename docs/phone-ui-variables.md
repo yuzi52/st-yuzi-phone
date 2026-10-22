@@ -257,6 +257,8 @@ QQ 当前用户与 NPC 编辑资料页共用 `.yuzi-qq-profile-editor-list`，�
 
 图片资料页的 `.yuzi-qq-image-library-heading` 横向排列标题与 `.yuzi-qq-image-library-section-actions`，后者只在 `.is-selection-mode` 下显示。全选／取消全选按钮使用 `.yuzi-qq-icon-button.yuzi-qq-image-library-section-action`，复用导航控件热区、QQ 字号与强调色 token；操作仅作用于对应分区，不包含上传入口。删除成功就地移除已删缩略图并退出选择态，不重建未删除的图片节点。
 
+`.yuzi-qq-image-library-grid` 按手机内容区实际宽度自适应：窄屏保留四列并允许缩小，宽屏将列宽固定为 `--yuzi-qq-image-library-grid-item-size`（默认 `72px`），空间足够时自动增加列数；网格整体居中，余量留在左右两侧，不再拉伸缩略图。使用 `auto-fill` 保留空列，素材较少或末行不足时仍与前面的列对齐。六类资源及上传入口共用此规则，间距与内边距沿用现有 token。
+
 `.yuzi-qq-image-library-item` 清除按钮内边距并保持 1:1，图片与 `.yuzi-qq-image-library-sticker` 固定在该方形视口内，原图尺寸不参与网格行高计算；普通图片沿用 `cover`，表情沿用 `contain`。选中描边使用前景伪元素，勾选标记位于其上方，避免铺满图片遮住删除态反馈。
 
 头像框上传的 `.phone-avatar-frame-calibration-overlay` 继续通过公共裁剪临时层居中显示，不使用底部 sheet 或拖动条。`.phone-avatar-frame-calibration-head` 居中放置标题、右侧放单行的「确认上传」文字按钮，字号复用 `--yuzi-settings-alert-message-size`；说明、柔和的方形预览卡片、重置与缩放滑条、居中的取消按钮依次排列。缩放复用 `.phone-ios-slider-row` 与 `.yuzi-qq-settings-range-row` 的原生 range 布局和 QQ 配色，按 `0.001` 的 scale 步长实时更新，重置同步恢复初始位置、大小和滑条值。样式仅作用于 `.phone-avatar-frame-calibration-dialog`，配色沿用 QQ 深浅主题 token；圆形占位位于真实头像框后方，虚线参考圈及其柔和内阴影在上方，不拦截拖动也不写入原图。头像框平移不再要求覆盖头像区域，缩小后仍有宽裕范围；边界以头像与缩放后头像框的半宽之和计算，预览、保存、显示及图片包导入导出共用同一归一化规则，缩放范围、校准数据格式与原图保存逻辑不变。
@@ -301,7 +303,7 @@ QQ 前端只消费 `--yuzi-qq-*` 语义变量，不在组件样式中写入颜�
 | `--yuzi-qq-bubble-self` / `--yuzi-qq-bubble-other` / `--yuzi-qq-danger` | 私聊消息气泡与危险操作状态 |
 | `--yuzi-qq-header-*` / `--yuzi-qq-nav-height` / `--yuzi-qq-nav-*` / `--yuzi-qq-page-padding` / `--yuzi-qq-max-content-width` | 四栏根页、二级页和全宽单列响应式布局；`max-content-width` 为兼容别名，最终值为 `100%` |
 | `--yuzi-qq-row-*` / `--yuzi-qq-message-*` | 会话、联系人、人物资料和消息行密度 |
-| `--yuzi-qq-image-library-grid-*` / `--yuzi-qq-image-library-item-radius` / `--yuzi-qq-image-library-heading-line-height` | 图片资料六类资源的四列网格、格间距、内边距、资源格圆角与分组标题排版 |
+| `--yuzi-qq-image-library-grid-*` / `--yuzi-qq-image-library-item-radius` / `--yuzi-qq-image-library-heading-line-height` | 图片资料六类资源的自适应网格（窄屏四列、宽屏固定 `72px` 增列并居中）、格间距、内边距、资源格圆角与分组标题排版 |
 | `--yuzi-qq-accent` / `--yuzi-qq-on-accent` | 当前用户头像：品牌蓝底与反色文字，只用于根身份头等“当前用户”身份 |
 | `--yuzi-qq-avatar-surface` / `--yuzi-qq-avatar-ink` | 人物占位头像：浅色为 `#f2f3f5 / #cacaca`，用于会话、联系人、聊天对方和人物资料；不得与当前用户头像共用 |
 | `--yuzi-qq-composer-*` / `--yuzi-qq-tool-*` / `--yuzi-qq-emoji-*` | 输入区、五类叙事工具、加号装饰入口和底部表情面板 |

@@ -36,6 +36,20 @@ function cloneContext(context) {
     });
 }
 
+function cloneVoiceBindings(bindings) {
+    return Object.freeze(asArray(bindings).map((binding) => {
+        const source = asObject(binding);
+        return Object.freeze({
+            personId: asText(source.personId, 256),
+            name: asText(source.name, 120),
+            voiceId: asText(source.voiceId, 256),
+            effectiveVoiceId: asText(source.effectiveVoiceId, 256),
+            isSelf: source.isSelf === true,
+            isAssistant: source.isAssistant === true,
+        });
+    }));
+}
+
 function parseStoryTime(value) {
     const raw = asText(value, 128);
     const match = /^(\d{4})-(\d{2})-(\d{2})(?:[ T](\d{2}):(\d{2}))?$/.exec(raw);
@@ -632,6 +646,10 @@ async function hasConversation(runtime, scopeId, conversationId) {
  */
 export function createQQV2Facade(options = {}) {
     const runtime = asObject(options.runtime);
+    const canReadContext = () => typeof runtime.getReadContext === 'function' || typeof runtime.getSnapshot === 'function';
+    const readContextSnapshot = () => typeof runtime.getReadContext === 'function'
+        ? runtime.getReadContext()
+        : runtime.getSnapshot();
 
     return Object.freeze({
         query: Object.freeze({
@@ -646,12 +664,35 @@ export function createQQV2Facade(options = {}) {
                 });
             },
             async currentContext() {
-                if (typeof runtime.getSnapshot !== 'function') return unavailable('getSnapshot');
-                const snapshot = asObject(await runtime.getSnapshot());
+                if (!canReadContext()) return unavailable('getSnapshot');
+                const snapshot = asObject(await readContextSnapshot());
                 return Object.freeze({
                     ok: true,
                     status: asText(snapshot.phase, 32) || 'ready',
                     context: cloneContext(snapshot.context),
+                });
+            },
+            async chatContext(input = {}) {
+                if (!canReadContext()) return unavailable('getSnapshot');
+                if (typeof runtime.getChatContext !== 'function') return unavailable('getChatContext');
+                const snapshot = asObject(await readContextSnapshot());
+                const context = cloneContext(snapshot.context);
+                const conversationId = asText(input.conversationId, 256);
+                if (!context.scopeId) return unavailable('currentScope');
+                if (!conversationId) return Object.freeze({ ok: false, status: 'invalid', reason: 'conversation-required' });
+                const result = await runtime.getChatContext({ scopeId: context.scopeId, conversationId });
+                if (!result?.conversation) return conversationNotFound();
+                return Object.freeze({
+                    ok: true,
+                    status: asText(snapshot.phase, 32) || 'ready',
+                    context,
+                    conversation: cloneConversation(result.conversation, context.storyTime),
+                    profile: cloneProfile(result.profile),
+                    settings: Object.freeze({
+                        sendButtonEnabled: result.settings?.sendButtonEnabled === true,
+                        worldbook: Object.freeze({ enabled: result.settings?.worldbook?.enabled === true }),
+                    }),
+                    bindings: cloneVoiceBindings(result.bindings),
                 });
             },
             async globalSettings() {
@@ -780,10 +821,11 @@ export function createQQV2Facade(options = {}) {
                 if (Object.hasOwn(input, 'fromSequence') && (!Number.isSafeInteger(input.fromSequence) || input.fromSequence < 0 || Object.hasOwn(input, 'beforeSequence'))) {
                     return Object.freeze({ ok: false, status: 'invalid', reason: 'message-window-invalid' });
                 }
-                if (typeof runtime.getSnapshot !== 'function') return unavailable('getSnapshot');
-                if (typeof runtime.getConversation !== 'function') return unavailable('getConversation');
-                if (typeof runtime.listMessages !== 'function') return unavailable('listMessages');
-                const snapshot = asObject(await runtime.getSnapshot());
+                if (!canReadContext()) return unavailable('getSnapshot');
+                const canFindPage = typeof runtime.findMessagePage === 'function';
+                if (!canFindPage && typeof runtime.getConversation !== 'function') return unavailable('getConversation');
+                if (!canFindPage && typeof runtime.listMessages !== 'function') return unavailable('listMessages');
+                const snapshot = asObject(await readContextSnapshot());
                 const context = cloneContext(snapshot.context);
                 const conversationId = asText(input.conversationId, 256);
                 if (!context.scopeId) return unavailable('currentScope');
@@ -792,17 +834,23 @@ export function createQQV2Facade(options = {}) {
                     status: 'invalid',
                     reason: 'conversation-required',
                 });
-                const conversation = await runtime.getConversation({ scopeId: context.scopeId, conversationId });
-                if (!conversation) return conversationNotFound();
                 const beforeSequence = Number(input.beforeSequence);
                 const limit = Number(input.limit);
-                const page = await runtime.listMessages({
+                const request = {
                     scopeId: context.scopeId,
                     conversationId,
                     ...(Number.isInteger(beforeSequence) && beforeSequence >= 0 ? { beforeSequence } : {}),
                     ...(input.fromSequence !== undefined ? { fromSequence: input.fromSequence } : {}),
                     ...(Number.isInteger(limit) && limit > 0 ? { limit } : {}),
-                });
+                };
+                let page;
+                if (canFindPage) {
+                    page = await runtime.findMessagePage(request);
+                    if (!page) return conversationNotFound();
+                } else {
+                    if (!await runtime.getConversation({ scopeId: context.scopeId, conversationId })) return conversationNotFound();
+                    page = await runtime.listMessages(request);
+                }
                 return Object.freeze({
                     ok: true,
                     status: asText(snapshot.phase, 32) || 'ready',
@@ -1043,17 +1091,7 @@ export function createQQV2Facade(options = {}) {
                     return Object.freeze({
                         ok: true,
                         status: 'ready',
-                        bindings: Object.freeze(asArray(result.bindings).map((binding) => {
-                            const source = asObject(binding);
-                            return Object.freeze({
-                                personId: asText(source.personId, 256),
-                                name: asText(source.name, 120),
-                                voiceId: asText(source.voiceId, 256),
-                                effectiveVoiceId: asText(source.effectiveVoiceId, 256),
-                                isSelf: source.isSelf === true,
-                                isAssistant: source.isAssistant === true,
-                            });
-                        })),
+                        bindings: cloneVoiceBindings(result.bindings),
                     });
                 } catch (error) {
                     return failed(error);

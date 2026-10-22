@@ -96,6 +96,7 @@ const TOOL_META = Object.freeze({
 
 const EMPTY_PAGE = Object.freeze({ items: [], hasMore: false, nextBeforeSequence: null });
 const DEFAULT_WORLDBOOK_INJECTION_COUNT = 30;
+const LOCAL_SEND_REASONS = ['manual-message-saved', 'manual-send-accepted', 'manual-request-retried'];
 
 const QQ_SETTINGS_GROUPS = Object.freeze([
     Object.freeze({ kind: 'reply', get title() { return t("AI 回复与主动消息"); } }),
@@ -1065,6 +1066,7 @@ export function createQQApp({
     isVisible = () => true,
     isCurrent = () => true,
     onDeferredRender = () => {},
+    onRefreshRequested,
 } = {}) {
     if (!facade?.query || !facade?.intent) throw new TypeError('QQ App needs an injected Facade');
 
@@ -1109,6 +1111,38 @@ export function createQQApp({
     let imageLibraryLazyLoading = null;
     let imageLibraryView = null;
     const enqueueSettingsSave = createSettingsSaveQueue();
+    const localChanges = new Set();
+
+    const requestRefresh = () => {
+        if (disposed || !isCurrent()) return Promise.resolve();
+        return typeof onRefreshRequested === 'function'
+            ? onRefreshRequested()
+            : render({ preserveEmoji: true });
+    };
+    // Local state (drafts, selections and dialogs) settles before its fact refresh.
+    const withLocalRefresh = async (conversationId, reasons, task) => {
+        const change = { conversationId: asText(conversationId), reasons, changed: false };
+        localChanges.add(change);
+        try {
+            const result = await task();
+            if (result === true || result?.ok === true) change.changed = true;
+            return result;
+        } finally {
+            localChanges.delete(change);
+            if (change.changed) await requestRefresh();
+        }
+    };
+    const consumeLocalChange = (event) => {
+        let consumed = false;
+        for (const change of localChanges) {
+            if (change.conversationId === asText(event?.conversationId)
+                && change.reasons.includes(event?.reason)) {
+                change.changed = true;
+                consumed = true;
+            }
+        }
+        return consumed;
+    };
 
     const clearImageLibrarySelection = () => {
         selectedImageAssetIds.clear();
@@ -1486,6 +1520,21 @@ export function createQQApp({
         if (!result?.ok || !result.conversation) return null;
         conversationSnapshots.set(conversationId, result.conversation);
         return result.conversation;
+    };
+
+    const getChatContext = async (conversationId) => {
+        if (typeof facade.query.chatContext === 'function') {
+            const result = await facade.query.chatContext({ conversationId });
+            if (result?.ok && result.conversation) {
+                conversationSnapshots.set(conversationId, result.conversation);
+            }
+            return result?.ok ? result : {};
+        }
+        const [conversation, context, profile, settings, bindings] = await Promise.all([
+            getConversation(conversationId), getCurrentContext(), facade.query.currentProfile?.(),
+            facade.query.globalSettings?.(), facade.query.voiceBindings?.(),
+        ]);
+        return { conversation, context, profile: profile?.profile, settings: settings?.settings, bindings: bindings?.bindings };
     };
 
     const getMessageState = (conversationId) => pages.get(conversationId) || { ...EMPTY_PAGE };
@@ -3028,7 +3077,6 @@ export function createQQApp({
                     if (!result?.ok && !['draft-failed', 'stale'].includes(result?.status)) {
                         report(new Error(result?.error?.message || t("请求回复失败")));
                     }
-                    if (!disposed) await render();
                 } catch (error) { report(error); }
                 finally { send.disabled = !conversation.canSend; }
             });
@@ -3161,18 +3209,16 @@ export function createQQApp({
         const previousStream = viewport?.querySelector(`[data-qq-message-stream="${conversationId}"]`);
         const atBottom = !previousStream
             || isScrollContainerNearBottom(previousStream);
-        const [conversation, currentContext, currentProfileResult, globalSettingsResult, bindings] = await Promise.all([
-            getConversation(conversationId),
-            getCurrentContext(),
-            facade.query.currentProfile?.(),
-            facade.query.globalSettings?.(),
-            facade.query.voiceBindings?.(),
+        const [chat] = await Promise.all([
+            getChatContext(conversationId),
             refreshMessages ? loadMessages(conversationId, { retain: !atBottom }) : Promise.resolve(previousState),
         ]);
+        const { conversation } = chat;
+        const currentContext = asObject(chat.context);
         const chatKind = conversation?.kind === 'group' ? 'group' : 'private';
         const main = createElement('main', `yuzi-qq-view yuzi-qq-chat-view yuzi-qq-${chatKind}-chat-view`);
         if (!conversation || !isActive(token)) return main;
-        voiceBindings = new Map(asArray(bindings?.bindings)
+        voiceBindings = new Map(asArray(chat.bindings)
             .map(binding => [binding.personId, binding.effectiveVoiceId]));
         if (selectionMode) main.classList.add('is-message-selection-mode');
         const nextState = getMessageState(conversationId);
@@ -3182,7 +3228,7 @@ export function createQQApp({
         }
         main.append(makeChatHeader(conversation));
         const currentStoryTime = asText(currentContext.storyTime);
-        const currentProfile = currentProfileResult?.ok ? asObject(currentProfileResult.profile) : {};
+        const currentProfile = asObject(chat.profile);
         const currentIdentity = {
             formalName: currentProfileName(currentContext),
             avatarAssetId: asText(currentProfile.avatarAssetId),
@@ -3205,9 +3251,9 @@ export function createQQApp({
         const stream = renderMessageStream(conversation, currentStoryTime, currentIdentity);
         const composer = selectionMode
             ? renderMessageSelectionBar(conversation, {
-                globalWorldbookEnabled: globalSettingsResult?.settings?.worldbook?.enabled === true,
+                globalWorldbookEnabled: chat.settings?.worldbook?.enabled === true,
             })
-            : renderComposer(conversation, globalSettingsResult?.settings?.sendButtonEnabled === true);
+            : renderComposer(conversation, chat.settings?.sendButtonEnabled === true);
         const composerLayer = createElement('div', `yuzi-qq-composer-layer yuzi-qq-${chatKind}-composer-layer`);
         composerLayer.append(composer);
         const panel = selectionMode ? null : await renderEmojiPanel(token, chatKind);
@@ -3251,6 +3297,10 @@ export function createQQApp({
         if (owner === 'current') return facade.intent.updateCurrentProfile({ profile });
         return facade.intent.updatePrivateProfile({ conversationId, profile });
     };
+    const profileChangeReason = (owner) => ({
+        assistant: 'assistant-character-changed', group: 'group-profile-changed',
+        current: 'current-profile-changed',
+    })[owner] || 'private-profile-changed';
 
     const persistProfileEditorField = async (input) => {
         const field = input.dataset.qqProfileFieldInput;
@@ -4172,7 +4222,7 @@ export function createQQApp({
         return main;
     };
 
-    const openImageLibraryPicker = async ({ library, selectedAssetId = '', onSelect, useSheet = false, focusField = '' }) => {
+    const openImageLibraryPicker = async ({ library, selectedAssetId = '', onSelect, useSheet = false, focusField = '', owner, conversationId = '' }) => {
         clearOverlay();
         closeEmojiPanel();
         const token = renderEpoch;
@@ -4215,10 +4265,12 @@ export function createQQApp({
                 item.addEventListener('click', async () => {
                     grid.querySelectorAll('button').forEach((button) => { button.disabled = true; });
                     try {
-                        await onSelect(assetId);
-                        if (!isActive(token) || !content.isConnected) return;
-                        clearOverlay();
-                        await render();
+                        await withLocalRefresh(conversationId, [profileChangeReason(owner)], async () => {
+                            await onSelect(assetId);
+                            if (!isActive(token) || !content.isConnected) return;
+                            clearOverlay();
+                            return true;
+                        });
                         if (focusField) viewport?.querySelector(`[data-qq-profile-asset-menu="${focusField}"]`)?.focus({ preventScroll: true });
                     } catch (error) {
                         grid.querySelectorAll('button').forEach((button) => { button.disabled = false; });
@@ -4605,7 +4657,7 @@ export function createQQApp({
         }
     };
 
-    const submitComposer = async (conversationId, value) => {
+    const saveComposerDraft = async (conversationId, value) => {
         const submission = normalizeComposerSubmission(value);
         if (!submission.ok) return false;
         const conversation = conversationSnapshots.get(asText(conversationId))
@@ -4628,13 +4680,17 @@ export function createQQApp({
         }
         drafts.delete(conversationId);
         mentionDrafts.delete(asText(conversationId));
-        if (await loadMessages(conversationId)) await render({ refreshMessages: false });
+        consumeLocalChange({ conversationId, reason: 'manual-message-saved' });
         return true;
     };
+    const submitComposer = (conversationId, value) => withLocalRefresh(conversationId, LOCAL_SEND_REASONS,
+        () => saveComposerDraft(conversationId, value));
 
-    const submitBatch = createComposerBatchSubmitter({
-        facade, submitDraft: submitComposer, isCurrent: () => !disposed,
+    const submitComposerBatch = createComposerBatchSubmitter({
+        facade, submitDraft: saveComposerDraft, isCurrent: () => !disposed,
     });
+    const submitBatch = (conversationId, value) => withLocalRefresh(conversationId, LOCAL_SEND_REASONS,
+        () => submitComposerBatch(conversationId, value));
 
     const openAddContactForm = () => {
         const content = createElement('div', 'yuzi-qq-dialog-form yuzi-qq-add-contact-form');
@@ -4972,11 +5028,12 @@ export function createQQApp({
         });
     };
 
-    const sendNarrativeMessage = async (conversationId, type, content) => {
+    const sendNarrativeMessage = (conversationId, type, content) => withLocalRefresh(conversationId, LOCAL_SEND_REASONS, async () => {
         const result = await submitNarrativeMessage({ facade, conversationId, type, content });
         if (!result?.ok) throw new Error(result?.error?.message || t("发送失败"));
-        return loadMessages(conversationId);
-    };
+        clearOverlay();
+        return result;
+    });
 
     const openNarrativeDialog = (conversationId, type) => {
         const meta = TOOL_META[type];
@@ -5001,8 +5058,7 @@ export function createQQApp({
         confirm.addEventListener('click', async () => {
             confirm.disabled = true;
             try {
-                const updated = await sendNarrativeMessage(conversationId, type, input.value);
-                if (updated) { clearOverlay(); await render({ refreshMessages: false }); }
+                await sendNarrativeMessage(conversationId, type, input.value);
             } catch (errorValue) {
                 error.textContent = errorValue.message || t("发送失败，请重试");
                 toggle();
@@ -5069,7 +5125,7 @@ export function createQQApp({
         });
         customCurrency.addEventListener('input', toggle);
         recipient?.addEventListener('change', toggle);
-        confirm.addEventListener('click', async () => {
+        confirm.addEventListener('click', () => withLocalRefresh(conversationId, LOCAL_SEND_REASONS, async () => {
             confirm.disabled = true;
             const result = await submitTransferMessage({
                 facade,
@@ -5085,8 +5141,8 @@ export function createQQApp({
                 return;
             }
             clearOverlay();
-            if (await loadMessages(conversationId)) await render({ refreshMessages: false });
-        });
+            return result;
+        }));
         if (recipient) content.append(recipient);
         content.append(amount, currency, customCurrency, note, error);
         showDialog({ title: t("转账"), content, actions: [cancel, confirm] });
@@ -5104,7 +5160,7 @@ export function createQQApp({
         const cancel = createButton(t("取消"), 'yuzi-qq-secondary-button');
         cancel.addEventListener('click', clearOverlay);
         const confirm = createButton(t("删除"), 'yuzi-qq-danger-button', { 'data-qq-delete-selected': conversationId });
-        confirm.addEventListener('click', async () => {
+        confirm.addEventListener('click', () => withLocalRefresh(conversationId, ['messages-deleted'], async () => {
             confirm.disabled = true;
             const result = await deleteSelectedMessages({ facade, conversationId, selection: messageSelection });
             if (!result?.ok) {
@@ -5114,8 +5170,8 @@ export function createQQApp({
             }
             messageSelectionConversationId = '';
             clearOverlay();
-            if (await loadMessages(conversationId)) await render({ refreshMessages: false });
-        });
+            return result;
+        }));
         showDialog({ title: t("删除消息"), content, actions: [cancel, confirm], className: 'yuzi-qq-delete-message-dialog' });
     };
 
@@ -5136,10 +5192,12 @@ export function createQQApp({
             save.disabled = true;
             input.disabled = true;
             try {
-                const result = await facade.intent.editMessage({ conversationId, messageId: message.messageId, content: input.value });
-                if (!result?.ok) throw new Error(result?.error?.message || t("保存失败"));
-                clearOverlay();
-                if (await loadMessages(conversationId)) await render({ refreshMessages: false });
+                await withLocalRefresh(conversationId, ['message-edited'], async () => {
+                    const result = await facade.intent.editMessage({ conversationId, messageId: message.messageId, content: input.value });
+                    if (!result?.ok) throw new Error(result?.error?.message || t("保存失败"));
+                    clearOverlay();
+                    return result;
+                });
             } catch (failure) {
                 error.textContent = failure.message || t("保存失败");
                 input.disabled = false;
@@ -5157,7 +5215,7 @@ export function createQQApp({
         input.focus();
     };
 
-    const recallMessage = async (conversationId, messageId) => {
+    const recallMessage = (conversationId, messageId) => withLocalRefresh(conversationId, ['messages-deleted'], async () => {
         const scopeKey = currentScopeKey();
         const result = await facade.intent.recallMessage({ conversationId, messageId });
         if (!result?.ok) throw new Error(result?.error?.message || t("撤回失败"));
@@ -5168,8 +5226,8 @@ export function createQQApp({
             drafts.set(conversationId, draft ? draft + '\n' + original.content : original.content);
         }
         clearOverlay();
-        if (await loadMessages(conversationId)) await render({ refreshMessages: false });
-    };
+        return result;
+    });
 
     const openMessageQuickMenu = (conversationId, message) => {
         const anchor = [...viewport.querySelectorAll('[data-qq-message]')]
@@ -5183,13 +5241,15 @@ export function createQQApp({
         remove.addEventListener('click', async () => {
             menu.querySelectorAll('button').forEach((button) => { button.disabled = true; });
             try {
-                const result = await facade.intent.deleteMessages({
-                    conversationId,
-                    messageIds: [message.messageId],
+                await withLocalRefresh(conversationId, ['messages-deleted'], async () => {
+                    const result = await facade.intent.deleteMessages({
+                        conversationId,
+                        messageIds: [message.messageId],
+                    });
+                    if (!result?.ok) throw new Error(result?.error?.message || t("删除失败"));
+                    if (overlay === layer) clearOverlay();
+                    return result;
                 });
-                if (!result?.ok) throw new Error(result?.error?.message || t("删除失败"));
-                if (overlay === layer) clearOverlay();
-                if (await loadMessages(conversationId)) await render({ refreshMessages: false });
             } catch (error) {
                 menu.querySelectorAll('button').forEach((button) => { button.disabled = false; });
                 report(error);
@@ -5237,20 +5297,6 @@ export function createQQApp({
         longPress: ({ conversationId, message }) => openMessageQuickMenu(conversationId, message),
     });
 
-    const openTransferActionLegacy = (conversationId, messageId) => {
-        const message = getMessageState(conversationId).items.find((item) => item.messageId === messageId);
-        if (!message?.transfer || message.senderType === 'self' || message.transfer.status !== 'pending') return;
-        const content = createElement('p');
-        content.textContent = messageContent(message);
-        const reject = createButton(t("退还"), 'yuzi-qq-secondary-button');
-        const accept = createButton(t("收下"), 'yuzi-qq-primary-button');
-        [reject, accept].forEach((button) => button.addEventListener('click', () => {
-            report(new Error(t("转账状态将由下一次 AI 正常触发读取")));
-            clearOverlay();
-        }));
-        showDialog({ title: t("处理转账"), content, actions: [reject, accept] });
-    };
-
     const openTransferAction = (conversationId, messageId) => {
         const message = getMessageState(conversationId).items.find((item) => item.messageId === messageId);
         const conversation = conversationSnapshots.get(asText(conversationId));
@@ -5259,7 +5305,7 @@ export function createQQApp({
         content.textContent = messageContent(message);
         const returnButton = createButton(t("退还"), 'yuzi-qq-secondary-button');
         const accept = createButton(t("收下"), 'yuzi-qq-primary-button');
-        const handle = async (action, button) => {
+        const handle = (action, button) => withLocalRefresh(conversationId, ['transfer-handled'], async () => {
             button.disabled = true;
             const result = await handleIncomingTransfer({ facade, conversationId, messageId, action });
             if (!result?.ok) {
@@ -5268,17 +5314,16 @@ export function createQQApp({
                 return;
             }
             clearOverlay();
-            if (await loadMessages(conversationId)) await render({ refreshMessages: false });
-        };
+            return result;
+        });
         returnButton.addEventListener('click', () => void handle('return', returnButton));
         accept.addEventListener('click', () => void handle('accept', accept));
         showDialog({ title: t("处理转账"), content, actions: [returnButton, accept] });
     };
-    void openTransferActionLegacy;
 
     const updateAssistantAvatarAsset = (characterId) => {
         const token = renderEpoch;
-        pickImageFiles(async ([selected]) => {
+        pickImageFiles(([selected]) => withLocalRefresh('', ['image-library-asset-saved', 'assistant-character-changed'], async () => {
             if (!isActive(token)) return;
             // 陪聊头像属于全局人物，上传后仍须引用全局图片资料。
             const saved = await facade.intent.saveImageLibraryAsset({
@@ -5288,8 +5333,8 @@ export function createQQApp({
             if (!isActive(token)) return;
             const updated = await saveProfilePatch({ owner: 'assistant', characterId }, { avatarAssetId: saved.asset.assetId });
             if (!updated?.ok) throw new Error(updated?.error?.message || t("资料更新失败"));
-            if (isActive(token)) await render();
-        }, {
+            return updated;
+        }), {
             multiple: false,
             maxSizeMB: 8,
             onError: (message) => report(new Error(message)),
@@ -5297,7 +5342,7 @@ export function createQQApp({
     };
 
     const updatePrivateProfileAsset = (conversationId, fieldName, kind) => {
-        pickImageFiles(async ([selected]) => {
+        pickImageFiles(([selected]) => withLocalRefresh(conversationId, ['private-profile-changed'], async () => {
             const blob = selected.file;
             const saved = await facade.intent.saveMedia({
                 media: {
@@ -5313,8 +5358,8 @@ export function createQQApp({
                 profile: { [fieldName]: saved.media.assetId },
             });
             if (!updated?.ok) throw new Error(updated?.error?.message || t("资料更新失败"));
-            await render();
-        }, {
+            return updated;
+        }), {
             multiple: false,
             maxSizeMB: 8,
             onError: (message) => report(new Error(message)),
@@ -5322,7 +5367,7 @@ export function createQQApp({
     };
 
     const updateConversationBackgroundAsset = (conversationId) => {
-        pickImageFiles(async ([selected]) => {
+        pickImageFiles(([selected]) => withLocalRefresh(conversationId, ['private-profile-changed', 'group-profile-changed'], async () => {
             const blob = selected.file;
             const saved = await facade.intent.saveMedia({
                 media: {
@@ -5342,26 +5387,26 @@ export function createQQApp({
                 profile: { backgroundAssetId: saved.media.assetId },
             });
             if (!updated?.ok) throw new Error(updated?.error?.message || t("聊天背景更新失败"));
-            await render();
-        }, {
+            return updated;
+        }), {
             multiple: false,
             maxSizeMB: 8,
             onError: (message) => report(new Error(message)),
         });
     };
 
-    const clearConversationBackgroundAsset = async (conversationId) => {
+    const clearConversationBackgroundAsset = (conversationId) => withLocalRefresh(conversationId, ['private-profile-changed', 'group-profile-changed'], async () => {
         const conversation = await getConversation(conversationId);
         const update = conversation?.kind === 'group'
             ? facade.intent.updateGroupProfile
             : facade.intent.updatePrivateProfile;
         const result = await update({ conversationId, profile: { backgroundAssetId: '' } });
         if (!result?.ok) throw new Error(result?.error?.message || t("聊天背景更新失败"));
-        await render();
-    };
+        return result;
+    });
 
     const updateCurrentProfileAsset = (fieldName, kind) => {
-        pickImageFiles(async ([selected]) => {
+        pickImageFiles(([selected]) => withLocalRefresh('', ['current-profile-changed'], async () => {
             const blob = selected.file;
             const saved = await facade.intent.saveMedia({
                 media: {
@@ -5375,8 +5420,8 @@ export function createQQApp({
                 profile: { [fieldName]: asText(saved.media?.assetId) },
             });
             if (!updated?.ok) throw new Error(updated?.error?.message || t("资料更新失败"));
-            await render();
-        }, {
+            return updated;
+        }), {
             multiple: false,
             maxSizeMB: 8,
             onError: (message) => report(new Error(message)),
@@ -5393,6 +5438,8 @@ export function createQQApp({
         if (!isActive(token)) return;
         await openImageLibraryPicker({
             library,
+            owner,
+            conversationId,
             selectedAssetId: asText(profile?.[fieldName]),
             useSheet,
             focusField: useSheet ? fieldName : '',
@@ -5404,9 +5451,11 @@ export function createQQApp({
     };
 
     const clearProfileLibraryAsset = async ({ owner, conversationId = '', characterId = '', fieldName }) => {
-        const result = await saveProfilePatch({ owner, conversationId, characterId }, { [fieldName]: '' });
-        if (!result?.ok) throw new Error(result?.error?.message || t("资料更新失败"));
-        await render();
+        await withLocalRefresh(conversationId, [profileChangeReason(owner)], async () => {
+            const result = await saveProfilePatch({ owner, conversationId, characterId }, { [fieldName]: '' });
+            if (!result?.ok) throw new Error(result?.error?.message || t("资料更新失败"));
+            return result;
+        });
         viewport?.querySelector(`[data-qq-profile-asset-menu="${fieldName}"]`)?.focus({ preventScroll: true });
     };
 
@@ -6053,9 +6102,11 @@ export function createQQApp({
             return render();
         }
         if (target.dataset.qqRetry) {
-            const result = await facade.intent.retryRequest({ conversationId: target.dataset.qqRetry });
-            if (!result?.ok) report(new Error(result?.error?.message || t("重试失败")));
-            return render();
+            return withLocalRefresh(target.dataset.qqRetry, LOCAL_SEND_REASONS, async () => {
+                const result = await facade.intent.retryRequest({ conversationId: target.dataset.qqRetry });
+                if (!result?.ok) report(new Error(result?.error?.message || t("重试失败")));
+                return result;
+            });
         }
         if (target.dataset.qqStopGeneration) {
             const result = await facade.intent.cancelManualRequest({ conversationId: target.dataset.qqStopGeneration });
@@ -6086,15 +6137,14 @@ export function createQQApp({
         if (target.dataset.qqSticker) {
             const conversationId = page?.conversationId;
             if (!conversationId) return;
-            const result = await facade.intent.sendMessage({
-                conversationId,
-                message: { type: 'sticker', content: target.dataset.qqStickerText || target.dataset.qqSticker, stickerId: target.dataset.qqSticker },
+            return withLocalRefresh(conversationId, LOCAL_SEND_REASONS, async () => {
+                const result = await facade.intent.sendMessage({
+                    conversationId,
+                    message: { type: 'sticker', content: target.dataset.qqStickerText || target.dataset.qqSticker, stickerId: target.dataset.qqSticker },
+                });
+                if (!result?.ok) report(new Error(result?.error?.message || t("发送失败")));
+                return result;
             });
-            if (!result?.ok) report(new Error(result?.error?.message || t("发送失败")));
-            else {
-                if (await loadMessages(conversationId)) await render({ preserveEmoji: true, refreshMessages: false });
-            }
-            return;
         }
         if (target.dataset.qqStickerUpload) return uploadSticker();
         if (target.dataset.qqSettings) return go({ type: 'settings', kind: target.dataset.qqSettings });
@@ -6186,12 +6236,12 @@ export function createQQApp({
             void render().catch(report);
             return this;
         },
-        handleChange: (event) => (
+        handleChange: (event) => consumeLocalChange(event) || (
             ((event?.reason === 'image-library-assets-deleted' && imageLibraryView?.deleting === true)
                 || (event?.reason === 'image-library-pack-imported' && imageLibraryView?.importing === true))
             && isActive(imageLibraryView.token)
         ),
-        refresh: () => render(),
+        refresh: () => render({ preserveEmoji: true }),
         suspend() {
             voicePlayback.stop();
             renderEpoch += 1;
@@ -6232,6 +6282,7 @@ export function createQQApp({
         destroy() {
             closeOpenedChat();
             disposed = true;
+            localChanges.clear();
             pages.clear();
             renderEpoch += 1;
             composerAutoHeight.dispose();

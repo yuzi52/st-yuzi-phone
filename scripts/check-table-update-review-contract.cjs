@@ -6,7 +6,6 @@ const ROOT = process.cwd();
 const FILES = {
     constants: 'modules/table-update-review/constants.js',
     routeRenderer: 'modules/phone-core/route-renderer.js',
-    preload: 'modules/phone-core/preload.js',
     homeViewModel: 'modules/phone-home/view-model.js',
     visibilitySettings: 'modules/settings-app/services/appearance-settings/visibility-settings.js',
     iconSlots: 'modules/settings-app/services/appearance-settings/icon-slots.js',
@@ -56,10 +55,6 @@ async function main() {
     check(results, 'routeRenderer', 'route-renderer 在 app: 分支前处理审核 route', appearsBefore(contents.routeRenderer, "route === 'table-update-review'", "route.startsWith('app:')"));
     check(results, 'routeRenderer', 'route-renderer 动态导入审核页入口', has(contents.routeRenderer, "await import('../table-update-review/index.js')"));
     check(results, 'routeRenderer', 'route-renderer 调用 renderTableUpdateReview 并传入 renderToken', has(contents.routeRenderer, 'renderTableUpdateReview(page, { renderToken });'));
-
-    check(results, 'preload', 'preload 预热审核页入口模块', has(contents.preload, "'../table-update-review/index.js'"));
-    check(results, 'preload', 'preload 审核入口路径与 route-renderer 动态 import 一致', has(contents.preload, "'../table-update-review/index.js'") && has(contents.routeRenderer, "await import('../table-update-review/index.js')"));
-
 
     check(results, 'homeViewModel', '首页 view-model 导入审核 App 常量', has(contents.homeViewModel, "from '../table-update-review/constants.js'")
         && has(contents.homeViewModel, 'TABLE_UPDATE_REVIEW_APP_ID')

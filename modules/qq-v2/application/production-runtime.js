@@ -300,6 +300,28 @@ function currentContext(host, scope) {
     };
 }
 
+function voiceBindingsForRead(selfProfile, people, library, selfName) {
+    const describe = (personId, name, localVoiceId, extra = {}) => {
+        const local = asText(localVoiceId, 256);
+        return {
+            personId: asText(personId, 256),
+            name: asText(name, 120),
+            voiceId: local,
+            effectiveVoiceId: library.some(entry => entry.voiceId === local) ? local : '',
+            ...extra,
+        };
+    };
+    return [
+        describe(SELF_ID, selfName, selfProfile?.voiceId, { isSelf: true }),
+        ...people.map((person) => describe(
+            person?.personId,
+            person?.formalName,
+            person?.voiceId,
+            { isAssistant: Boolean(person?.assistantCharacterId) },
+        )),
+    ].filter((binding) => binding.name);
+}
+
 function resolveHeaders(host) {
     const context = safeRead(() => host.readRawContext?.(), null);
     if (!context || typeof context.getRequestHeaders !== 'function') return {};
@@ -325,14 +347,14 @@ function countEligibleStoryAiFloors(messages) {
     return asArray(messages).filter(isEligibleStoryReply).length;
 }
 
-async function resolveConversationFacts(repository, scopeId, conversation) {
+function resolveConversationFacts(scope, conversation) {
     const group = conversation?.kind === 'group'
-        ? await repository.getGroup(scopeId, conversation.groupId)
+        ? scope.groups[conversation.groupId] || null
         : null;
     const personIds = conversation?.kind === 'private'
         ? [conversation.personId]
         : asArray(group?.memberIds);
-    const people = await Promise.all(personIds.map((personId) => repository.getPerson(scopeId, personId)));
+    const people = personIds.map((personId) => scope.people[personId]);
     return {
         group,
         people: people.filter(Boolean),
@@ -807,6 +829,19 @@ export function createQQV2ProductionRuntime(options = {}) {
         repository.getConversation(scopeId, asText(conversationId, 256))
     );
 
+    const conversationForRead = (scopeId, summary) => {
+        const conversation = summary?.conversation;
+        if (!conversation) return null;
+        return {
+            ...conversation,
+            person: summary.person,
+            group: summary.group,
+            lastMessage: summary.lastMessage,
+            unreadCount: Number(conversation.unreadCount) || 0,
+            request: requestService.getConversationState(scopeId, conversation.conversationId),
+        };
+    };
+
     const getPrivateConversation = async (scopeId, conversationId) => {
         const conversation = await getConversation(scopeId, conversationId);
         if (conversation && conversation.kind !== 'private') throw privateOnlyError();
@@ -907,16 +942,23 @@ export function createQQV2ProductionRuntime(options = {}) {
         const normalizedScopeId = asText(scopeId, 512);
         if (!normalizedScopeId) return 0;
         const scopeLeases = [...mediaRenderLeases.values()].filter((lease) => lease.scopeId === normalizedScopeId);
-        const existingAssetIds = new Set((await Promise.all(scopeLeases.map(async (lease) => {
-            // Voice audio lives in its own scope table, so the same sweep has to
-            // ask both readers before it releases a URL.
-            const asset = lease.kind === 'voice'
-                ? await repository.getVoiceAsset(normalizedScopeId, lease.assetId)
-                : await repository.getMediaAsset(normalizedScopeId, lease.assetId);
-            return asset ? lease.assetId : '';
-        }))).filter(Boolean));
+        if (scopeLeases.length === 0) return 0;
+        const references = scopeLeases.map((lease) => ({
+            kind: lease.kind === 'voice' ? 'voice' : 'media',
+            assetId: lease.assetId,
+        }));
+        const existingAssets = typeof repository.listExistingMediaAssets === 'function'
+            ? await repository.listExistingMediaAssets(normalizedScopeId, references)
+            : (await Promise.all(references.map(async (reference) => {
+                const asset = reference.kind === 'voice'
+                    ? await repository.getVoiceAsset(normalizedScopeId, reference.assetId)
+                    : await repository.getMediaAsset(normalizedScopeId, reference.assetId);
+                return asset ? reference : null;
+            }))).filter(Boolean);
+        const assetKey = (asset) => `${asset.kind === 'voice' ? 'voice' : 'media'}:${asset.assetId}`;
+        const existingAssetKeys = new Set(existingAssets.map(assetKey));
         return revokeMediaRenderLeases((lease) => (
-            lease.scopeId === normalizedScopeId && !existingAssetIds.has(lease.assetId)
+            lease.scopeId === normalizedScopeId && !existingAssetKeys.has(assetKey(lease))
         ));
     };
 
@@ -1076,7 +1118,7 @@ export function createQQV2ProductionRuntime(options = {}) {
         }
     };
     const listStickers = () => resources.listStickers();
-    const resolveMemoryPeople = async (scopeId, seedPersonIds, messages) => {
+    const resolveMemoryPeople = (scope, seedPersonIds, messages) => {
         const personIds = new Set(asArray(seedPersonIds).map((personId) => asText(personId, 256)).filter(Boolean));
         asArray(messages).forEach((message) => {
             const senderId = asText(message?.senderId, 256);
@@ -1084,16 +1126,16 @@ export function createQQV2ProductionRuntime(options = {}) {
             if (senderId && senderId !== SELF_ID) personIds.add(senderId);
             if (recipientId && recipientId !== SELF_ID) personIds.add(recipientId);
         });
-        const people = await Promise.all([...personIds].map((personId) => repository.getPerson(scopeId, personId)));
+        const people = [...personIds].map((personId) => scope.people[personId]);
         return Object.fromEntries(people.filter(Boolean).map((person) => [person.personId, person.formalName]));
     };
-    const resolveGroupMemory = async ({ scopeId, knownByPersonId, historyLimit }) => {
+    const resolveGroupMemory = async ({ scopeId, scope, knownByPersonId, historyLimit }) => {
         const knownBy = knownByPersonId instanceof Map ? knownByPersonId : new Map();
-        const conversations = await repository.listConversations(scopeId);
+        const conversations = Object.values(scope.conversations).sort((left, right) => right.lastSequence - left.lastSequence);
         const sections = [];
         for (const candidate of conversations) {
             if (candidate.kind !== 'group') continue;
-            const group = await repository.getGroup(scopeId, candidate.groupId);
+            const group = scope.groups[candidate.groupId];
             if (!group) continue;
             const labels = asArray(group.memberIds)
                 .filter((personId) => knownBy.has(personId))
@@ -1108,19 +1150,19 @@ export function createQQV2ProductionRuntime(options = {}) {
                 conversationId: candidate.conversationId,
                 name: group.name,
                 knownBy: labels,
-                peopleById: await resolveMemoryPeople(scopeId, group.memberIds, messages),
+                peopleById: resolveMemoryPeople(scope, group.memberIds, messages),
                 messages,
             });
         }
         return buildQQV2GroupMemorySections(sections);
     };
-    const resolvePrivateMemory = async ({ scopeId, personIds, historyLimit }) => {
+    const resolvePrivateMemory = async ({ scopeId, scope, personIds, historyLimit }) => {
         const includedPersonIds = personIds instanceof Set ? personIds : new Set(asArray(personIds));
-        const conversations = await repository.listConversations(scopeId);
+        const conversations = Object.values(scope.conversations).sort((left, right) => right.lastSequence - left.lastSequence);
         const sections = [];
         for (const candidate of conversations) {
             if (candidate.kind !== 'private' || !includedPersonIds.has(candidate.personId)) continue;
-            const person = await repository.getPerson(scopeId, candidate.personId);
+            const person = scope.people[candidate.personId];
             if (!person) continue;
             const messages = truncateConversationHistory(
                 await repository.listMessages(scopeId, candidate.conversationId),
@@ -1130,22 +1172,22 @@ export function createQQV2ProductionRuntime(options = {}) {
                 conversationId: candidate.conversationId,
                 personId: person.personId,
                 personName: person.formalName,
-                peopleById: await resolveMemoryPeople(scopeId, [person.personId], messages),
+                peopleById: resolveMemoryPeople(scope, [person.personId], messages),
                 messages,
             });
         }
         return buildQQV2PrivateMemorySections(sections);
     };
 
-    const resolvePromptContext = async ({ scopeId, scopeSession, conversation, history, scope, runtimeSettings = null }) => {
+    const resolvePromptContext = async ({ scopeId, scopeSession, conversation, history, scope, runtimeSettings = null, stickers = null }) => {
         const settings = runtimeSettings || await resolveRuntimeSettings(scopeId, scope, { scopeSession });
-        const facts = await resolveConversationFacts(repository, scopeId, conversation);
+        const facts = resolveConversationFacts(scope, conversation);
         const visibleHistory = truncateConversationHistory(history, settings.conversationHistoryLimit);
-        const friends = conversation.kind === 'group' ? (await Promise.all(
-            (await repository.listConversations(scopeId))
+        const friends = conversation.kind === 'group'
+            ? Object.values(scope.conversations).sort((left, right) => right.lastSequence - left.lastSequence)
                 .filter(item => item.kind === 'private' && !item.assistantCharacterId && ['active', 'contact'].includes(item.status))
-                .map(item => repository.getPerson(scopeId, item.personId)),
-        )).filter(Boolean) : [];
+                .map(item => scope.people[item.personId]).filter(Boolean)
+            : [];
         const referencedPeople = [...new Map([...facts.people, ...friends].map(person => [person.personId, person])).values()];
         const { personReferences, referenceByPersonId } = createPersonReferences(referencedPeople);
         const { messageReferences, visibleMessageRefs } = createMessageReferences(visibleHistory);
@@ -1163,11 +1205,11 @@ export function createQQV2ProductionRuntime(options = {}) {
                 messages: formatWorldbookHistory(history, facts.peopleById),
             }],
         });
-        const stickers = await listStickers();
-        const stickerCatalog = buildQQV2StickerCatalog(stickers);
+        const stickerCatalog = buildQQV2StickerCatalog(Array.isArray(stickers) ? stickers : await listStickers());
         const groupMemory = !conversation.assistantCharacterId && conversation.kind === 'private'
             ? await resolveGroupMemory({
                 scopeId,
+                scope,
                 historyLimit: settings.conversationHistoryLimit,
                 knownByPersonId: new Map(facts.people.map((person) => [person.personId, person.formalName])),
             })
@@ -1175,6 +1217,7 @@ export function createQQV2ProductionRuntime(options = {}) {
         const privateMemory = conversation.kind === 'group'
             ? await resolvePrivateMemory({
                 scopeId,
+                scope,
                 historyLimit: settings.conversationHistoryLimit,
                 personIds: new Set(asArray(facts.group?.memberIds)),
             })
@@ -1363,7 +1406,10 @@ export function createQQV2ProductionRuntime(options = {}) {
                 conversationIds,
                 storyTime: input.storyTime,
             });
-            if (input.scopeSession?.isReady?.()) await notifySubscribers(input.scopeId);
+            if (input.scopeSession?.isReady?.()) await notifySubscribers(input.scopeId,
+                input.kind === 'user-message'
+                    ? { reason: 'manual-message-saved', conversationId: input.conversationId }
+                    : {});
         },
     });
 
@@ -1381,7 +1427,7 @@ export function createQQV2ProductionRuntime(options = {}) {
         getUserName,
         actionService,
         onMessagesCommitted: notifyProactiveMessageSubscribers,
-        async getPromptContext({ scopeId, scopeSession, kind, candidates, runtimeSettings, storyTime }) {
+        async getPromptContext({ scopeId, scopeSession, scope, kind, candidates, runtimeSettings, storyTime }) {
             const people = [...new Set(candidates.flatMap((candidate) => [
                 candidate.title,
                 ...asArray(candidate.members).map((member) => String(member).replace(/^N\d+：/, '')),
@@ -1404,6 +1450,7 @@ export function createQQV2ProductionRuntime(options = {}) {
             const proactiveGroupMemory = kind === 'private'
                 ? await resolveGroupMemory({
                     scopeId,
+                    scope,
                     historyLimit: runtimeSettings.conversationHistoryLimit,
                     knownByPersonId: new Map(candidates.map((candidate) => [
                         candidate.personId,
@@ -1414,6 +1461,7 @@ export function createQQV2ProductionRuntime(options = {}) {
             const proactivePrivateMemory = kind === 'group'
                 ? await resolvePrivateMemory({
                     scopeId,
+                    scope,
                     historyLimit: runtimeSettings.conversationHistoryLimit,
                     personIds: new Set(candidates.flatMap((candidate) => asArray(candidate.memberIds))),
                 })
@@ -1744,6 +1792,14 @@ export function createQQV2ProductionRuntime(options = {}) {
         return finalizeHostScopeDeletion(scopeId);
     };
 
+    const getReadContext = () => {
+        const status = lifecycle.getStatus();
+        return {
+            phase: status.phase,
+            context: currentContext(host, status.phase === 'destroyed' ? null : lifecycle.getActiveScope()),
+        };
+    };
+
     let snapshotReadPromise = null;
     const readSnapshot = async () => {
         const status = lifecycle.getStatus();
@@ -1804,6 +1860,7 @@ export function createQQV2ProductionRuntime(options = {}) {
             return () => proactiveMessageSubscribers.delete(listener);
         },
         getStatus: () => lifecycle.getStatus(),
+        getReadContext,
         getSnapshot,
         async listSharedResources() {
             const listImageGenerationPresets = typeof resources.listImageGenerationPresets === 'function'
@@ -1947,7 +2004,7 @@ export function createQQV2ProductionRuntime(options = {}) {
             const targets = await repository.listAssistantConversationTargets(characterId);
             for (const target of targets) await requestService.cancelConversation(target);
             const result = await repository.saveAssistantCharacter(id, characterId, patch, { scopeSession });
-            await notifySubscribers(id);
+            await notifySubscribers(id, { reason: 'assistant-character-changed' });
             return result;
         },
         async openAssistant({ scopeId, ...input }) {
@@ -1960,31 +2017,42 @@ export function createQQV2ProductionRuntime(options = {}) {
         async listConversations({ scopeId }) {
             return queryExistingScope(scopeId, [], async (normalizedScopeId) => {
                 const summaries = await repository.listConversationSummaries(normalizedScopeId);
-                return summaries.map((summary) => ({
-                    ...summary.conversation,
-                    person: summary.person,
-                    group: summary.group,
-                    lastMessage: summary.lastMessage,
-                    unreadCount: Number(summary.conversation.unreadCount) || 0,
-                    request: requestService.getConversationState(normalizedScopeId, summary.conversation.conversationId),
-                }));
+                return summaries.map((summary) => conversationForRead(normalizedScopeId, summary));
             });
         },
         async getConversation({ scopeId, conversationId }) {
             return queryExistingScope(scopeId, null, async (normalizedScopeId) => {
                 const summary = await repository.getConversationSummary(normalizedScopeId, conversationId);
-                const conversation = summary?.conversation;
-                if (!conversation) return null;
-                const group = summary.group;
+                return conversationForRead(normalizedScopeId, summary);
+            });
+        },
+        async getChatContext({ scopeId, conversationId }) {
+            const scopeSession = captureScopeSession(scopeId);
+            return queryExistingScope(scopeId, null, async (normalizedScopeId) => {
+                assertOptionalCurrentScopeSession(scopeSession);
+                const [data, settings, library] = await Promise.all([
+                    repository.getChatContextData(normalizedScopeId, conversationId),
+                    globalRuntimeSettings.get(normalizedScopeId, { scopeSession }),
+                    safeReadAsync(() => resources.listVoiceEntries(), null),
+                ]);
+                assertOptionalCurrentScopeSession(scopeSession);
+                if (!data) return null;
                 return {
-                    ...conversation,
-                    person: summary.person,
-                    group,
-                    lastMessage: summary.lastMessage,
-                    unreadCount: Number(conversation.unreadCount) || 0,
-                    request: requestService.getConversationState(normalizedScopeId, conversationId),
+                    conversation: conversationForRead(normalizedScopeId, data.summary),
+                    profile: data.selfProfile,
+                    settings: {
+                        sendButtonEnabled: settings.sendButtonEnabled === true,
+                        worldbook: { enabled: settings.worldbook?.enabled === true },
+                    },
+                    bindings: library ? voiceBindingsForRead(data.selfProfile, data.people, library,
+                        currentContext(host, null).user.name) : [],
                 };
             });
+        },
+        async findMessagePage({ scopeId, conversationId, beforeSequence, fromSequence, limit = 50 }) {
+            return queryExistingScope(scopeId, null, (normalizedScopeId) => (
+                repository.findMessagePage(normalizedScopeId, conversationId, { beforeSequence, fromSequence, limit })
+            ));
         },
         async listMessages({ scopeId, conversationId, beforeSequence, fromSequence, limit = 50 }) {
             const empty = { items: [], hasMore: false, nextBeforeSequence: null };
@@ -2129,7 +2197,7 @@ export function createQQV2ProductionRuntime(options = {}) {
             const normalizedScopeId = await ensureScope(scopeId, null, { scopeSession });
             const result = await repository.updateCurrentProfile(normalizedScopeId, asObject(profile), { scopeSession });
             await revokeMissingMediaRenderLeases(normalizedScopeId);
-            await notifySubscribers(normalizedScopeId);
+            await notifySubscribers(normalizedScopeId, { reason: 'current-profile-changed' });
             return result;
         },
         async saveImageLibraryAsset({ scopeId, library, blob, mimeType = '' }) {
@@ -2140,7 +2208,7 @@ export function createQQV2ProductionRuntime(options = {}) {
                 { library, blob, mimeType },
                 { scopeSession },
             );
-            await notifySubscribers(normalizedScopeId);
+            await notifySubscribers(normalizedScopeId, { reason: 'image-library-asset-saved' });
             return asset;
         },
         async saveImageLibraryAssets({ scopeId, assets = [] }) {
@@ -2178,7 +2246,7 @@ export function createQQV2ProductionRuntime(options = {}) {
                 conversationId: result.conversation.conversationId,
             });
             await revokeMissingMediaRenderLeases(normalizedScopeId);
-            await notifySubscribers(normalizedScopeId);
+            await notifySubscribers(normalizedScopeId, { reason: 'private-profile-changed', conversationId });
             return { person: conversation?.person || result.person, conversation: conversation || result.conversation };
         },
         async removePrivateFriend({ scopeId, conversationId, userName = getUserName(), storyTime = getStoryTime() }) {
@@ -2207,7 +2275,7 @@ export function createQQV2ProductionRuntime(options = {}) {
                 asText(storyTime, 128),
                 { scopeSession },
             );
-            await notifySubscribers(normalizedScopeId);
+            await notifySubscribers(normalizedScopeId, { reason: 'transfer-handled', conversationId });
             return result;
         },
         async updateGroupProfile({ scopeId, conversationId, profile = {} }) {
@@ -2225,7 +2293,7 @@ export function createQQV2ProductionRuntime(options = {}) {
                 conversationId: result.conversation.conversationId,
             });
             await revokeMissingMediaRenderLeases(normalizedScopeId);
-            await notifySubscribers(normalizedScopeId);
+            await notifySubscribers(normalizedScopeId, { reason: 'group-profile-changed', conversationId });
             return {
                 group: conversation?.group || result.group,
                 conversation: conversation || result.conversation,
@@ -2509,7 +2577,7 @@ export function createQQV2ProductionRuntime(options = {}) {
                 }
                 : messageWithStoryTime;
             const result = await requestService.sendManual({ scopeId, conversationId, message: normalizedMessage });
-            await notifySubscribers(scopeId);
+            await notifySubscribers(scopeId, { reason: 'manual-send-accepted', conversationId });
             return result;
         },
         async translateImagePrompt(input = {}) {
@@ -2882,28 +2950,9 @@ export function createQQV2ProductionRuntime(options = {}) {
         async listVoiceBindings({ scopeId } = {}) {
             const scope = await repository.getScope(asText(scopeId, 512));
             const library = await resources.listVoiceEntries();
-            const describe = (personId, name, localVoiceId, extra = {}) => {
-                const local = asText(localVoiceId, 256);
-                const effectiveVoiceId = library.some(entry => entry.voiceId === local) ? local : '';
-                return {
-                    personId: asText(personId, 256),
-                    name: asText(name, 120),
-                    voiceId: local,
-                    effectiveVoiceId,
-                    ...extra,
-                };
-            };
-            const selfName = asText(currentContext(host, null)?.user?.name, 120);
             return {
-                bindings: [
-                    describe(SELF_ID, selfName, scope?.selfProfile?.voiceId, { isSelf: true }),
-                    ...Object.values(asObject(scope?.people)).map((person) => describe(
-                        person?.personId,
-                        person?.formalName,
-                        person?.voiceId,
-                        { isAssistant: Boolean(person?.assistantCharacterId) },
-                    )),
-                ].filter((binding) => binding.name),
+                bindings: voiceBindingsForRead(scope?.selfProfile, Object.values(asObject(scope?.people)),
+                    library, currentContext(host, null).user.name),
             };
         },
         async saveVoiceEntry({ entry } = {}) {
@@ -2965,7 +3014,7 @@ export function createQQV2ProductionRuntime(options = {}) {
         async retryManual({ scopeId, conversationId }) {
             assertConversationWritable(scopeId, conversationId);
             const result = await requestService.retry({ scopeId, conversationId });
-            await notifySubscribers(scopeId);
+            await notifySubscribers(scopeId, { reason: 'manual-request-retried', conversationId });
             return result;
         },
         async cancelManualRequest({ scopeId, conversationId }) {
@@ -2994,7 +3043,7 @@ export function createQQV2ProductionRuntime(options = {}) {
             await requestService.reconcileConversation?.({ scopeId: normalizedScopeId, conversationId });
             await syncConversations({ scopeId: normalizedScopeId, scopeSession, conversationIds: [conversationId], userName: asText(userName, 256), storyTime: asText(storyTime, 128) });
             assertReadyScopeSession(scopeSession);
-            await notifySubscribers(normalizedScopeId);
+            await notifySubscribers(normalizedScopeId, { reason: 'message-edited', conversationId });
             return result;
         },
         async deleteMessages({
@@ -3030,7 +3079,7 @@ export function createQQV2ProductionRuntime(options = {}) {
                 storyTime: asText(storyTime, 128),
             });
             assertReadyScopeSession(scopeSession);
-            await notifySubscribers(normalizedScopeId);
+            await notifySubscribers(normalizedScopeId, { reason: 'messages-deleted', conversationId });
             return result;
         },
         async deleteConversation({ scopeId, conversationId, userName = getUserName(), storyTime = getStoryTime() }) {

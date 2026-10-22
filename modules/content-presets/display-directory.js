@@ -25,7 +25,7 @@ export function contentPresetDisplayModelId(presetId, displayId) {
 
 function physicalTables(rawData) {
     return buildTableNavigationCatalog(rawData).map(entry => {
-        const snapshot = createTableSnapshot(rawData, entry.sheetKey);
+        const snapshot = createTableSnapshot(rawData, entry.sheetKey, { includeRows: false });
         return Object.freeze({
             sheetKey: entry.sheetKey,
             table: Object.freeze({

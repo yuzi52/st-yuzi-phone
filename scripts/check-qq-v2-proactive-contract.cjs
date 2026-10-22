@@ -310,6 +310,49 @@ async function testTransferActionSyncsOnlyAffectedConversation() {
     assert.deepEqual(syncCalls[0].conversationIds, ['private-2']);
 }
 
+async function testCommittedMessagesUseIndexedFactsWhenAvailable() {
+    const fixture = createRepositoryFixture();
+    let committed = false;
+    let factReads = 0;
+    const listMessages = fixture.repository.listMessages;
+    fixture.repository.listMessages = async (...args) => {
+        assert.equal(committed, false, '提交后不得重新读取候选会话的完整历史');
+        return listMessages(...args);
+    };
+    fixture.repository.findMessageFacts = async (scopeId, messageIds) => {
+        assert.equal(scopeId, fixture.scopeId);
+        assert.equal(committed, true);
+        factReads += 1;
+        assert.deepEqual(messageIds, ['new-npc', 'self-transfer', 'outside', 'missing']);
+        return [
+            { messageId: 'new-npc', conversationId: 'private-1', senderType: 'person' },
+            { messageId: 'self-transfer', conversationId: 'private-1', senderType: 'self' },
+            { messageId: 'outside', conversationId: 'other-conversation', senderType: 'person' },
+        ];
+    };
+    const { result, syncCalls, committedMessageCalls } = await runProactiveCycle({
+        fixture,
+        commitActions: async () => {
+            committed = true;
+            return {
+                applied: [
+                    { type: 'message', messageId: 'new-npc' },
+                    { type: 'transfer', messageId: 'self-transfer' },
+                    { type: 'message', messageId: 'outside' },
+                    { type: 'message', messageId: 'missing' },
+                ],
+                createdConversationIds: [],
+            };
+        },
+    });
+    assert.deepEqual(result, { status: 'succeeded' });
+    assert.equal(factReads, 1);
+    assert.deepEqual(syncCalls.map((call) => call.conversationIds), [['private-1']]);
+    assert.deepEqual(committedMessageCalls.map(({ conversationIds, messageIds }) => ({ conversationIds, messageIds })), [{
+        conversationIds: ['private-1'], messageIds: ['new-npc'],
+    }], '主动通知仅接收本周期候选中真实提交的 NPC 消息');
+}
+
 async function testGroupProjectionActionSyncsOnlyAffectedConversation() {
     const fixture = createRepositoryFixture({
         conversations: [
@@ -655,6 +698,7 @@ async function main() {
     await testEmptyAppliedBatchSkipsWorldbookSync();
     await testMessageActionSyncsOnlyAffectedConversation();
     await testTransferActionSyncsOnlyAffectedConversation();
+    await testCommittedMessagesUseIndexedFactsWhenAvailable();
     await testGroupProjectionActionSyncsOnlyAffectedConversation();
     await testGroupMemberChangeDoesNotSyncUnchangedLaterGroup();
     await testCreatedConversationFirstMessageStillSyncsWorldbook();

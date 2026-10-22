@@ -63,7 +63,10 @@ async function main() {
             reason: 'conversation-opened',
             conversationId: beryl.conversation.conversationId,
         },
-        { status: 'changed', scopeId: 'scope-b' },
+        {
+            status: 'changed', scopeId: 'scope-b', reason: 'private-profile-changed',
+            conversationId: beryl.conversation.conversationId,
+        },
         { status: 'changed', scopeId: 'scope-b' },
     ]);
 
@@ -77,7 +80,10 @@ async function main() {
             reason: 'conversation-opened',
             conversationId: beryl.conversation.conversationId,
         },
-        { status: 'changed', scopeId: 'scope-b' },
+        {
+            status: 'changed', scopeId: 'scope-b', reason: 'private-profile-changed',
+            conversationId: beryl.conversation.conversationId,
+        },
         { status: 'changed', scopeId: 'scope-b' },
     ]);
 

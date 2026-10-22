@@ -2621,7 +2621,12 @@
 
 .yuzi-qq-image-library-grid {
     display: grid;
-    grid-template-columns: repeat(4, minmax(0, 1fr));
+    /* Keep four shrinking columns on narrow phones and fixed-size columns on wider ones. */
+    grid-template-columns: repeat(
+        auto-fill,
+        min(var(--yuzi-qq-image-library-grid-item-size), calc((100% - 3 * var(--yuzi-qq-image-library-grid-gap)) / 4))
+    );
+    justify-content: center;
     gap: var(--yuzi-qq-image-library-grid-gap);
     padding: var(--yuzi-qq-image-library-grid-padding-block) var(--yuzi-qq-image-library-grid-padding-inline);
 }

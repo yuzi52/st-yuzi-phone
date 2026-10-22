@@ -416,9 +416,7 @@ export function createQQV2ProactiveService(options = {}) {
                 ...candidates.map((candidate) => candidate.conversationId),
                 ...createdConversationIds,
             ])];
-            const listMessages = requireFunction(repository.listMessages, 'repository.listMessages');
-            await Promise.all(candidateConversationIds.map(async (conversationId) => {
-                const messages = await listMessages(scopeId, conversationId);
+            const recordMessages = (conversationId, messages) => {
                 if (messages.some((message) => appliedMessageIds.has(asText(message?.messageId, 256)))) {
                     affectedConversationIds.add(conversationId);
                 }
@@ -428,7 +426,18 @@ export function createQQV2ProactiveService(options = {}) {
                     committedMessageConversationIds.add(conversationId);
                     committedMessageIds.add(messageId);
                 });
-            }));
+            };
+            if (typeof repository.findMessageFacts === 'function') {
+                const messages = await repository.findMessageFacts(scopeId, [...appliedMessageIds]);
+                candidateConversationIds.forEach((conversationId) => {
+                    recordMessages(conversationId, messages.filter((message) => message.conversationId === conversationId));
+                });
+            } else {
+                const listMessages = requireFunction(repository.listMessages, 'repository.listMessages');
+                await Promise.all(candidateConversationIds.map(async (conversationId) => {
+                    recordMessages(conversationId, await listMessages(scopeId, conversationId));
+                }));
+            }
         }
         if (onMessagesCommitted && committedMessageConversationIds.size > 0) {
             try {

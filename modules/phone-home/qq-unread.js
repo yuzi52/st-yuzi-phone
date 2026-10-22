@@ -59,9 +59,11 @@ export function createQQHomeUnreadProjection({ facade, onChange, onDestroy } = {
     };
 
     const resolveScope = async () => {
-        if (typeof facade?.query?.bootstrap !== 'function') return '';
+        const query = facade?.query;
+        const readContext = typeof query?.currentContext === 'function' ? query.currentContext : query?.bootstrap;
+        if (typeof readContext !== 'function') return '';
         try {
-            return extractScopeId(await facade.query.bootstrap());
+            return extractScopeId(await readContext.call(query));
         } catch {
             return '';
         }
