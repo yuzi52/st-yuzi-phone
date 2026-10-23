@@ -25,13 +25,11 @@ export function normalizeScrollingBarrageRuntimeSettings(value = {}) {
         && !Array.isArray(value)
         && value.models,
     );
-    const overlaySettings = hasModelEnvelope
-        ? normalizeFullscreenOverlaySettings(value)
-        : normalizeFullscreenOverlaySettings({
-            models: {
-                [SCROLLING_BARRAGE_MODEL_ID]: value,
-            },
-        });
+    const overlaySettings = normalizeFullscreenOverlaySettings({
+        models: {
+            [SCROLLING_BARRAGE_MODEL_ID]: hasModelEnvelope ? value.models[SCROLLING_BARRAGE_MODEL_ID] : value,
+        },
+    });
     return overlaySettings.models[SCROLLING_BARRAGE_MODEL_ID];
 }
 

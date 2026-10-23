@@ -244,6 +244,7 @@ export default {
     "注入条数": "Injected messages",
     "启用世界书注入": "Enable World Info injection",
     "注入世界书": "Target World Info book",
+    "通讯方式": "Communication method",
     "聊天": "Chat",
     "发送失败": "Failed to send",
     "联系人名字": "Contact name",

@@ -1,6 +1,6 @@
 import { getFreshSillyTavernContext } from '../integration/context-bridge.js';
 import { getCurrentCharacterWorldbooks } from '../integration/tavern-helper-bridge.js';
-import { withWorldbookWrite } from '../integration/worldbook-write.js';
+import { withWorldbookWrite, refreshWorldbookEditors } from '../integration/worldbook-write.js';
 import { qqV2WorldbookPlacement } from '../qq-v2/worldbook/placement.js';
 import { composeBodyDialoguePrompt, bodyDialogueUsesPersonLanguages } from './config.js';
 import { bodyDialogueRepository as repository } from './repository.js';
@@ -17,7 +17,7 @@ export function createBodyDialogueProjection() {
     return {
         getStatus: () => status,
         subscribe(listener) { listeners.add(listener); return () => listeners.delete(listener); },
-        sync(config, isCurrent = () => true, modulePrompt = '') {
+        sync(config, isCurrent = () => true, modulePrompt = '', { refreshEditor = false } = {}) {
             const task = pending.then(async () => {
                 if (!isCurrent()) return status;
                 let target = '';
@@ -66,6 +66,7 @@ export function createBodyDialogueProjection() {
                     }
                     if (!isCurrent()) return status;
                     await repository.setMeta('worldbooks', target ? [target] : []);
+                    if (refreshEditor && isCurrent()) refreshWorldbookEditors(context, books);
                     publish({ state: target ? 'synced' : 'inactive', book: target,
                         message: target ? `已同步：${target} · D0 · 999 · 蓝灯`
                             : config.enabled ? '未注入：未绑定角色卡主世界书（宿主群聊不自动选书）' : '已关闭：受管世界书条目已清理' });

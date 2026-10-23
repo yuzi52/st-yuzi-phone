@@ -54,10 +54,11 @@ function requiresTableRuntime(source) {
 
 export async function renderShujukuTemplate(text, runtime = {}) {
     const source = String(text ?? '');
-    if (requiresQueryRuntime(source) && typeof runtime.querySql !== 'function') return source;
+    const needsQueries = requiresQueryRuntime(source);
+    if (needsQueries && typeof runtime.querySql !== 'function') return source;
     const needsTables = requiresTableRuntime(source);
     if (needsTables && typeof runtime.exportTableAsJson !== 'function') return source;
-    const tables = readShujukuTableSnapshot(runtime);
+    const tables = needsTables || needsQueries ? readShujukuTableSnapshot(runtime) : null;
     if (needsTables && tables === null) return source;
     const variables = new Map();
     const numericStores = createNumericTemplateStores();

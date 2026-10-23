@@ -163,6 +163,7 @@ function cloneQQSettingsForUi(settings) {
         worldbook: Object.freeze({
             enabled: worldbook.enabled === true,
             bookName: asText(worldbook.bookName),
+            channelName: asText(worldbook.channelName) || 'QQ',
             injectionCount: asInteger(worldbook.injectionCount, DEFAULT_WORLDBOOK_INJECTION_COUNT),
             timeWindow: Object.freeze(timeWindow.mode === 'all'
                 ? { mode: 'all' }
@@ -248,6 +249,7 @@ function qqSettingsPatch(kind, values = {}, field = '') {
             };
         if (field === 'enabled') return { worldbook: { enabled: source.enabled === true } };
         if (field === 'bookName') return { worldbook: { bookName: asText(source.bookName) } };
+        if (field === 'channelName') return { worldbook: { channelName: asText(source.channelName) || 'QQ' } };
         if (['timeWindowMode', 'timeWindowValue', 'timeWindowUnit'].includes(field)) {
             return { worldbook: { timeWindow } };
         }
@@ -262,6 +264,7 @@ function qqSettingsPatch(kind, values = {}, field = '') {
             worldbook: {
                 enabled: source.enabled === true,
                 bookName: asText(source.bookName),
+                channelName: asText(source.channelName) || 'QQ',
                 timeWindow,
                 injectionCount: asInteger(source.injectionCount, -1),
                 light: source.light === 'green' ? 'green' : 'blue',
@@ -1613,6 +1616,10 @@ export function createQQApp({
         if (!message) return;
         let voice = asObject(message.voice);
         if (!asText(voice.assetId)) {
+            if (!voiceBindings.get(message.senderId)) {
+                shell.showToast?.(t("请先为发送者配置音色"));
+                return;
+            }
             const synthesized = await voiceSynthesisController.synthesize({
                 conversationId: normalizedConversationId,
                 messageId: normalizedMessageId,
@@ -2770,7 +2777,7 @@ export function createQQApp({
             stack.append(renderQuoteCard(message.quote, { className: 'yuzi-qq-message-quote' }));
         }
         let body;
-        if (message.type === 'voice' && (message.voice?.assetId || voiceBindings.get(message.senderId))) {
+        if (message.type === 'voice') {
             const summarized = summarizeQQVoiceMessage(message.content, message.voice);
             const loading = voiceSynthesisController.isLoading(message.messageId);
             const playing = voicePlayback.isPlaying(`voice:${asText(message.messageId)}`);
@@ -4417,6 +4424,8 @@ export function createQQApp({
             );
         } else if (kind === 'worldbook') {
             const timeWindow = settings.worldbook.timeWindow;
+            const channelField = qqSettingsInlineText(t("通讯方式"), 'channelName', settings.worldbook.channelName);
+            channelField.querySelector('input').maxLength = 64;
             const worldbookOptions = [['', t("未选择")]].concat(asArray(worldbooksResult?.worldbooks).map((worldbook) => [
                 asText(worldbook.bookName), asText(worldbook.bookName),
             ]));
@@ -4438,6 +4447,7 @@ export function createQQApp({
                 qqSettingsCard(
                     qqSettingsSwitch(t("启用世界书注入"), 'enabled', settings.worldbook.enabled),
                     qqSettingsSelect(t("注入世界书"), 'bookName', settings.worldbook.bookName, worldbookOptions),
+                    channelField,
                 ),
                 qqSettingsGroupHeader(t("范围")),
                 qqSettingsCard(settingTimeWindow(timeWindow), injectionCount),
@@ -5845,6 +5855,7 @@ export function createQQApp({
             privateWeight: value('privateWeight'),
             enabled: form.elements.enabled?.checked === true,
             bookName: value('bookName'),
+            channelName: value('channelName'),
             timeWindowMode: value('timeWindowMode'),
             timeWindowValue: value('timeWindowValue'),
             timeWindowUnit: value('timeWindowUnit'),
@@ -5931,6 +5942,10 @@ export function createQQApp({
             const excludeInput = form.elements.hostContextExcludeTags;
             if (extractInput) extractInput.value = saved.hostContextExtractTag ?? values.hostContextExtractTag;
             if (excludeInput) excludeInput.value = asArray(saved.hostContextExcludeTags).join('\u3001');
+        }
+        if (result?.ok && kind === 'worldbook' && (!field || field === 'channelName')) {
+            const input = form.elements.channelName;
+            if (input && input.value === values.channelName) input.value = result.settings?.worldbook?.channelName || 'QQ';
         }
         if (status) status.textContent = result?.ok ? '' : (result?.error?.message
             || (result?.reason === 'scope-changed' ? t("当前聊天已切换，未保存") : t("保存失败")));

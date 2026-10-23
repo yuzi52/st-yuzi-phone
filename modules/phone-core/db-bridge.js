@@ -161,13 +161,14 @@ export async function callMutationApiToSettlement(apiCall, apiName = 'API', opti
 export function withTimeout(taskPromise, timeoutMs = 4000, timeoutMessage = '请求超时') {
     const timeout = Number(timeoutMs);
     const ms = Number.isFinite(timeout) && timeout > 0 ? timeout : 4000;
+    let timerId;
 
     return Promise.race([
         Promise.resolve(taskPromise),
         new Promise((_, reject) => {
-            setTimeout(() => reject(new Error(timeoutMessage)), ms);
+            timerId = setTimeout(() => reject(new Error(timeoutMessage)), ms);
         }),
-    ]);
+    ]).finally(() => clearTimeout(timerId));
 }
 
 export function sleep(ms) {

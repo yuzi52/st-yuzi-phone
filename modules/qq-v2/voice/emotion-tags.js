@@ -53,7 +53,7 @@ export const QQ_VOICE_TAG_GUIDE = ['emotion', 'delivery', 'timing', 'breath', 'r
 
 /** 五套 QQ 默认预设共用；正文可独立调整说明，继续共用标签清单。 */
 export const QQ_VOICE_PROMPT_RULE = [
-    `voice 正文写台词，可在对应台词前加入以下声音标记；按场景选用，每条最多 ${QQ_VOICE_TAG_LIMIT} 个，不能只写标记。共 ${QQ_VOICE_KNOWN_TAGS.length} 种：`,
+    `voice 正文写台词，以下声音标记可以穿插在台词的开头、中间和结尾附近；按场景选用，普通短句不必强加，避免频繁切换、重复堆叠或使用互相矛盾的标记。每条最多 ${QQ_VOICE_TAG_LIMIT} 个，不能只写标记。共 ${QQ_VOICE_KNOWN_TAGS.length} 种：`,
     QQ_VOICE_TAG_GUIDE,
 ].join('\n\n');
 

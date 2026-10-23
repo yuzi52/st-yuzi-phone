@@ -319,9 +319,10 @@ function senderName(message, people, userName) {
 function buildProjectionContent(data, userName, storyTime) {
     const people = new Map((data.people || []).map((person) => [person.personId, person.formalName]));
     const participants = resolveParticipantNames(data);
+    const channelName = asText(data.settings?.channelName, 64) || 'QQ';
     const header = data.conversation.kind === 'private'
-        ? [`【QQ 私聊：${resolveEntryName(data)}】`, `参与者：${[userName || '用户', ...participants].filter(Boolean).join('、')}`]
-        : [`【QQ群聊：${resolveEntryName(data)}】`, `当前成员：${participants.join('、') || '无'}`];
+        ? [`【${channelName} 私聊：${resolveEntryName(data)}】`, `参与者：${[userName || '用户', ...participants].filter(Boolean).join('、')}`]
+        : [`【${channelName}群聊：${resolveEntryName(data)}】`, `当前成员：${participants.join('、') || '无'}`];
     const messages = selectProjectionMessages(data, storyTime);
     if (!messages.length) return { content: '', hasMessages: false };
     let lastDate = '';
@@ -994,20 +995,31 @@ export function createQQV2WorldbookProjectionService(options = {}) {
                 && current.bookName !== next.bookName;
             if (changingTarget) return migrateTarget({ scopeId, scopeSession, current, next, userName, storyTime });
 
+            // Capture historical targets before disabling clears their projection metadata.
+            const channelChanged = (asText(current.channelName, 64) || 'QQ') !== (asText(next.channelName, 64) || 'QQ');
+            const refreshBooks = current.enabled !== next.enabled || (next.enabled && channelChanged) ? uniqueNames([
+                current.bookName, next.bookName,
+                ...(await scopeConversations(scopeId, scopeSession)).flatMap(conversation => trackedBookNames({ conversation })),
+            ]) : [];
             const saved = await runScoped(
                 () => worldbookSettings.update(scopeId, settings, { scopeSession }),
                 scopeSession,
             );
             if (!saved.enabled) {
+                // Editing a label while injection is off must not clear selected messages.
+                if (Object.keys(settings).length === 1 && Object.hasOwn(settings, 'channelName')) return { status: 'saved' };
                 await runScoped(
                     () => repository.clearAllSelectedMessagesForInjection({ scopeSession }),
                     scopeSession,
                 );
                 const result = await removeScopeProjections({ scopeId, allowInactiveScope: false, scopeSession });
+                if (result.status === 'removed' && refreshBooks.length) worldbookGateway.refreshEditors?.(refreshBooks);
                 return { ...result, status: result.status === 'removed' ? 'disabled' : result.status };
             }
             const results = await reconcileScope({ scopeId, scopeSession, userName, storyTime });
-            return { status: results.some((result) => result.status === 'pending') ? 'pending' : 'saved', results };
+            const status = results.some((result) => result.status === 'pending') ? 'pending' : 'saved';
+            if (status === 'saved' && refreshBooks.length) worldbookGateway.refreshEditors?.(refreshBooks);
+            return { status, results };
         },
         async setConversationInjection({ scopeId, scopeSession = null, conversationId, injection = {}, userName = '', storyTime = '' } = {}) {
             const global = await runScoped(() => worldbookSettings.get(scopeId, { scopeSession }), scopeSession);
@@ -1036,7 +1048,11 @@ export function createQQV2WorldbookProjectionService(options = {}) {
                     scopeSession,
                 );
             }
-            return syncConversation({ scopeId, scopeSession, conversationId, userName, storyTime });
+            const result = await syncConversation({ scopeId, scopeSession, conversationId, userName, storyTime });
+            if (result.status !== 'pending' && nextEnabled !== (current?.injection?.enabled === true)) {
+                worldbookGateway.refreshEditors?.(trackedBookNames({ settings: global, conversation: current }));
+            }
+            return result;
         },
         async setMessageSelected({ scopeId, scopeSession = null, conversationId, messageId, selected, userName = '', storyTime = '' } = {}) {
             return setMessagesSelected({

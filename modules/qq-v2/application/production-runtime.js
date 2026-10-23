@@ -180,6 +180,7 @@ function defaultGlobalSettings() {
         worldbook: {
             enabled: false,
             bookName: '',
+            channelName: 'QQ',
             timeWindow: { mode: 'relative', value: 1, unit: 'month' },
             injectionCount: DEFAULT_WORLDBOOK_INJECTION_COUNT,
             light: 'blue',
@@ -587,6 +588,7 @@ export function createQQV2ProductionRuntime(options = {}) {
         return {
             ...asObject(shared.worldbook),
             bookName: asText(local?.bookName, 256),
+            channelName: asText(local?.channelName, 64) || 'QQ',
         };
     };
     const updateWorldbookSettings = async (scopeId, patch = {}, { scopeSession = null } = {}) => {
@@ -600,10 +602,14 @@ export function createQQV2ProductionRuntime(options = {}) {
             await globalRuntimeSettings.update(scopeId, { worldbook: sharedPatch }, { scopeSession });
             assertOptionalCurrentScopeSession(scopeSession);
         }
-        if (hasOwn(source, 'bookName')) {
+        const localPatch = {};
+        for (const key of ['bookName', 'channelName']) {
+            if (hasOwn(source, key)) localPatch[key] = source[key];
+        }
+        if (Object.keys(localPatch).length > 0) {
             await repository.updateWorldbookSettings(
                 scopeId,
-                { bookName: source.bookName },
+                localPatch,
                 { scopeSession },
             );
             assertOptionalCurrentScopeSession(scopeSession);
@@ -996,6 +1002,7 @@ export function createQQV2ProductionRuntime(options = {}) {
             worldbook: {
                 ...asObject(shared.worldbook),
                 bookName: asText(saved?.settings?.worldbook?.bookName, 256),
+                channelName: asText(saved?.settings?.worldbook?.channelName, 64) || 'QQ',
             },
             proactive: asObject(shared.proactive),
         };
@@ -1329,7 +1336,10 @@ export function createQQV2ProductionRuntime(options = {}) {
                 const group = await repository.getGroup(scopeId, conversation.groupId);
                 if (group?.selfExited === true) continue;
             }
-            const messages = await repository.listMessages(scopeId, conversationId);
+            const messages = typeof repository.findMessageFacts === 'function'
+                ? (await repository.findMessageFacts(scopeId, [...incomingMessageIds], conversationId))
+                    .filter((message) => message.conversationId === conversationId)
+                : await repository.listMessages(scopeId, conversationId);
             const amount = messages.filter((message) => (
                 incomingMessageIds.has(message.messageId) && message.senderType === 'person'
             )).length;
@@ -2597,8 +2607,10 @@ export function createQQV2ProductionRuntime(options = {}) {
             assertConversationWritable(normalizedScopeId, normalizedConversationId);
             const conversation = await getConversation(normalizedScopeId, normalizedConversationId);
             if (!conversation) throw imageGenerationError('QQ 会话不存在', 'conversation_not_found');
-            const messages = await repository.listMessages(normalizedScopeId, normalizedConversationId);
-            const message = messages.find((item) => item.messageId === normalizedMessageId);
+            const message = typeof repository.findMessage === 'function'
+                ? await repository.findMessage(normalizedScopeId, normalizedConversationId, normalizedMessageId)
+                : (await repository.listMessages(normalizedScopeId, normalizedConversationId))
+                    .find((item) => item.messageId === normalizedMessageId);
             if (!message) throw imageGenerationError('QQ 消息不存在', 'message_not_found');
             if (message.type !== 'image') {
                 throw imageGenerationError('只有图片消息可以生成图片', 'message_type_invalid');
@@ -2695,8 +2707,10 @@ export function createQQV2ProductionRuntime(options = {}) {
                 assertConversationWritable(normalizedScopeId, normalizedConversationId);
                 const conversation = await getConversation(normalizedScopeId, normalizedConversationId);
                 if (!conversation) throw voiceSynthesisError('QQ 会话不存在', 'conversation_not_found');
-                const messages = await repository.listMessages(normalizedScopeId, normalizedConversationId);
-                const message = messages.find((item) => item.messageId === normalizedMessageId);
+                const message = typeof repository.findMessage === 'function'
+                    ? await repository.findMessage(normalizedScopeId, normalizedConversationId, normalizedMessageId)
+                    : (await repository.listMessages(normalizedScopeId, normalizedConversationId))
+                        .find((item) => item.messageId === normalizedMessageId);
                 if (!message) throw voiceSynthesisError('QQ 消息不存在', 'message_not_found');
                 if (message.type !== 'voice') {
                     throw voiceSynthesisError('只有语音消息可以生成语音', 'message_type_invalid');

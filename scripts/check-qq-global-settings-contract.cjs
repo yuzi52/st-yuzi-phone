@@ -379,6 +379,7 @@ async function main() {
         values: {
             enabled: true,
             bookName: 'book-next',
+            channelName: ' LINE ',
             timeWindowMode: 'relative',
             timeWindowValue: '6',
             timeWindowUnit: 'hour',
@@ -395,6 +396,7 @@ async function main() {
             worldbook: {
                 enabled: true,
                 bookName: 'book-next',
+                channelName: 'LINE',
                 timeWindow: { mode: 'relative', value: 6, unit: 'hour' },
                 injectionCount: 18,
                 light: 'blue',

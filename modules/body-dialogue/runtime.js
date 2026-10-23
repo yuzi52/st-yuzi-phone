@@ -130,10 +130,11 @@ function schedule() {
         })().finally(() => { refreshPending = null; });
     }, 40);
 }
-async function syncProjection() {
+async function syncProjection({ refreshEditor = false } = {}) {
     const token = generation, version = projectionVersion, card = getBodyDialogueScope().card;
     await loadModules().catch(error => reportModuleError('library', error));
-    return projection.sync(effectiveConfig(), () => running && token === generation && version === projectionVersion && card === getBodyDialogueScope().card, bodyModulePrompt(moduleEntries));
+    return projection.sync(effectiveConfig(), () => running && token === generation && version === projectionVersion && card === getBodyDialogueScope().card,
+        bodyModulePrompt(moduleEntries), { refreshEditor });
 }
 
 function refreshVoiceControls() {
@@ -169,7 +170,7 @@ function applySettings() {
     if (projectionChanged) projectionVersion++;
     const tasks = [];
     if (next.layers < previous.layers) tasks.push(repository.resizeAudioWindows(next.layers));
-    if (projectionChanged) tasks.push(syncProjection());
+    if (projectionChanged) tasks.push(syncProjection({ refreshEditor: previous.enabled !== next.enabled }));
     settingsPending = tasks.length ? Promise.all(tasks).then(() => projectionChanged ? projection.getStatus() : null) : Promise.resolve(null);
     publish();
     return settingsPending;

@@ -191,6 +191,7 @@ function cloneWorldbookSettings(settings) {
     return Object.freeze({
         enabled: source.enabled === true,
         bookName: asText(source.bookName, 256),
+        channelName: asText(source.channelName, 64) || 'QQ',
         timeWindow: Object.freeze(all
             ? { mode: 'all' }
             : {

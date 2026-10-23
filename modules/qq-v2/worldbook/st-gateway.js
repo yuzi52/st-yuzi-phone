@@ -1,5 +1,5 @@
 import { getFreshSillyTavernContext } from '../../integration/context-bridge.js';
-import { withWorldbookWrite, mergeWorldbookChanges } from '../../integration/worldbook-write.js';
+import { withWorldbookWrite, mergeWorldbookChanges, refreshWorldbookEditors } from '../../integration/worldbook-write.js';
 import {
     getCurrentCharacterWorldbooks,
     getWorldbookNames,
@@ -108,6 +108,9 @@ export function createQQV2SillyTavernWorldbookGateway(options = {}) {
         : () => getCurrentCharacterWorldbooks({ strict: true });
 
     return Object.freeze({
+        refreshEditors(names) {
+            refreshWorldbookEditors(getContext(), names);
+        },
         async listBookNames(expectedScopeId, operationOptions = {}) {
             assertActiveScope(expectedScopeId, captureScopeSession, getActiveScopeId, operationOptions);
             const names = uniqueBookNames(await listWorldbookNames());

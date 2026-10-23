@@ -29,7 +29,7 @@ export function chatPreset(id, name, { opening, context, contextAck, rules, prot
         ['context-ack', '玉子资料确认', 'assistant', contextAck],
         ['rules', '写法规则', 'user', rules],
         ['output', '输出格式', 'system', protocol],
-        ['output-ack', '玉子执行确认', 'assistant', finalAck],
+        ['output-ack', '玉子执行确认', 'user', finalAck],
     ];
     return Object.freeze({
         id,

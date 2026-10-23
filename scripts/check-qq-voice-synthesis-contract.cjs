@@ -433,8 +433,13 @@ async function testVoiceMessageInteraction() {
         assert.equal(root.querySelector('.yuzi-qq-row-preview').textContent, '再见[备注]', '列表中的文字预览也隐藏已知声音标记');
         const viewport = root.querySelector('.yuzi-qq-viewport');
         await viewport.dispatch('click', { target: root.querySelector('[data-qq-chat="voice-chat"]') }); await flush();
-        assert.equal(root.querySelector('[data-qq-voice="voice-1"]'), null, '未配置只显示普通文字');
+        assert.ok(root.querySelector('[data-qq-voice="voice-1"]'), '未配置音色也保留语音气泡');
         assert.ok(root.querySelectorAll('*').some(node => node.textContent === '你好[备注]'));
+        await viewport.dispatch('click', { target: root.querySelector('[data-qq-voice-transcript="voice-1"]') });
+        assert.ok(root.querySelector('.yuzi-qq-voice-message').classList.contains('is-expanded'), '未配置音色也可展开台词');
+        await viewport.dispatch('click', { target: root.querySelector('[data-qq-voice="voice-1"]') }); await flush();
+        assert.equal(requests, 0, '未配置音色点击播放不发起合成');
+        assert.deepEqual(notices.splice(0), ['请先为发送者配置音色']);
         configured = true; await app.refresh(); await flush();
         assert.ok(root.querySelector('[data-qq-voice="voice-1"]'), '人物声音按 personId 生效');
         assert.equal(requests, 0, '收到和渲染消息不自动合成');

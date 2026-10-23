@@ -188,6 +188,7 @@ function emptyScope(scopeId) {
 
             worldbook: {
                 bookName: '',
+                channelName: 'QQ',
                 timeWindow: { mode: 'relative', value: 1, unit: 'month' },
                 injectionCount: DEFAULT_WORLDBOOK_INJECTION_COUNT,
                 light: 'blue',
@@ -201,6 +202,7 @@ function emptyScope(scopeId) {
 function createDefaultWorldbookSettings() {
     return {
         bookName: '',
+        channelName: 'QQ',
         timeWindow: { mode: 'relative', value: 1, unit: 'month' },
         injectionCount: DEFAULT_WORLDBOOK_INJECTION_COUNT,
         light: 'blue',
@@ -278,6 +280,7 @@ function ensureScopeWorldbookState(scope) {
         : {};
     scope.settings.worldbook = {
         bookName: asText(current.bookName, 256),
+        channelName: asText(current.channelName, 64) || 'QQ',
         timeWindow: normalizeTimeWindow(current.timeWindow, defaults.timeWindow),
         injectionCount: normalizeInjectionCount(current.injectionCount, defaults.injectionCount),
         light: WORLDBOOK_LIGHTS.has(current.light) ? current.light : defaults.light,
@@ -879,6 +882,17 @@ function removeVoiceAssetIfUnreferenced(scope, assetId) {
     }
 }
 
+function removeVoiceAssetsIfUnreferenced(scope, assetIds) {
+    if (assetIds.length === 0) return;
+    if (assetIds.length === 1) return removeVoiceAssetIfUnreferenced(scope, assetIds[0]);
+    const referenced = new Set(Object.values(scope.messages || {})
+        .map((message) => asText(message.voice?.assetId, 256))
+        .filter(Boolean));
+    assetIds.forEach((assetId) => {
+        if (!referenced.has(assetId)) delete scope.voiceAssets[assetId];
+    });
+}
+
 /**
  * Voice audio is only ever reachable through the message that owns it, so any
  * record without a referencing message is garbage. Pruning here keeps a missed
@@ -1109,7 +1123,7 @@ function deleteConversationState(state, scopeId, conversationId) {
         });
     }
     releasedAssetIds.forEach((assetId) => removeAssetIfUnreferenced(scope, assetId));
-    voiceAssetIds.forEach((assetId) => removeVoiceAssetIfUnreferenced(scope, assetId));
+    removeVoiceAssetsIfUnreferenced(scope, voiceAssetIds);
     return {
         deletedConversationId: conversationId,
         mode,
@@ -1421,6 +1435,7 @@ export function createQQV2Repository(options = {}) {
                     next.bookName = asText(patch.bookName, 256);
                     scope.worldbookDefaultResolved = true;
                 }
+                if (Object.hasOwn(patch, 'channelName')) next.channelName = asText(patch.channelName, 64) || 'QQ';
                 if (Object.hasOwn(patch, 'timeWindow')) {
                     const window = patch.timeWindow;
                     if (window?.mode !== 'all' && (!WORLDBOOK_TIME_UNITS.has(window?.unit)
@@ -2002,11 +2017,20 @@ export function createQQV2Repository(options = {}) {
                 .sort((left, right) => left.sequence - right.sequence)
                 .map((message) => messageWithQuote(scope, message));
         },
-        async findMessageFacts(scopeId, messageIds) {
+        async findMessage(scopeId, conversationId, messageId) {
             const state = await stateStore.read();
             const scope = getScope(state, scopeId, false);
+            getConversation(scope, conversationId);
+            const message = scope.messages[asText(messageId, 256)];
+            return message?.conversationId === conversationId ? messageWithQuote(scope, message) : null;
+        },
+        async findMessageFacts(scopeId, messageIds, conversationId) {
+            const state = await stateStore.read();
+            const scope = getScope(state, scopeId, false);
+            if (conversationId !== undefined) getConversation(scope, conversationId);
             const ids = [...new Set(Array.isArray(messageIds) ? messageIds.map((id) => asText(id, 256)).filter(Boolean) : [])];
-            return ids.map((id) => scope.messages[id]).filter(Boolean)
+            return ids.map((id) => scope.messages[id])
+                .filter((message) => message && (conversationId === undefined || message.conversationId === conversationId))
                 .sort((left, right) => left.sequence - right.sequence)
                 .map(({ messageId, conversationId, senderType }) => ({ messageId, conversationId, senderType }));
         },
@@ -2193,7 +2217,7 @@ export function createQQV2Repository(options = {}) {
                 }
                 updateConversationAfterMessageRemoval(scope, conversation);
                 releasedAssetIds.forEach((assetId) => removeAssetIfUnreferenced(scope, assetId));
-                voiceAssetIds.forEach((assetId) => removeVoiceAssetIfUnreferenced(scope, assetId));
+                removeVoiceAssetsIfUnreferenced(scope, voiceAssetIds);
                 return {
                     deletedMessageIds,
                     ...(recalledMessage ? { recalledMessage } : {}),

@@ -116,7 +116,7 @@ function escapeRegex(value) {
     return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
-function matchesKey(entry, key, scanText) {
+function matchesKey(entry, key, scanText, getLowerScanText) {
     const keyRegex = parseSlashRegex(key);
     if (keyRegex) {
         keyRegex.lastIndex = 0;
@@ -124,7 +124,7 @@ function matchesKey(entry, key, scanText) {
     }
 
     const caseSensitive = entry?.caseSensitive === true || entry?.case_sensitive === true;
-    const haystack = caseSensitive ? scanText : scanText.toLocaleLowerCase();
+    const haystack = caseSensitive ? scanText : getLowerScanText();
     const needle = caseSensitive ? key : key.toLocaleLowerCase();
     const matchWholeWords = entry?.matchWholeWords === true || entry?.match_whole_words === true;
     if (!matchWholeWords || /\s/u.test(needle)) {
@@ -133,16 +133,16 @@ function matchesKey(entry, key, scanText) {
     return new RegExp(`(?:^|\\W)(${escapeRegex(needle)})(?:$|\\W)`, 'u').test(haystack);
 }
 
-function matchesAnyKey(entry, keys, scanText) {
-    return keys.some((key) => matchesKey(entry, key, scanText));
+function matchesAnyKey(entry, keys, scanText, getLowerScanText) {
+    return keys.some((key) => matchesKey(entry, key, scanText, getLowerScanText));
 }
 
-function matchesEntryKeys(entry, scanText) {
-    if (!matchesAnyKey(entry, entryKeys(entry), scanText)) return false;
+function matchesEntryKeys(entry, scanText, getLowerScanText) {
+    if (!matchesAnyKey(entry, entryKeys(entry), scanText, getLowerScanText)) return false;
     const secondaryKeys = secondaryEntryKeys(entry);
     if (!isSelectiveEntry(entry) || secondaryKeys.length === 0) return true;
 
-    const matches = secondaryKeys.map((key) => matchesAnyKey(entry, [key], scanText));
+    const matches = secondaryKeys.map((key) => matchesAnyKey(entry, [key], scanText, getLowerScanText));
     switch (selectiveLogic(entry)) {
         case 1:
             return !matches.every(Boolean);
@@ -171,11 +171,17 @@ function isEligibleHostMessage(message) {
     return true;
 }
 
+function latestMessageTexts(messages, limit, isVisible, readText) {
+    const source = asArray(messages);
+    const texts = [];
+    for (let index = source.length - 1; index >= 0 && texts.length < limit; index -= 1) {
+        if (isVisible(source[index])) texts.push(readText(source[index]));
+    }
+    return texts.reverse();
+}
+
 function latestHostMessageTexts(messages) {
-    return asArray(messages)
-        .filter(isEligibleHostMessage)
-        .slice(-2)
-        .map(hostMessageText);
+    return latestMessageTexts(messages, 2, isEligibleHostMessage, hostMessageText);
 }
 
 function conversationMessageText(message) {
@@ -191,10 +197,9 @@ function isVisibleConversationMessage(message) {
 }
 
 function latestConversationMessageTexts(conversations) {
-    return asArray(conversations).flatMap((conversation) => asArray(conversation?.messages)
-        .filter(isVisibleConversationMessage)
-        .slice(-3)
-        .map(conversationMessageText));
+    return asArray(conversations).flatMap((conversation) => latestMessageTexts(
+        conversation?.messages, 3, isVisibleConversationMessage, conversationMessageText,
+    ));
 }
 
 async function loadCandidateEntries({ catalog, loadWorldbooks, readSelection, request }) {
@@ -412,6 +417,8 @@ export function createWorldbookContextResolver({
             let recursiveScanText = scanText;
 
             for (let round = 0; round <= 10; round += 1) {
+                let lowerScanText;
+                const getLowerScanText = () => (lowerScanText ??= recursiveScanText.toLocaleLowerCase());
                 const newlyActivated = [];
                 for (const candidate of candidates) {
                     if (activated.has(candidate)) continue;
@@ -422,7 +429,7 @@ export function createWorldbookContextResolver({
                     if (round > 0 && (entry?.excludeRecursion === true || entry?.exclude_recursion === true)) continue;
                     if (candidate.forceActivate !== true
                         && !isConstantEntry(entry)
-                        && !matchesEntryKeys(entry, recursiveScanText)) continue;
+                        && !matchesEntryKeys(entry, recursiveScanText, getLowerScanText)) continue;
                     activated.add(candidate);
                     activatedKeys.add(dedupeKey);
                     newlyActivated.push(candidate);

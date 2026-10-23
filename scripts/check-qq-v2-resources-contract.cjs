@@ -411,7 +411,7 @@ async function testFourBuiltInPromptPresetsAreAvailableAsEditableLibraryEntries(
         assert.ok(preset.messages.length > 0);
         assert.deepEqual(
             preset.messages.slice(-2).map((block) => [block.name, block.role]),
-            [['输出格式', 'system'], ['玉子执行确认', 'assistant']],
+            [['输出格式', 'system'], ['玉子执行确认', 'user']],
         );
         assert.equal(
             preset.messages.map((block) => block.content).join('\n').split('{{可用表情}}').length - 1,

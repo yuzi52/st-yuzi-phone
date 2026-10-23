@@ -140,50 +140,6 @@ function canElementScrollInDirectionLoose(el, deltaY) {
     return false;
 }
 
-function collectOverflowingChain(target, boundary) {
-    const chain = [];
-    let cursor = target instanceof Element ? target : boundary;
-
-    while (cursor && cursor !== boundary) {
-        if (cursor instanceof HTMLElement && hasOverflowingContentY(cursor)) {
-            chain.push(cursor);
-        }
-        cursor = cursor.parentElement;
-    }
-
-    if (boundary instanceof HTMLElement && hasOverflowingContentY(boundary)) {
-        chain.push(boundary);
-    }
-
-    return chain;
-}
-
-function applyWheelFallbackScroll(target, boundary, deltaY) {
-    const overflowingChain = collectOverflowingChain(target, boundary);
-    const host = overflowingChain.find((el) => canElementScrollInDirectionLoose(el, deltaY));
-
-    if (!(host instanceof HTMLElement)) {
-        return false;
-    }
-
-    const before = host.scrollTop;
-    host.scrollTop = before + deltaY;
-    const moved = Math.abs(host.scrollTop - before) > PHONE_SCROLL_EDGE_EPSILON;
-
-    if (moved) {
-        logPhoneScrollDebug('wheel fallback applied', {
-            target: formatElementDebugName(target),
-            boundary: formatElementDebugName(boundary),
-            host: formatElementDebugName(host),
-            deltaY,
-            before,
-            after: host.scrollTop,
-        });
-    }
-
-    return moved;
-}
-
 function isElementScrollableY(el) {
     if (!(el instanceof HTMLElement)) return false;
     const style = window.getComputedStyle(el);
@@ -193,8 +149,12 @@ function isElementScrollableY(el) {
 }
 
 function shouldAllowNestedScroll(target, boundary, deltaY) {
-    const chain = collectOverflowingChain(target, boundary);
-    return chain.some((el) => canElementScrollInDirectionLoose(el, deltaY));
+    let cursor = target instanceof Element ? target : boundary;
+    while (cursor && cursor !== boundary) {
+        if (canElementScrollInDirectionLoose(cursor, deltaY)) return true;
+        cursor = cursor.parentElement;
+    }
+    return canElementScrollInDirectionLoose(boundary, deltaY);
 }
 
 function findNearestScrollBoundary(target, scope) {
@@ -238,10 +198,7 @@ function bindWheelGuard(boundary, scope) {
         const allowNested = shouldAllowNestedScroll(target, boundary, deltaY);
         if (allowNested) return;
 
-        const moved = applyWheelFallbackScroll(target, boundary, deltaY);
-        if (!moved) {
-            event.preventDefault();
-        }
+        event.preventDefault();
 
         logPhoneScrollDebug('wheel guard', {
             scope: formatElementDebugName(scope),
@@ -249,7 +206,7 @@ function bindWheelGuard(boundary, scope) {
             target: formatElementDebugName(target),
             deltaY,
             allowNested,
-            moved,
+            moved: false,
         });
     }, { passive: false });
 }
@@ -280,7 +237,7 @@ function bindTouchGuard(boundary, scope) {
 
         const target = event.target instanceof Element ? event.target : boundary;
         const allowNested = shouldAllowNestedScroll(target, boundary, deltaY);
-        if (!allowNested && !applyWheelFallbackScroll(target, boundary, deltaY)) {
+        if (!allowNested) {
             event.preventDefault();
         }
 
@@ -327,6 +284,7 @@ export function hardenPhoneInteractionDefaults(scope) {
     scope.dataset[PHONE_INTERACTION_GUARD_BOUND_ATTR] = '1';
 
     scope.addEventListener('pointerdown', (event) => {
+        if (!isPhoneScrollDebugEnabled()) return;
         const target = event.target;
         if (shouldBlockPointerDefault(target)) {
             return;

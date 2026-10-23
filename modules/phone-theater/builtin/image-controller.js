@@ -76,7 +76,7 @@ export function createBuiltinImageController(options) {
             } else frame.replaceChildren(image, description, button);
             const binding = { state, button, description, image, canvas, stamp, validIdentity, dispose:()=>{frameController.abort();signal.removeEventListener('abort',abortFrame);if(canvas.canvas === 'background'){button.remove();image.remove();}} };
             frames.set(frame, binding); paint(frame, binding);
-            if (validIdentity && !state.readRequested) { state.readRequested=true; void service.read(sourceInput(canvas, record)).then(saved => { if (active() && state.revision === 0) { state.imagePath=saved?.imagePath || ''; repaint(); } }).catch(() => {}); }
+            if (validIdentity && !state.readRequested) { state.readRequested=true; void service.read({ canvas, rowValues: record.fields, chatScope }).then(saved => { if (active() && state.revision === 0) { state.imagePath=saved?.imagePath || ''; repaint(); } }).catch(() => {}); }
             button.addEventListener('click', async event => {
                 event.preventDefault(); event.stopPropagation();
                 if (!active() || !enabled() || state.busy || !validIdentity) return;

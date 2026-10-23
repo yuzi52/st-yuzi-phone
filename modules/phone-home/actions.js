@@ -35,7 +35,12 @@ export function showHomeToast(container, msg, isError = false, runtime = null) {
     toast.className = `phone-toast ${isError ? 'phone-toast-error' : 'phone-toast-success'}`;
     toast.textContent = String(msg || '');
     (container.querySelector('.phone-home') || container).appendChild(toast);
-    runtimeApi.registerCleanup?.(() => toast.remove());
+    let unregisterCleanup;
+    const removeToast = () => {
+        toast.remove();
+        unregisterCleanup?.();
+    };
+    unregisterCleanup = runtimeApi.registerCleanup?.(removeToast);
 
     runtimeApi.setTimeout(() => {
         if (!isRuntimeDisposed(runtimeApi) && toast.isConnected) {
@@ -43,9 +48,12 @@ export function showHomeToast(container, msg, isError = false, runtime = null) {
         }
     }, 10);
     runtimeApi.setTimeout(() => {
-        if (isRuntimeDisposed(runtimeApi) || !toast.isConnected) return;
+        if (isRuntimeDisposed(runtimeApi) || !toast.isConnected) {
+            removeToast();
+            return;
+        }
         toast.classList.remove('phone-toast-show');
-        runtimeApi.setTimeout(() => toast.remove(), 300);
+        runtimeApi.setTimeout(removeToast, 300);
     }, 1900);
 }
 

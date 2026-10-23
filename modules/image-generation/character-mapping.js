@@ -167,7 +167,7 @@ function getTableRows(rawData, sheetKey) {
         ? rawData[sheetKey].content
         : [];
     if (!Array.isArray(content[0])) return [];
-    return content.slice(1).map(row => Array.isArray(row) ? [...row] : []);
+    return content.slice(1).map(row => Array.isArray(row) ? row : []);
 }
 
 function normalizePromptPart(value) {

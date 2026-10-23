@@ -109,6 +109,7 @@ async function testProductionRuntimeOwnsTheCurrentScopeAndFacade() {
             worldbook: {
                 enabled: false,
                 bookName: '',
+                channelName: 'QQ',
                 timeWindow: { mode: 'relative', value: 1, unit: 'month' },
                 injectionCount: 30,
                 light: 'blue',
@@ -152,6 +153,7 @@ async function testProductionRuntimeOwnsTheCurrentScopeAndFacade() {
             worldbook: {
                 enabled: false,
                 bookName: '',
+                channelName: 'QQ',
                 timeWindow: { mode: 'relative', value: 1, unit: 'month' },
                 injectionCount: 30,
                 light: 'blue',
@@ -183,6 +185,7 @@ async function testProductionRuntimeOwnsTheCurrentScopeAndFacade() {
             worldbook: {
                 enabled: true,
                 bookName: 'Alice-manual-book',
+                channelName: '飞鸽传书',
                 timeWindow: { mode: 'relative', value: 6, unit: 'day' },
                 injectionCount: 18,
                 light: 'green',
@@ -201,6 +204,7 @@ async function testProductionRuntimeOwnsTheCurrentScopeAndFacade() {
     assert.deepEqual(scopeASnapshot.globalSettings.worldbook, {
         enabled: true,
         bookName: 'Alice-manual-book',
+        channelName: '飞鸽传书',
         timeWindow: { mode: 'relative', value: 6, unit: 'day' },
         injectionCount: 18,
         light: 'green',
@@ -227,6 +231,7 @@ async function testProductionRuntimeOwnsTheCurrentScopeAndFacade() {
     assert.deepEqual(scopeBDefaultSnapshot.globalSettings.worldbook, {
         enabled: true,
         bookName: 'Bea-default-book',
+        channelName: 'QQ',
         timeWindow: { mode: 'relative', value: 6, unit: 'day' },
         injectionCount: 18,
         light: 'green',
@@ -259,6 +264,7 @@ async function testProductionRuntimeOwnsTheCurrentScopeAndFacade() {
     assert.deepEqual(returnedScopeASnapshot.globalSettings.worldbook, {
         enabled: true,
         bookName: 'Alice-manual-book',
+        channelName: '飞鸽传书',
         timeWindow: { mode: 'relative', value: 6, unit: 'day' },
         injectionCount: 18,
         light: 'green',

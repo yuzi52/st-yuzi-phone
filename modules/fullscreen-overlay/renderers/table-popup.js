@@ -23,13 +23,11 @@ export function normalizeTablePopupRuntimeSettings(value = {}) {
         && !Array.isArray(value)
         && value.models,
     );
-    const overlaySettings = hasModelEnvelope
-        ? normalizeFullscreenOverlaySettings(value)
-        : normalizeFullscreenOverlaySettings({
-            models: {
-                [TABLE_POPUP_MODEL_ID]: value,
-            },
-        });
+    const overlaySettings = normalizeFullscreenOverlaySettings({
+        models: {
+            [TABLE_POPUP_MODEL_ID]: hasModelEnvelope ? value.models[TABLE_POPUP_MODEL_ID] : value,
+        },
+    });
     return overlaySettings.models[TABLE_POPUP_MODEL_ID];
 }
 

@@ -1,5 +1,16 @@
 const queues = new Map();
 
+/** Refresh matching editor selections without turning a successful save into a failure. */
+export function refreshWorldbookEditors(context, names) {
+    for (const name of new Set(names.filter(Boolean))) {
+        try {
+            context?.reloadWorldInfoEditor?.(name, false);
+        } catch (error) {
+            console.warn('[玉子手机] 世界书编辑器刷新失败', name, error);
+        }
+    }
+}
+
 /** Serialize our extension's read/modify/save cycles, including different apps sharing a book. */
 export function withWorldbookWrite(name, operation) {
     const task = (queues.get(name) || Promise.resolve()).then(operation);

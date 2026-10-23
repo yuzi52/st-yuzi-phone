@@ -1,4 +1,4 @@
-import { QQ_VOICE_PROMPT_RULE, QQ_VOICE_TAG_GUIDE } from '../qq-v2/voice/emotion-tags.js';
+import { QQ_VOICE_TAG_GUIDE } from '../qq-v2/voice/emotion-tags.js';
 import { normalizeQQVoiceSpeechControls } from '../qq-v2/voice/speech-controls.js';
 import { BODY_DIALOGUE_EMOTIONS } from './emotions.js';
 
@@ -44,7 +44,7 @@ export function bodyDialogueDefaultPrompts(config = {}) {
 }
 
 // Only built-in examples follow mode changes. User-authored text stays byte-for-byte intact.
-const legacyToneRule = QQ_VOICE_PROMPT_RULE.replace('voice 正文写台词，可在对应台词前', '可在对应对白前');
+const legacyToneRule = `可在对应对白前加入以下声音标记；按场景选用，每条最多 10 个，不能只写标记。共 25 种：\n\n${QQ_VOICE_TAG_GUIDE}`;
 const promptModes = [false, true].flatMap(bilingual => [false, true].flatMap(readOriginal => [false, true].map(prosody =>
     ({ bilingual, readOriginal, prosody, voice: true }))));
 const previousTonePrompts = promptModes.map(config => ({

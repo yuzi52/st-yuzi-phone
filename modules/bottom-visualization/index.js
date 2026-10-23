@@ -5,7 +5,7 @@ let releaseSettings = null;
 let instance = null;
 let suspended = false;
 function refresh({ key } = {}) {
-    if (key === 'phoneContainerX' || key === 'phoneContainerY') return;
+    if (['phoneContainerX', 'phoneContainerY', 'phoneToggleX', 'phoneToggleY'].includes(key)) return;
     const settings = getPhoneSettings();
     if (suspended || settings.enabled === false || !settings.bottomVisualization.enabled) {
         instance?.dispose(); instance = null;
