@@ -371,7 +371,7 @@ export function createBodyDialoguePage({ container, state, render, pageRuntime }
         });
     }
     async function selectAsset(slot) {
-        const token = personVersion, library = await readDialogueLibrary();
+        const token = personVersion, library = await readDialogueLibrary({ images: slot !== 'voice', voices: slot === 'voice' });
         if (!validPerson(token)) return;
         closeSheet();
         if (slot === 'voice') {

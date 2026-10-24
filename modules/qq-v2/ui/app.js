@@ -2696,7 +2696,7 @@ export function createQQApp({
         });
     };
 
-    const messageNode = (message, conversation, allMessages, currentIdentity) => {
+    const messageNode = (message, conversation, messageMarkers, currentIdentity) => {
         const conversationId = conversation.conversationId;
         if (message.senderType === 'system' || message.type === 'system') {
             const item = createElement('article', 'yuzi-qq-message yuzi-qq-system-message-row');
@@ -2923,14 +2923,12 @@ export function createQQApp({
         }
         body.setAttribute('data-qq-message-body', '');
         stack.append(body);
-        const lastSelf = [...allMessages].reverse().find((item) => item.senderType === 'self');
-        if (conversation.request?.phase === 'failed' && own && lastSelf?.messageId === message.messageId) {
+        if (conversation.request?.phase === 'failed' && own && messageMarkers.lastSelf?.messageId === message.messageId) {
             stack.append(createButton('↻', 'yuzi-qq-retry-button', {
                 'aria-label': t("重试本批消息"), title: t("重试"), 'data-qq-retry': conversation.conversationId,
             }));
         }
-        if (conversation.request?.phase !== 'failed'
-            && shouldShowUnansweredIndicator(allMessages, allMessages.indexOf(message))) {
+        if (messageMarkers.unanswered === message) {
             const unanswered = createElement('span', 'yuzi-qq-unanswered-indicator');
             unanswered.textContent = t("已读不回");
             stack.append(unanswered);
@@ -2944,6 +2942,19 @@ export function createQQApp({
         const stream = createElement('section', `yuzi-qq-message-stream yuzi-qq-${chatKind}-message-stream`);
         stream.dataset.qqMessageStream = conversation.conversationId;
         const data = getMessageState(conversation.conversationId);
+        let lastSelf = null;
+        for (let index = data.items.length - 1; index >= 0; index -= 1) {
+            if (data.items[index].senderType !== 'self') continue;
+            lastSelf = data.items[index];
+            break;
+        }
+        const messageMarkers = {
+            lastSelf,
+            unanswered: conversation.request?.phase !== 'failed'
+                && shouldShowUnansweredIndicator(data.items, data.items.indexOf(lastSelf))
+                ? lastSelf
+                : null,
+        };
         let previous = null;
         data.items.forEach((message) => {
             if (needsTimeDivider(previous, message)) {
@@ -2952,7 +2963,7 @@ export function createQQApp({
                 divider.dataset.qqScrollKey = `divider:${message.messageId}`;
                 stream.append(divider);
             }
-            const node = messageNode(message, conversation, data.items, currentIdentity);
+            const node = messageNode(message, conversation, messageMarkers, currentIdentity);
             node.dataset.qqScrollKey = `message:${message.messageId}`;
             stream.append(node);
             previous = message;

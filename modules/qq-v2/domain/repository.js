@@ -862,6 +862,18 @@ function generatedImageStillReferenced(state, path) {
     ));
 }
 
+function unreferencedGeneratedImagePaths(state, paths) {
+    if (paths.length <= 1) return paths.filter((path) => !generatedImageStillReferenced(state, path));
+    const unreferenced = new Set(paths);
+    for (const scope of Object.values(state.scopes || {})) {
+        for (const message of Object.values(scope?.messages || {})) {
+            unreferenced.delete(asText(message.generatedImagePath, 2048));
+            if (unreferenced.size === 0) return [];
+        }
+    }
+    return paths.filter((path) => unreferenced.has(path));
+}
+
 function removeAssetIfUnreferenced(scope, assetId) {
     const id = asText(assetId, 256);
     if (id && scope.assets[id] && !scope.assets[id].library && !assetStillReferenced(scope, id)) {
@@ -1127,8 +1139,7 @@ function deleteConversationState(state, scopeId, conversationId) {
     return {
         deletedConversationId: conversationId,
         mode,
-        releasedGeneratedImagePaths: generatedImagePaths
-            .filter((path) => !generatedImageStillReferenced(state, path)),
+        releasedGeneratedImagePaths: unreferencedGeneratedImagePaths(state, generatedImagePaths),
     };
 }
 
@@ -1382,8 +1393,7 @@ export function createQQV2Repository(options = {}) {
                 delete state.scopes[normalizedScopeId];
                 return {
                     deleted: true,
-                    releasedGeneratedImagePaths: generatedImagePaths
-                        .filter((path) => !generatedImageStillReferenced(state, path)),
+                    releasedGeneratedImagePaths: unreferencedGeneratedImagePaths(state, generatedImagePaths),
                 };
             });
         },
@@ -2221,8 +2231,7 @@ export function createQQV2Repository(options = {}) {
                 return {
                     deletedMessageIds,
                     ...(recalledMessage ? { recalledMessage } : {}),
-                    releasedGeneratedImagePaths: generatedImagePaths
-                        .filter((path) => !generatedImageStillReferenced(state, path)),
+                    releasedGeneratedImagePaths: unreferencedGeneratedImagePaths(state, generatedImagePaths),
                 };
             });
         },

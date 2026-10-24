@@ -15,13 +15,13 @@ function reader() {
     return source;
 }
 
-export async function readDialogueLibrary() {
+export async function readDialogueLibrary({ images = true, voices = true } = {}) {
     const { store, resources } = reader();
-    const state = await store.read();
+    const state = images ? await store.read() : {};
     return {
         assets: Object.values(state.sharedResources?.imageLibraryAssets || {}),
         outfits: Object.values(state.sharedResources?.imageLibraryOutfits || {}),
-        voices: await resources.listVoiceEntries(),
+        voices: voices ? await resources.listVoiceEntries() : [],
     };
 }
 

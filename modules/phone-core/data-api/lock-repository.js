@@ -50,7 +50,16 @@ function remapLockStateAfterRowsDelete(lockState, deletedRowIndexes = []) {
     }
 
     const deletedSorted = Array.from(deletedSet).sort((a, b) => a - b);
-    const shiftRowIndex = (rowIdx) => rowIdx - deletedSorted.filter((deletedIdx) => deletedIdx < rowIdx).length;
+    const shiftRowIndex = (rowIdx) => {
+        let left = 0;
+        let right = deletedSorted.length;
+        while (left < right) {
+            const middle = Math.floor((left + right) / 2);
+            if (deletedSorted[middle] < rowIdx) left = middle + 1;
+            else right = middle;
+        }
+        return rowIdx - left;
+    };
 
     const rowsNext = current.rows
         .filter(rowIdx => !deletedSet.has(rowIdx))

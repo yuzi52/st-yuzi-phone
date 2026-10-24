@@ -584,8 +584,12 @@ function normalizeDeleteTargets(targets) {
 
     uniqueTargets.sort((a, b) => a.path.split('.').length - b.path.split('.').length || a.path.length - b.path.length);
 
-    return uniqueTargets.filter((target, index) => {
-        return !uniqueTargets.slice(0, index).some((parent) => target.path === parent.path || target.path.startsWith(`${parent.path}.`));
+    const selectedPaths = new Set(uniqueTargets.map((target) => target.path));
+    return uniqueTargets.filter((target) => {
+        for (let dotIndex = target.path.indexOf('.'); dotIndex >= 0; dotIndex = target.path.indexOf('.', dotIndex + 1)) {
+            if (selectedPaths.has(target.path.slice(0, dotIndex))) return false;
+        }
+        return true;
     });
 }
 

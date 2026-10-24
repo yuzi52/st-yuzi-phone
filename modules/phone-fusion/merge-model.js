@@ -52,15 +52,17 @@ function normalizeSourceEntry(entry, index) {
     };
 }
 
-function detectConflictType(item, allItems) {
-    const others = allItems.filter((candidate) => candidate !== item);
-    if (others.some((candidate) => candidate.originSheetKey === item.originSheetKey && candidate.outputName === item.outputName)) {
+function detectConflictType(item, keyCounts, nameCounts, keyNameCounts) {
+    // Map groups NaN keys together, while the original strict comparisons never match them.
+    const hasMatchingKey = !Number.isNaN(item.originSheetKey) && keyCounts.get(item.originSheetKey) > 1;
+    const hasMatchingName = !Number.isNaN(item.outputName) && nameCounts.get(item.outputName) > 1;
+    if (hasMatchingKey && hasMatchingName && keyNameCounts.get(item.originSheetKey)?.get(item.outputName) > 1) {
         return FUSION_CONFLICT_TYPES.BOTH;
     }
-    if (others.some((candidate) => candidate.originSheetKey === item.originSheetKey)) {
+    if (hasMatchingKey) {
         return FUSION_CONFLICT_TYPES.SHEET_KEY;
     }
-    if (others.some((candidate) => candidate.outputName === item.outputName)) {
+    if (hasMatchingName) {
         return FUSION_CONFLICT_TYPES.NAME;
     }
     return '';
@@ -118,9 +120,20 @@ export function buildFusionSelectionModel(sourceEntries, options = {}) {
         });
     });
 
+    const keyCounts = new Map();
+    const nameCounts = new Map();
+    const keyNameCounts = new Map();
+    items.forEach(({ originSheetKey, outputName }) => {
+        keyCounts.set(originSheetKey, (keyCounts.get(originSheetKey) || 0) + 1);
+        nameCounts.set(outputName, (nameCounts.get(outputName) || 0) + 1);
+        const namesForKey = keyNameCounts.get(originSheetKey) || new Map();
+        namesForKey.set(outputName, (namesForKey.get(outputName) || 0) + 1);
+        keyNameCounts.set(originSheetKey, namesForKey);
+    });
+
     const conflictGroupFirstIds = new Map();
     const withConflicts = items.map((item) => {
-        const conflictType = detectConflictType(item, items);
+        const conflictType = detectConflictType(item, keyCounts, nameCounts, keyNameCounts);
         const conflictKey = createConflictGroupKey(item, conflictType);
         const isFirstConflictItem = !conflictType || !conflictGroupFirstIds.has(conflictKey);
         if (conflictType && isFirstConflictItem) conflictGroupFirstIds.set(conflictKey, item.id);

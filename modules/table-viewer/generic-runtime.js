@@ -254,7 +254,6 @@ export function createGenericTableViewerRuntime(container, context, hooks = {}) 
         getSheetDataByKey,
         getLiveTableName,
         syncRowsFromSheet,
-        isTableRowLocked,
         deleteSheetRows,
         showInlineToast,
         viewerRuntime,

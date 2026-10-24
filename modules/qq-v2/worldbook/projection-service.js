@@ -100,13 +100,14 @@ function subtractStoryWindow(now, window) {
     }
 }
 
-function inAutomaticWindow(message, settings, storyTime) {
-    if (settings.timeWindow?.mode === 'all') return true;
+function createAutomaticWindowMatcher(settings, storyTime) {
+    if (settings.timeWindow?.mode === 'all') return () => true;
     const now = parseStoryTime(storyTime);
-    const messageTime = parseStoryTime(message.storyTime);
-    if (!now || !messageTime) return false;
-    const cutoff = subtractStoryWindow(now, settings.timeWindow);
-    return Boolean(cutoff && messageTime >= cutoff && messageTime <= now);
+    const cutoff = now ? subtractStoryWindow(now, settings.timeWindow) : null;
+    return (message) => {
+        const messageTime = parseStoryTime(message.storyTime);
+        return Boolean(cutoff && messageTime && messageTime >= cutoff && messageTime <= now);
+    };
 }
 
 function sortProjectionMessages(messages) {
@@ -136,18 +137,19 @@ function selectProjectionMessages(data, storyTime) {
             uniqueMessages.set(message.messageId, message);
         }
     }
-    const allMessages = [];
     const manualMessages = [];
     const manualMessageIds = new Set();
     const automaticMessages = [];
+    let inAutomaticWindow;
     for (const message of uniqueMessages.values()) {
-        allMessages.push(message);
         const manuallySelected = message.selectedForInjection === true || selectedIds.has(message.messageId);
         if (manuallySelected) {
             manualMessages.push(message);
             manualMessageIds.add(message.messageId);
+            continue;
         }
-        if (!manuallySelected && inAutomaticWindow(message, data.settings, storyTime)) {
+        inAutomaticWindow ||= createAutomaticWindowMatcher(data.settings, storyTime);
+        if (inAutomaticWindow(message)) {
             automaticMessages.push(message);
         }
     }
@@ -157,8 +159,9 @@ function selectProjectionMessages(data, storyTime) {
         : DEFAULT_WORLDBOOK_INJECTION_COUNT;
     let selectedAutomaticMessages = automaticMessages;
     if (normalizedInjectionCount > 0) {
-        const fallbackMessages = allMessages.filter((message) => !manualMessageIds.has(message.messageId));
-        const automaticSource = automaticMessages.length > 0 ? automaticMessages : fallbackMessages;
+        const automaticSource = automaticMessages.length > 0
+            ? automaticMessages
+            : [...uniqueMessages.values()].filter((message) => !manualMessageIds.has(message.messageId));
         selectedAutomaticMessages = sortProjectionMessages(automaticSource).slice(-normalizedInjectionCount);
     }
     return sortProjectionMessages([...manualMessages, ...selectedAutomaticMessages]);
@@ -325,6 +328,12 @@ function buildProjectionContent(data, userName, storyTime) {
         : [`【${channelName}群聊：${resolveEntryName(data)}】`, `当前成员：${participants.join('、') || '无'}`];
     const messages = selectProjectionMessages(data, storyTime);
     if (!messages.length) return { content: '', hasMessages: false };
+    const quoteCount = data.conversation.kind === 'group'
+        ? messages.reduce((count, message) => count + Boolean(message.quoteMessageId), 0)
+        : 0;
+    const existingMessageIds = quoteCount > 1
+        ? new Set((data.messages || []).map((message) => message.messageId))
+        : null;
     let lastDate = '';
     const lines = ['<yuzi>', ...header, ''];
     for (const message of messages) {
@@ -335,7 +344,9 @@ function buildProjectionContent(data, userName, storyTime) {
         }
         const deletedQuote = data.conversation?.kind === 'group'
             && message.quoteMessageId
-             && !(data.messages || []).some((candidate) => candidate.messageId === message.quoteMessageId);
+            && !(existingMessageIds
+                ? existingMessageIds.has(message.quoteMessageId)
+                : (data.messages || []).some((candidate) => candidate.messageId === message.quoteMessageId));
         const suffix = deletedQuote ? '（引用原消息已删除）' : '';
         const time = timeLabel(message.storyTime);
         const projectedMessage = message.type === 'voice'

@@ -73,25 +73,33 @@ function getValidRules(rules = []) {
     ));
 }
 
-export function applyLiteralRulesToText(value, rules = []) {
-    if (typeof value !== 'string') return { value, changed: false };
+function createTextRuleApplier(rules) {
+    let validRules;
+    return (value) => {
+        if (typeof value !== 'string') return { value, changed: false };
 
-    let nextValue = value;
-    getValidRules(rules).forEach(({ source, target }) => {
-        if (!nextValue.includes(source)) return;
-        nextValue = nextValue.split(source).join(target);
-    });
+        validRules ??= getValidRules(rules);
+        let nextValue = value;
+        validRules.forEach(({ source, target }) => {
+            if (!nextValue.includes(source)) return;
+            nextValue = nextValue.split(source).join(target);
+        });
 
-    return { value: nextValue, changed: nextValue !== value };
+        return { value: nextValue, changed: nextValue !== value };
+    };
 }
 
-export function applyLiteralRulesToRow(row, headers = [], rules = []) {
+export function applyLiteralRulesToText(value, rules = []) {
+    return createTextRuleApplier(rules)(value);
+}
+
+function applyRulesToRow(row, headers, applyToText) {
     const nextRow = Array.isArray(row) ? [...row] : [];
     let changedCellCount = 0;
 
     nextRow.forEach((value, columnIndex) => {
         if (isIdentityHeader(headers[columnIndex]) || typeof value !== 'string') return;
-        const result = applyLiteralRulesToText(value, rules);
+        const result = applyToText(value);
         if (!result.changed) return;
         nextRow[columnIndex] = result.value;
         changedCellCount += 1;
@@ -100,15 +108,20 @@ export function applyLiteralRulesToRow(row, headers = [], rules = []) {
     return { row: nextRow, changedCellCount };
 }
 
+export function applyLiteralRulesToRow(row, headers = [], rules = []) {
+    return applyRulesToRow(row, headers, createTextRuleApplier(rules));
+}
+
 export function applyLiteralRulesToTableContent(content, rules = []) {
     if (!Array.isArray(content) || !Array.isArray(content[0])) {
         return { content: Array.isArray(content) ? content.map(row => Array.isArray(row) ? [...row] : row) : [], changedCellCount: 0 };
     }
 
     const headers = [...content[0]];
+    const applyToText = createTextRuleApplier(rules);
     let changedCellCount = 0;
     const rows = content.slice(1).map((row) => {
-        const result = applyLiteralRulesToRow(row, headers, rules);
+        const result = applyRulesToRow(row, headers, applyToText);
         changedCellCount += result.changedCellCount;
         return result.row;
     });

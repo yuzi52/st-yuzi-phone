@@ -79,10 +79,10 @@ function asObject(value) {
     return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
 }
 
-function asReferenceSet(value, fallback = []) {
+function asReferenceSet(value, fallback = () => []) {
     if (value instanceof Set) return new Set(value);
     if (Array.isArray(value)) return new Set(value);
-    return new Set(fallback);
+    return new Set(fallback());
 }
 
 function normalizeManualRequestBuild(value) {
@@ -389,7 +389,7 @@ export function createQQV2RequestService(options = {}) {
         const references = Object.keys(requestBuild.references).length ? requestBuild.references : fallbackReferences;
         const visibleMessageRefs = asReferenceSet(
             requestBuild.visibleMessageRefs,
-            messages.map((message) => message.messageId).filter(Boolean),
+            () => messages.map((message) => message.messageId).filter(Boolean),
         );
         const handledUserSequences = { [entry.conversationId]: pending.at(-1).sequence };
         const storyTime = asText(getStoryTime(), 128);

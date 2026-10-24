@@ -17,7 +17,8 @@ export function createPresetStateSnapshot(options = {}) {
     const navigation = options.navigationState || {};
     const previous = navigation.previous || {};
     const next = navigation.next || {};
-    return deepFreeze({
+    // The table's headers and rows are already isolated and deeply frozen.
+    return Object.freeze({
         version: Number.isFinite(options.version) ? options.version :0,
         sheetKey: table.sheetKey,
         tableName: table.tableName,

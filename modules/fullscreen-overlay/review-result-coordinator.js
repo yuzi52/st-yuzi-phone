@@ -34,8 +34,7 @@ function normalizeChanges(changes = []) {
             rowId: normalizeText(change?.rowId),
             rowIndex: normalizeRowIndex(change?.rowIndex),
             fields: normalizeFields(change?.fields),
-        }))
-        .sort((left, right) => JSON.stringify(left).localeCompare(JSON.stringify(right)));
+        }));
 }
 
 function buildChangeIdentity(change) {
@@ -50,16 +49,19 @@ function buildChangeIdentity(change) {
 
 function createChangeRecords(changes = []) {
     const occurrenceCounts = new Map();
-    return normalizeChanges(changes).map((change) => {
-        const baseIdentity = buildChangeIdentity(change);
-        const occurrence = occurrenceCounts.get(baseIdentity) ?? 0;
-        occurrenceCounts.set(baseIdentity, occurrence + 1);
-        return {
-            change,
-            identity: `${baseIdentity}\u001f${occurrence}`,
-            signature: JSON.stringify(change),
-        };
-    });
+    return normalizeChanges(changes)
+        .map(change => ({ change, signature: JSON.stringify(change) }))
+        .sort((left, right) => left.signature.localeCompare(right.signature))
+        .map(({ change, signature }) => {
+            const baseIdentity = buildChangeIdentity(change);
+            const occurrence = occurrenceCounts.get(baseIdentity) ?? 0;
+            occurrenceCounts.set(baseIdentity, occurrence + 1);
+            return {
+                change,
+                identity: `${baseIdentity}\u001f${occurrence}`,
+                signature,
+            };
+        });
 }
 
 function buildTableSignature(sessionKey, chatKey, table, changeRecords) {

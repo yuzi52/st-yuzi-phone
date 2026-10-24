@@ -36,10 +36,10 @@ export function createBuiltinImageController(options) {
             root.querySelector('.yuzi-theater-live')?.setAttribute('data-has-generated-image', String(Boolean(imagePath)));
         }
     }
-    function repaint() {
+    function repaint(changedState = null) {
         for (const [frame, binding] of frames) {
             if (!root.contains(frame)) { binding.dispose(); frames.delete(frame); continue; }
-            paint(frame, binding);
+            if (!changedState || binding.state === changedState) paint(frame, binding);
         }
     }
     function mount() {
@@ -76,11 +76,11 @@ export function createBuiltinImageController(options) {
             } else frame.replaceChildren(image, description, button);
             const binding = { state, button, description, image, canvas, stamp, validIdentity, dispose:()=>{frameController.abort();signal.removeEventListener('abort',abortFrame);if(canvas.canvas === 'background'){button.remove();image.remove();}} };
             frames.set(frame, binding); paint(frame, binding);
-            if (validIdentity && !state.readRequested) { state.readRequested=true; void service.read({ canvas, rowValues: record.fields, chatScope }).then(saved => { if (active() && state.revision === 0) { state.imagePath=saved?.imagePath || ''; repaint(); } }).catch(() => {}); }
+            if (validIdentity && !state.readRequested) { state.readRequested=true; void service.read({ canvas, rowValues: record.fields, chatScope }).then(saved => { if (active() && state.revision === 0) { state.imagePath=saved?.imagePath || ''; repaint(state); } }).catch(() => {}); }
             button.addEventListener('click', async event => {
                 event.preventDefault(); event.stopPropagation();
                 if (!active() || !enabled() || state.busy || !validIdentity) return;
-                state.revision += 1; state.busy=true; repaint();
+                state.revision += 1; state.busy=true; repaint(state);
                 try {
                     const requestCanvas = {...canvas};
                     if (canvas.canvas === 'background') {
@@ -92,7 +92,7 @@ export function createBuiltinImageController(options) {
                     if (result.ok) state.imagePath=result.imagePath;
                     else options.notify?.(result.reason === 'identity-duplicate' ? '记录标识重复，无法安全关联图片' : '图片生成失败，已保留原图：' + (result.reason || result.status || '未知错误'));
                 } catch(error) { if(active()) options.notify?.(error.message || '图片生成失败'); }
-                finally { state.busy=false; if(active()) repaint(); }
+                finally { state.busy=false; if(active()) repaint(state); }
             }, {signal:frameSignal});
             image.tabIndex=0; image.setAttribute('role','button');
             const view = event => { event.stopPropagation(); if(active() && state.imagePath) options.showImage?.(state.imagePath, imageDescription); };
@@ -104,5 +104,5 @@ export function createBuiltinImageController(options) {
     }
     function dispose() { disposed=true; for(const binding of frames.values())binding.dispose(); frames.clear(); states.clear(); }
     signal.addEventListener('abort', dispose, {once:true});
-    return { mount, updateSettings: repaint, dispose };
+    return { mount, updateSettings: () => repaint(), dispose };
 }

@@ -1,5 +1,4 @@
 import {
-    getCellByHeader,
     normalizeText,
     splitSemicolonText,
 } from '../../phone-theater/core/table-index.js';
@@ -98,6 +97,18 @@ function selectRows(table) {
         });
 }
 
+function forEachBarrageText(table, visit) {
+    const columnIndexes = BARRAGE_FIELDS.map(header => (
+        table.headers.findIndex(value => normalizeText(value) === header)
+    ));
+    selectRows(table).forEach(({ row, rowIndex }) => {
+        BARRAGE_FIELDS.forEach((header, fieldIndex) => {
+            const value = Array.isArray(row) ? row[columnIndexes[fieldIndex]] : '';
+            splitBarrageField(value).forEach((text, itemIndex) => visit(text, rowIndex, header, itemIndex));
+        });
+    });
+}
+
 function getLiveTableSignature(context) {
     if ([TABLE_POPUP_MODEL_ID, INLINE_TABLE_POPUP_MODEL_ID].includes(context?.modelId)) {
         return getGenericTableSignature(context);
@@ -105,10 +116,9 @@ function getLiveTableSignature(context) {
     const table = resolveTableContext(context);
     if (table.tableName !== TABLE_NAME || !hasRequiredHeaders(table.headers)) return '';
 
-    return JSON.stringify(readLiveTableEvents({
-        ...context,
-        rowSelection: null,
-    }).map(event => event.text));
+    const texts = [];
+    forEachBarrageText({ ...table, rowSelection: null }, text => texts.push(text));
+    return JSON.stringify(texts);
 }
 
 function readLiveTableEvents(context) {
@@ -121,19 +131,15 @@ function readLiveTableEvents(context) {
     }
 
     const events = [];
-    selectRows(table).forEach(({ row, rowIndex }) => {
-        BARRAGE_FIELDS.forEach((header) => {
-            splitBarrageField(getCellByHeader(table, row, header)).forEach((text, itemIndex) => {
-                events.push(Object.freeze({
-                    sourceId: SOURCE_ID,
-                    sheetKey: table.sheetKey,
-                    text,
-                    rowIndex,
-                    field: header,
-                    itemIndex,
-                }));
-            });
-        });
+    forEachBarrageText(table, (text, rowIndex, header, itemIndex) => {
+        events.push(Object.freeze({
+            sourceId: SOURCE_ID,
+            sheetKey: table.sheetKey,
+            text,
+            rowIndex,
+            field: header,
+            itemIndex,
+        }));
     });
     return Object.freeze(events);
 }

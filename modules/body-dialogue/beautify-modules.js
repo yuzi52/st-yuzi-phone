@@ -132,7 +132,8 @@ export function matchBodyModules(text, modules, reserved = []) {
             for (const match of parsed) {
                 if (!object(match) || !Number.isInteger(match.start) || !Number.isInteger(match.end)
                     || match.start < 0 || match.end > text.length || match.end <= match.start || !object(match.data)) throw new Error('parse 返回了无效的文字范围或 data');
-                if ([...matches, ...accepted].some(old => match.start < old.end && match.end > old.start)) continue;
+                if (matches.some(old => match.start < old.end && match.end > old.start)
+                    || accepted.some(old => match.start < old.end && match.end > old.start)) continue;
                 accepted.push({ ...match, raw: text.slice(match.start, match.end), module });
             }
             matches.push(...accepted);

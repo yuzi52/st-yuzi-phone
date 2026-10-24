@@ -118,7 +118,7 @@ function mergeSingleSheetEvent(rawData, event) {
         return isPlainObject(event) && getSheetKeys(event).length > 0 ? event : rawData;
     }
 
-    const nextRawData = cloneRawData(rawData) || {};
+    const nextRawData = isPlainObject(rawData) ? { ...rawData } : {};
     nextRawData[explicitSheetKeys[0]] = {
         ...(isPlainObject(nextRawData[explicitSheetKeys[0]]) ? nextRawData[explicitSheetKeys[0]] : {}),
         ...event,
@@ -215,7 +215,7 @@ export function createTableContentReplacementService(options = {}) {
     }
 
     function replaceLastRawDataSheet(sheetKey, sheet) {
-        const nextRawData = cloneRawData(runtime.lastRawData) || {};
+        const nextRawData = isPlainObject(runtime.lastRawData) ? { ...runtime.lastRawData } : {};
         nextRawData[sheetKey] = {
             ...(isPlainObject(sheet) ? sheet : {}),
             content: cloneTableContent(sheet?.content),

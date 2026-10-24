@@ -174,6 +174,10 @@ export function getRowEntryTitle(row, headers = [], rawHeaders = [], fieldBindin
     if (!Array.isArray(row)) return t("未命名");
 
     const headerMap = buildGenericHeaderIndexMap(headers, rawHeaders, row);
+    return resolveRowEntryTitle(row, headers, rawHeaders, fieldBindings, headerMap);
+}
+
+function resolveRowEntryTitle(row, headers, rawHeaders, fieldBindings, headerMap) {
     const boundTitle = getCellByGenericHeaders(row, headerMap, fieldBindings.summaryTitle || []);
     if (boundTitle) return boundTitle;
 
@@ -221,7 +225,7 @@ export function shouldPreferFullRowField(pair) {
 
 export function buildGenericRowViewModel(row, rowIndex, headers = [], rawHeaders = [], rowLocked = false, fieldBindings = {}) {
     const headerMap = buildGenericHeaderIndexMap(headers, rawHeaders, row);
-    const title = getRowEntryTitle(row, headers, rawHeaders, fieldBindings);
+    const title = resolveRowEntryTitle(row, headers, rawHeaders, fieldBindings, headerMap);
     const nonEmptyCount = countNonEmptyInRow(row, headers, rawHeaders);
     const boundStatus = getCellByGenericHeaders(row, headerMap, fieldBindings.summaryStatus || []);
     const boundTime = getCellByGenericHeaders(row, headerMap, fieldBindings.summaryTime || []);
@@ -230,7 +234,14 @@ export function buildGenericRowViewModel(row, rowIndex, headers = [], rawHeaders
     const statusField = findFirstFieldByPattern(row, headers, rawHeaders, /(状态|审核|启用|锁定|流程|status|type)/i);
     const timeField = findFirstFieldByPattern(row, headers, rawHeaders, /(时间|日期|更新|修改|创建|发送|发帖|time|date|updated|created)/i);
 
-    const previewParts = row
+    const preferredPreviewText = [boundSubtitle, boundPreview]
+        .map(value => normalizeCellDisplayValue(value))
+        .filter(Boolean)
+        .filter(value => value !== title)
+        .map(value => truncateText(value, 30))
+        .join(' · ');
+
+    const previewText = preferredPreviewText || row
         .map((value, idx) => {
             const header = String(rawHeaders[idx] ?? headers[idx] ?? '').trim();
             const text = normalizeCellDisplayValue(value);
@@ -243,13 +254,8 @@ export function buildGenericRowViewModel(row, rowIndex, headers = [], rawHeaders
             return truncateText(text, 30);
         })
         .filter(Boolean)
-        .slice(0, 2);
-
-    const preferredPreviewParts = [boundSubtitle, boundPreview]
-        .map(value => normalizeCellDisplayValue(value))
-        .filter(Boolean)
-        .filter(value => value !== title)
-        .map(value => truncateText(value, 30));
+        .slice(0, 2)
+        .join(' · ');
 
     return {
         rowIndex,
@@ -259,7 +265,7 @@ export function buildGenericRowViewModel(row, rowIndex, headers = [], rawHeaders
         statusText: rowLocked ? t("已锁定") : truncateText(boundStatus || statusField?.value || '', 14),
         statusTone: resolveStatusTone(boundStatus || statusField?.value || '', rowLocked),
         timeText: truncateText(boundTime || timeField?.value || '', 18),
-        previewText: preferredPreviewParts.join(' · ') || previewParts.join(' · ') || t("点击查看完整字段与详情信息"),
+        previewText: previewText || t("点击查看完整字段与详情信息"),
         searchText: buildSearchIndex(row, headers, rawHeaders),
     };
 }

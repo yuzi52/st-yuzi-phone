@@ -143,11 +143,21 @@ async function main() {
         'const collapseTrigger = target.closest(COLLAPSIBLE_TRIGGER_SELECTOR);',
         'toggleVariableSectionCollapse(collapseTrigger);',
     ], '删除态点击必须优先于普通折叠交互');
-    assertOrdered(interactionsSource, [
-        'uniqueTargets.sort((a, b) => a.path.split(\'.\').length - b.path.split(\'.\').length || a.path.length - b.path.length);',
-        'return uniqueTargets.filter((target, index) => {',
-        'return !uniqueTargets.slice(0, index).some((parent) => target.path === parent.path || target.path.startsWith(`${parent.path}.`));',
-    ], '删除目标父子去重必须先按路径层级排序再过滤子项');
+    const normalizeTargetSource = interactionsSource.match(/^function normalizeDeleteTarget\(target\) \{[\s\S]*?^\}/m)?.[0];
+    const normalizeTargetsSource = interactionsSource.match(/^function normalizeDeleteTargets\(targets\) \{[\s\S]*?^\}/m)?.[0];
+    assert.ok(normalizeTargetSource && normalizeTargetsSource, '删除目标归一化函数必须可执行');
+    const normalizeDeleteTargets = new Function(`${normalizeTargetSource}\n${normalizeTargetsSource}\nreturn normalizeDeleteTargets;`)();
+    const targetPaths = (paths) => normalizeDeleteTargets(paths.map((path) => ({ path }))).map((target) => target.path);
+    assert.deepEqual(targetPaths(['user.a.child', 'user.a']), ['user.a'], '先选子项再选父项仍只删除父项');
+    assert.deepEqual(targetPaths(['user.b', 'user.a']), ['user.b', 'user.a'], '同级目标保持稳定顺序');
+    assert.deepEqual(targetPaths(['user.ab', 'user.a']), ['user.a', 'user.ab'], '父子折叠必须按点边界匹配');
+    assert.deepEqual(normalizeDeleteTargets([
+        { path: ' user.a ', kind: 'leaf', label: '旧名称', leafCount: 1 },
+        { path: 'user.a', kind: 'object', label: '新名称', leafCount: 3 },
+    ]), [{ path: 'user.a', kind: 'object', label: '新名称', leafCount: 3 }], '同路径使用最后一项元数据');
+    assert.deepEqual(targetPaths(['root..leaf', 'root.']), ['root.'], '连续点保留原有祖先边界');
+    assert.deepEqual(targetPaths(['root.leaf', 'root.']), ['root.', 'root.leaf'], '尾点不能吞掉不同边界的路径');
+    assert.deepEqual(targetPaths(['.child', 'child', '..leaf', '.']), ['child', '.', '.child'], '首点与连续点不能隐式归一化');
 
     assertIncludes(styleSource, '.vm-object-collapsed > .vm-object-children', '对象折叠态必须隐藏直属子节点容器');
     assertIncludes(styleSource, '.vm-object-collapsed > .vm-object-title .vm-object-chevron', '对象折叠态必须旋转对象箭头');

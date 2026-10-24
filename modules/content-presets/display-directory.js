@@ -2,7 +2,6 @@ import { buildTableNavigationCatalog } from '../table-navigation/catalog.js';
 import { createTableSnapshot } from './snapshot.js';
 import {
     hasDisplayCapability,
-    matchesDisplay,
     matchesPresetItem,
 } from './matcher.js';
 
@@ -37,7 +36,7 @@ function physicalTables(rawData) {
 }
 
 function resolveTargetSheetKeys(display, tables) {
-    if (!hasDisplayCapability(display) || !matchesDisplay(display, tables.map(entry => entry.table))) return null;
+    if (!hasDisplayCapability(display)) return null;
     const sheetKeys = [];
     for (const target of display.targets) {
         const matches = tables.filter(entry => matchesPresetItem({ target }, entry.table));
@@ -82,12 +81,11 @@ export function buildActiveContentPresetDisplayDirectory(rawData, popupByTable =
         const presetId = text(binding?.presetId);
         if (!presetId) continue;
         for (const display of Array.isArray(binding?.displays) ? binding.displays : []) {
+            const modelId = displayKey(presetId, display?.id);
+            if (!modelId || byModelId.has(modelId)) continue;
             const targetSheetKeys = resolveTargetSheetKeys(display, tables);
             if (!targetSheetKeys || !targetSheetKeys.includes(originSheetKey)) continue;
             if (!targetSheetKeys.every(sheetKey => activeBindingFor(bindings, sheetKey, presetId))) continue;
-            const modelId = displayKey(presetId, display.id);
-            if (!modelId || byModelId.has(modelId)) continue;
-
             const entry = definition(presetId, display, targetSheetKeys);
             byModelId.set(modelId, entry);
             if (targetSheetKeys.length === 1) {

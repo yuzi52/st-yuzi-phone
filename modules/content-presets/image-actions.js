@@ -25,20 +25,22 @@ function rowsForSnapshot(snapshot) {
     ));
 }
 
-function tableForCanvas(rawData, canvas) {
+function tableForCanvas(rawData, canvas, { includeRows = true } = {}) {
     const expectedName = normalizeMatchText(canvas?.tableName);
     const expectedFields = new Set((canvas?.stableIdentityFields || [])
         .concat(canvas?.promptFields || [])
         .map(normalizeMatchText));
     const matches = buildTableNavigationCatalog(rawData).map(entry => ({
         sheetKey: entry.sheetKey,
-        snapshot: createTableSnapshot(rawData, entry.sheetKey),
+        snapshot: createTableSnapshot(rawData, entry.sheetKey, { includeRows: false }),
     })).filter(({ snapshot }) => (
         snapshot
         && normalizeMatchText(snapshot.tableName) === expectedName
         && [...expectedFields].every(field => snapshot.headers.map(normalizeMatchText).includes(field))
     ));
-    return matches.length === 1 ? matches[0] : null;
+    const table = matches.length === 1 ? matches[0] : null;
+    if (table && includeRows) table.snapshot = createTableSnapshot(rawData, table.sheetKey);
+    return table;
 }
 
 function identityValues(rowValues, fields) {
@@ -105,9 +107,9 @@ export function createContentPresetImageActions(options = {}) {
             return { ok: false, result: result(false, 'disabled', { reason: 'image-generation-disabled' }) };
         }
         const rawData = getRawData() || {};
-        const table = tableForCanvas(rawData, canvas);
+        const table = tableForCanvas(rawData, canvas, { includeRows: requireIdentity });
         if (!table?.snapshot) return { ok: false, result: result(false, 'stale', { reason: 'table-unavailable' }) };
-        const candidateRows = rowsForSnapshot(table.snapshot);
+        const candidateRows = requireIdentity ? rowsForSnapshot(table.snapshot) : [];
         if (requireIdentity && !hasUniqueCurrentIdentity(rowValues, candidateRows, canvas.stableIdentityFields || [])) {
             return { ok: false, result: result(false, 'invalid-target', { reason: 'identity-not-unique' }) };
         }

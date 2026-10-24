@@ -83,7 +83,6 @@ export function createRowDeleteController(options) {
         getSheetDataByKey,
         getLiveTableName,
         syncRowsFromSheet,
-        isTableRowLocked,
         deleteSheetRows,
         showInlineToast,
         viewerRuntime,
@@ -113,7 +112,8 @@ export function createRowDeleteController(options) {
             return createDeletePreflightFailureOutcome(message, requestedRowIndexes);
         }
 
-        const lockedRowIndexes = requestedRowIndexes.filter((rowIndex) => isTableRowLocked(sheetKey, rowIndex));
+        const lockedRows = new Set(getTableLockState(sheetKey).rows);
+        const lockedRowIndexes = requestedRowIndexes.filter((rowIndex) => lockedRows.has(rowIndex));
         if (lockedRowIndexes.length > 0) {
             const message = lockedRowIndexes.length === 1 ? t("删除失败：条目已锁定") : t`删除失败：${lockedRowIndexes.length} 条已锁定`;
             showInlineToast(container, message, true);

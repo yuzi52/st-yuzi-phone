@@ -180,7 +180,7 @@ export function __test__createTryRenderContentPreset(overrides = {}) {
         instance.transition('importing');
         const record = await runtimeDeps.getPresetRecord(binding.presetId);
         const item = record?.items?.find(entry => entry.id === binding.itemId);
-        if (!item?.activatable || !runtimeDeps.matchesPresetItem(item, { tableName: initialState.tableName, headers: createTableSnapshot(runtimeDeps.getTableData(), target.sheetKey)?.rawHeaders })) throw new Error(t("绑定项已失效"));
+        if (!item?.activatable || !runtimeDeps.matchesPresetItem(item, { tableName: initialState.tableName, headers: createTableSnapshot(runtimeDeps.getTableData(), target.sheetKey, { includeRows: false })?.rawHeaders })) throw new Error(t("绑定项已失效"));
         if (!isCurrent()) { instance.dispose(); return true; }
 
         assetRuntime = runtimeDeps.createAssetRuntime(record);
@@ -242,7 +242,7 @@ export function __test__createTryRenderContentPreset(overrides = {}) {
                 if (!isCurrent()) return;
                 try {
                     const rawData = runtimeDeps.getTableData();
-                    const nextTable = createTableSnapshot(rawData, target.sheetKey);
+                    const nextTable = createTableSnapshot(rawData, target.sheetKey, { includeRows: false });
                     if (!nextTable || !runtimeDeps.matchesPresetItem(item, { tableName: nextTable.tableName, headers: nextTable.rawHeaders })) {
                         if (bottom) fallback();
                         return;
