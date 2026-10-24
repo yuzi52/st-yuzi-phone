@@ -13,6 +13,7 @@ import { getFloorVariablesAsync, getLastMessageId, isMvuAvailable } from './vari
 import { flattenToGroups, renderGroupsHtml } from './flat-view.js';
 import { buildVariableManagerPageHtml } from './templates.js';
 import { bindVariableManagerInteractions } from './interactions.js';
+import { captureVariableViewState, restoreVariableViewState } from './view-state.js';
 
 const VARIABLE_MANAGER_PAGE_INSTANCE_KEY = '__yuziVariableManagerPageInstance';
 const PAGE_CONNECT_WAIT_FRAMES = 30;
@@ -98,10 +99,12 @@ function createVariableManagerPageInstance(container, options = {}) {
         const loadId = state.loadSequence + 1;
         state.loadSequence = loadId;
         const expectedMessageId = getLastMessageId();
+        const preserveView = state.currentMessageId === expectedMessageId
+            && container.querySelector('.vm-content .vm-group') !== null;
         state.currentMessageId = expectedMessageId;
         const isMvu = isMvuAvailable();
 
-        if (showLoading) {
+        if (showLoading && !preserveView) {
             renderVariableStatus(container, 'loading', expectedMessageId, t("正在读取当前楼层变量…"));
         }
 
@@ -116,7 +119,9 @@ function createVariableManagerPageInstance(container, options = {}) {
 
         updateFloorLabel(container, result.messageId);
         updateMvuBadge(container, result.isMvu);
+        const viewState = preserveView ? captureVariableViewState(container) : null;
         renderContent(result);
+        restoreVariableViewState(container, viewState);
         syncBottomBarInset(container);
     };
 

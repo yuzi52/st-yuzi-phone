@@ -23,6 +23,13 @@
     --yuzi-variable-manager-danger-soft: var(--yuzi-theme-danger-soft);
     --yuzi-variable-manager-warning: var(--yuzi-theme-warning);
     --yuzi-variable-manager-warning-soft: var(--yuzi-theme-warning-soft);
+    --yuzi-phone-form-surface: var(--yuzi-variable-manager-surface-strong);
+    --yuzi-phone-form-text: var(--yuzi-variable-manager-text-primary);
+    --yuzi-phone-form-border: var(--yuzi-variable-manager-border-strong);
+    --yuzi-phone-form-placeholder: var(--yuzi-variable-manager-text-faint);
+    --yuzi-phone-form-disabled-surface: var(--yuzi-variable-manager-surface-soft);
+    --yuzi-phone-form-disabled-text: var(--yuzi-variable-manager-text-faint);
+    --yuzi-phone-form-focus-ring: var(--yuzi-variable-manager-accent);
     --yuzi-variable-manager-bottom-bar-height: calc(72px + env(safe-area-inset-bottom, 0px));
     --yuzi-variable-manager-bottom-gap: 40px;
     position: relative;
@@ -507,11 +514,10 @@
     resize: none;
     overflow: hidden;
     border-radius: 12px;
-    border: 1px solid var(--yuzi-variable-manager-border-strong);
-    background: var(--yuzi-variable-manager-surface-strong) !important;
-    color: var(--yuzi-variable-manager-text-primary) !important;
-    caret-color: var(--yuzi-variable-manager-text-primary) !important;
-    -webkit-text-fill-color: var(--yuzi-variable-manager-text-primary) !important;
+    border: 1px solid var(--yuzi-phone-form-border);
+    background: var(--yuzi-phone-form-surface);
+    color: var(--yuzi-phone-form-text);
+    caret-color: var(--yuzi-phone-form-text);
     font-size: 14px;
     line-height: 1.6;
     font-family: 'SF Mono', 'Menlo', 'Monaco', monospace;
@@ -523,16 +529,8 @@
 }
 
 .vm-edit-input:focus {
-    border-color: var(--yuzi-variable-manager-accent);
-    background: var(--yuzi-variable-manager-surface-strong) !important;
-    color: var(--yuzi-variable-manager-text-primary) !important;
-    -webkit-text-fill-color: var(--yuzi-variable-manager-text-primary) !important;
+    --yuzi-phone-form-border: var(--yuzi-variable-manager-accent);
     box-shadow: 0 0 0 3px var(--yuzi-variable-manager-accent-soft);
-}
-
-.vm-edit-input::placeholder {
-    color: var(--yuzi-variable-manager-text-faint) !important;
-    -webkit-text-fill-color: var(--yuzi-variable-manager-text-faint) !important;
 }
 
 .vm-edit-actions {
@@ -779,9 +777,9 @@
     min-height: 42px;
     padding: 10px 12px;
     border-radius: 12px;
-    border: 1px solid var(--yuzi-variable-manager-border-strong);
-    background: var(--yuzi-variable-manager-surface-strong);
-    color: var(--yuzi-variable-manager-text-primary);
+    border: 1px solid var(--yuzi-phone-form-border);
+    background: var(--yuzi-phone-form-surface);
+    color: var(--yuzi-phone-form-text);
     font-size: 14px;
     line-height: 1.45;
     box-sizing: border-box;
@@ -789,12 +787,12 @@
 }
 
 .vm-dialog-input:focus {
-    border-color: var(--yuzi-variable-manager-accent);
+    --yuzi-phone-form-border: var(--yuzi-variable-manager-accent);
     box-shadow: 0 0 0 3px var(--yuzi-variable-manager-accent-soft);
 }
 
-.vm-input-error {
-    border-color: color-mix(in srgb, var(--yuzi-variable-manager-danger) 65%, transparent) !important;
+.vm-dialog-input.vm-input-error {
+    --yuzi-phone-form-border: color-mix(in srgb, var(--yuzi-variable-manager-danger) 65%, transparent);
     box-shadow: 0 0 0 3px color-mix(in srgb, var(--yuzi-variable-manager-danger) 8%, transparent) !important;
 }
 

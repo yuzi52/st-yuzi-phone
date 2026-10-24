@@ -150,6 +150,8 @@ Home Indicator 仍由外壳持有唯一可点击按钮，背景透明，与新�
 
 SillyTavern 主题可能用 `!important` 强制改写原生控件。此时只允许在小手机外壳隔离层使用同样的 `!important` 取回控制权，并同时设置 `color`、`-webkit-text-fill-color`、`background-color` 和 `border-color`；组件页面仍然只引用上述 token，不复制颜色。`select option` 与 `::placeholder` 必须单独覆盖，否则关闭的下拉框正常、展开后的选项或占位文字仍可能不可读。
 
+变量 App 的 `.vm-page` 将上述表单 token 映射到已有变量页配色，编辑框与添加变量输入框共用外壳隔离，聚焦、失焦、占位与禁用态均跟随小手机主题。聚焦与输入错误只调整边框 token，不另设主题覆盖规则。同楼层刷新保留分组／对象折叠状态，复用稳定滚动锚点优先保持正在编辑的变量位置；读取期间保留原列表，首次进入与切换楼层仍显示加载状态。
+
 使用原生 `checkbox` 的页面必须复用外壳隔离规则：显式恢复 `appearance` / `-webkit-appearance: checkbox`、设置 `color-scheme` 与对应 Yuzi `accent-color`，并保留 `:focus-visible` 焦点环。不要把这条规则施加到已经自绘轨道的开关。
 
 ## 底栏与 Home 区域契约

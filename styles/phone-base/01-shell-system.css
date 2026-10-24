@@ -341,7 +341,7 @@
 }
 
 /* SillyTavern themes may force native controls with !important; share this protection only with the phone shell and the owned bottom dialog. */
-:is(#yuzi-phone-standalone .yuzi-phone-shell .yuzi-qq-app, .yuzi-bottom-dialog) :is(
+:is(#yuzi-phone-standalone .yuzi-phone-shell :is(.yuzi-qq-app, .vm-page), .yuzi-bottom-dialog) :is(
     input:not([type]),
     input[type="text"],
     input[type="number"],
@@ -360,18 +360,18 @@
     color-scheme: var(--yuzi-phone-native-control-color-scheme);
 }
 
-:is(#yuzi-phone-standalone .yuzi-phone-shell .yuzi-qq-app, .yuzi-bottom-dialog) :is(input, textarea)::placeholder {
+:is(#yuzi-phone-standalone .yuzi-phone-shell :is(.yuzi-qq-app, .vm-page), .yuzi-bottom-dialog) :is(input, textarea)::placeholder {
     color: var(--yuzi-phone-form-placeholder) !important;
     -webkit-text-fill-color: var(--yuzi-phone-form-placeholder) !important;
 }
 
-:is(#yuzi-phone-standalone .yuzi-phone-shell .yuzi-qq-app, .yuzi-bottom-dialog) select option {
+:is(#yuzi-phone-standalone .yuzi-phone-shell :is(.yuzi-qq-app, .vm-page), .yuzi-bottom-dialog) select option {
     color: var(--yuzi-phone-form-text) !important;
     -webkit-text-fill-color: var(--yuzi-phone-form-text) !important;
     background-color: var(--yuzi-phone-form-surface) !important;
 }
 
-:is(#yuzi-phone-standalone .yuzi-phone-shell .yuzi-qq-app, .yuzi-bottom-dialog) :is(input, textarea, select):disabled {
+:is(#yuzi-phone-standalone .yuzi-phone-shell :is(.yuzi-qq-app, .vm-page), .yuzi-bottom-dialog) :is(input, textarea, select):disabled {
     color: var(--yuzi-phone-form-disabled-text) !important;
     -webkit-text-fill-color: var(--yuzi-phone-form-disabled-text) !important;
     background-color: var(--yuzi-phone-form-disabled-surface) !important;
