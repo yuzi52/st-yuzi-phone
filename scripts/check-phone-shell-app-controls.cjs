@@ -156,11 +156,11 @@ async function main() {
     assert.match(shellHtml, /data-yuzi-phone-temporary-layer-host/, '手机壳提供 Yuzi 独占临时层宿主契约');
     assert.doesNotMatch(shellHtml, /\bdata-phone-(?:home-indicator|temporary-layer-host)\b/, '手机壳不再暴露通用控制 data 属性');
 
-    assert.match(listTemplates.buildGenericListBottomBarHtml(), /data-phone-bottom-bar/, '通用列表底栏声明共享底栏契约');
-    assert.match(detailTemplates.buildGenericDetailPageHtml({
+    assert.doesNotMatch(listTemplates.buildGenericListBottomBarHtml(), /data-phone-bottom-bar/, '列表浮动新增按钮不占用整条共享底栏');
+    assert.doesNotMatch(detailTemplates.buildGenericDetailPageHtml({
         genericStylePayload: { className: '', dataAttrs: '', styleAttr: '', templateId: '' },
         state: {},
-    }), /data-phone-bottom-bar/, '通用详情底栏声明共享底栏契约');
+    }), /data-phone-bottom-bar/, '详情编辑浮动按钮不占用整条共享底栏');
     assert.equal((variableTemplates.buildVariableManagerPageHtml(-1, false).match(/data-phone-bottom-bar/g) || []).length, 2, '变量管理器两种底栏都声明共享底栏契约');
 
     const shellCss = fs.readFileSync(path.join(ROOT, 'styles/phone-base/01-shell-system.css'), 'utf8');

@@ -101,7 +101,7 @@ async function main() {
     await cachedCoordinator.dispose();
 
     const appSource = fs.readFileSync(path.resolve('modules/qq-v2/ui/app.js'), 'utf8');
-    assert.match(appSource, /const backgroundRenderLeases = createMediaRenderLeaseCoordinator\(facade, \{ cacheLimit: 8 \}\)/,
+    assert.match(appSource, /const backgroundRenderLeases = createMediaRenderLeaseCoordinator\(facade, \{ cacheLimit: 8, decodeImage: true \}\)/,
         'chat and profile backgrounds keep a small independent render cache');
     assert.match(appSource, /background:\s*backgroundRenderLeases\.begin\(\)/,
         'every QQ render session receives the background cache lease');

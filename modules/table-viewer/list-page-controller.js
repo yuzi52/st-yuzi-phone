@@ -1,6 +1,7 @@
 import { t } from '../i18n/index.js';
 import { Logger } from '../error-handler.js';
 import { showConfirmDialog } from '../settings-app/ui/confirm-dialog.js';
+import { showSettingsActionSheet } from '../settings-app/ui/settings-layer.js';
 import { requestTableNavigationSwitch } from '../table-navigation/controls.js';
 import { setSharedOnlyShowReviewUpdates } from './state.js';
 
@@ -483,6 +484,22 @@ async function handleActionClick(container, actionEl) {
         case 'add-row':
             context.showAddRowModal();
             return;
+        case 'open-list-management': {
+            const sheetKey = context.sheetKey;
+            const enterMode = (mode) => {
+                if (!isGenericListContextActive(context) || context.state.mode !== 'list' || context.sheetKey !== sheetKey) return;
+                context.state[mode](true);
+            };
+            showSettingsActionSheet({
+                title: t("管理条目"),
+                runtime: context.runtime,
+                actions: [
+                    ...(actionEl.dataset.showLock === 'true' ? [{ label: t("锁定管理"), onSelect: () => enterMode('setLockManageMode') }] : []),
+                    ...(actionEl.dataset.showDelete === 'true' ? [{ label: t("批量删除"), danger: true, onSelect: () => enterMode('setDeleteManageMode') }] : []),
+                ],
+            });
+            return;
+        }
         case 'toggle-lock-mode':
             context.state.setLockManageMode(!context.state.lockManageMode);
             return;

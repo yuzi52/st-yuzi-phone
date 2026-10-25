@@ -9,11 +9,13 @@ import { createMessageWindow, mergeMessagePage, reconcileMessageScrollAnchor } f
 import { createAssistantUI } from './assistant.js';
 import {
     fileToDataUrl,
+    loadImage,
     pickImageFiles,
 } from '../../settings-app/services/media-upload.js';
 import { bindSettingsGroupedControls } from '../../settings-app/ui/settings-controls.js';
 import { openAvatarFrameCalibrationDialog } from './avatar-frame-calibration.js';
 import { createPhoneNavIconElement } from '../../phone-core/navigation-ui.js';
+import { getPhoneOverlayMountRoot } from '../../phone-core/shell-temporary-layer-host.js';
 import { isScrollContainerNearBottom } from '../../phone-core/stable-scroll-anchor.js';
 import { createPhoneViewScrollState } from '../../phone-core/view-scroll-state.js';
 import { getPhoneSettings } from '../../settings.js';
@@ -975,11 +977,21 @@ export function shouldCloseConversationSwipe(openedConversationId, targetConvers
     return Boolean(opened && opened !== asText(targetConversationId) && opened !== asText(actionConversationId));
 }
 
-function createMediaRenderLeaseCoordinator(facade, { cacheLimit = 0 } = {}) {
+function createMediaRenderLeaseCoordinator(facade, { cacheLimit = 0, decodeImage = false } = {}) {
     return createRenderLeaseCoordinator({
         acquire: async (assetId) => {
             const result = await facade.query.mediaRender({ assetId });
-            return result?.ok && result.render?.leaseId && result.render?.url ? result.render : null;
+            const render = result?.ok && result.render?.leaseId && result.render?.url ? result.render : null;
+            if (render && decodeImage) {
+                try {
+                    const image = await loadImage(render.url);
+                    await image.decode?.();
+                } catch {
+                    await facade.intent.releaseMediaRender?.({ leaseId: render.leaseId });
+                    return null;
+                }
+            }
+            return render;
         },
         release: (render) => facade.intent.releaseMediaRender?.({ leaseId: render.leaseId }),
         cacheLimit,
@@ -1159,7 +1171,7 @@ export function createQQApp({
     };
 
     const mediaRenderLeases = createMediaRenderLeaseCoordinator(facade);
-    const backgroundRenderLeases = createMediaRenderLeaseCoordinator(facade, { cacheLimit: 8 });
+    const backgroundRenderLeases = createMediaRenderLeaseCoordinator(facade, { cacheLimit: 8, decodeImage: true });
     const avatarRenderLeases = createMediaRenderLeaseCoordinator(facade, { cacheLimit: 48 });
     const bubbleRenderLeases = createMediaRenderLeaseCoordinator(facade, { cacheLimit: 24 });
     const profileLibraryRenderLeases = createMediaRenderLeaseCoordinator(facade, { cacheLimit: 24 });
@@ -1339,6 +1351,8 @@ export function createQQApp({
         interactive = false,
         attributes = {},
         showFrame = false,
+        renderSession = null,
+        isAvatarCurrent = null,
     } = {}) => {
         const element = interactive
             ? createButton('', className, attributes)
@@ -1356,7 +1370,7 @@ export function createQQApp({
         }
         const assetId = asText(person?.avatarAssetId);
         const token = renderEpoch;
-        const avatarSession = leaseSessionFor(token)?.avatars;
+        const avatarSession = renderSession || leaseSessionFor(token)?.avatars;
         if (assetId && avatarSession) {
             const cached = avatarSession.peek(assetId);
             if (cached?.url) {
@@ -1367,7 +1381,7 @@ export function createQQApp({
                 element.replaceChildren(image);
             } else {
                 void avatarSession.load(assetId).then((render) => {
-                    if (!render?.url || !isActive(token)) return;
+                    if (!render?.url || !(isAvatarCurrent ? isAvatarCurrent() : isActive(token))) return;
                     const image = createElement('img');
                     image.alt = '';
                     image.src = render.url;
@@ -1377,6 +1391,22 @@ export function createQQApp({
             }
         }
         return element;
+    };
+
+    const createDialogAvatars = () => {
+        const token = renderEpoch;
+        const session = avatarRenderLeases.begin();
+        let active = true;
+        return {
+            render: (person) => avatar(person, 'yuzi-qq-avatar yuzi-qq-picker-avatar', {
+                renderSession: session,
+                isAvatarCurrent: () => active && isActive(token),
+            }),
+            dispose() {
+                active = false;
+                void session.abort();
+            },
+        };
     };
 
     const groupAvatar = (conversation, className = 'yuzi-qq-avatar', {
@@ -1839,29 +1869,37 @@ export function createQQApp({
         return navigation;
     };
 
-    const showDialog = ({ title, content, actions = [], dismissible = true, className = '' }) => {
+    const showDialog = ({ title, content, actions = [], dismissible = true, className = '', presentation = 'dialog', onClose = null }) => {
         clearOverlay();
         closeEmojiPanel();
         restoreOverlayFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-        const layer = createElement('div', 'yuzi-qq-overlay');
-        const dialog = createElement('section', `yuzi-qq-dialog ${className}`.trim());
+        const isSheet = presentation === 'sheet';
+        const isViewer = presentation === 'viewer';
+        const layer = createElement('div', `yuzi-qq-overlay yuzi-qq-settings-layer${isSheet ? ' phone-ios-layer is-visible yuzi-qq-sheet-layer' : ''}`);
+        const dialog = createElement('section', `yuzi-qq-dialog ${isViewer ? '' : isSheet ? 'phone-ios-sheet' : 'phone-confirm-dialog'} ${className}`.trim());
         dialog.setAttribute('role', 'dialog');
         dialog.setAttribute('aria-modal', 'true');
         dialog.setAttribute('aria-label', title || t("QQ 对话框"));
         dialog.tabIndex = -1;
+        if (isSheet) dialog.append(createElement('div', 'phone-ios-sheet-grabber'));
         if (title) {
-            const heading = createElement('h2', 'yuzi-qq-dialog-title');
+            const heading = createElement('h2', `yuzi-qq-dialog-title ${isSheet ? 'phone-ios-sheet-title' : 'phone-confirm-dialog-title'}`);
             heading.textContent = title;
             dialog.append(heading);
         }
         if (content) {
-            const body = createElement('div', 'yuzi-qq-dialog-body');
+            content.querySelectorAll('input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]), textarea, select')
+                .forEach((field) => field.classList.add('phone-ios-field'));
+            const body = createElement('div', `yuzi-qq-dialog-body${isViewer ? '' : isSheet ? ' phone-ios-sheet-body' : ' phone-confirm-dialog-message'}`);
             body.append(content);
             dialog.append(body);
         }
         if (actions.length) {
-            const controls = createElement('div', 'yuzi-qq-dialog-actions');
-            actions.forEach((action) => controls.append(action));
+            const controls = createElement('div', 'yuzi-qq-dialog-actions phone-confirm-dialog-buttons');
+            actions.forEach((action) => {
+                action.classList.add('phone-confirm-dialog-btn');
+                controls.append(action);
+            });
             dialog.append(controls);
         }
         if (dismissible) {
@@ -1894,9 +1932,13 @@ export function createQQApp({
             }
         });
         layer.append(dialog);
-        viewport?.append(layer);
+        getPhoneOverlayMountRoot(root)?.append(layer);
         overlay = layer;
-        queueMicrotask(() => (dialog.querySelector('input, textarea, button:not([disabled]), select:not([disabled])') || dialog).focus());
+        overlayCleanup = onClose;
+        queueMicrotask(() => {
+            if (overlay !== layer) return;
+            (dialog.querySelector('input:not([disabled]), textarea:not([disabled]), button:not([disabled]), select:not([disabled])') || dialog).focus({ preventScroll: true });
+        });
         return { layer, dialog };
     };
 
@@ -1918,6 +1960,8 @@ export function createQQApp({
         menu.setAttribute('role', 'menu');
         menu.setAttribute('aria-label', t("新建"));
         menu.tabIndex = -1;
+        const items = [...menu.querySelectorAll('button:not([disabled])')];
+        items.forEach((item) => item.setAttribute('role', 'menuitem'));
 
         layer.addEventListener('click', (event) => {
             if (event.target === layer) clearOverlay();
@@ -1930,7 +1974,16 @@ export function createQQApp({
         layer.append(menu);
         viewport.append(layer);
         overlay = layer;
-        queueMicrotask(() => (menu.querySelector('button:not([disabled])') || menu).focus());
+        menu.addEventListener('keydown', (event) => {
+            if (!['ArrowDown', 'ArrowUp', 'Home', 'End'].includes(event.key) || !items.length) return;
+            event.preventDefault();
+            const current = items.indexOf(document.activeElement);
+            const index = event.key === 'Home' ? 0 : event.key === 'End' ? items.length - 1
+                : event.key === 'ArrowDown' ? (current + 1) % items.length
+                    : (current < 0 ? items.length - 1 : (current - 1 + items.length) % items.length);
+            items[index].focus({ preventScroll: true });
+        });
+        queueMicrotask(() => { if (overlay === layer) menu.focus({ preventScroll: true }); });
         return { layer, menu };
     };
 
@@ -2693,6 +2746,7 @@ export function createQQApp({
             title: '',
             content: viewer,
             className: 'yuzi-qq-image-view-dialog',
+            presentation: 'viewer',
         });
     };
 
@@ -3262,10 +3316,11 @@ export function createQQApp({
                 main.style.setProperty('--yuzi-qq-chat-background-image', `url("${background.url}")`);
                 main.classList.add('has-chat-background');
             };
-            const cached = mediaSession?.peek(conversation.backgroundAssetId);
-            if (cached) applyBackground(cached);
-            else void mediaSession?.load(conversation.backgroundAssetId).then(applyBackground).catch(() => {});
+            try {
+                applyBackground(await mediaSession?.load(conversation.backgroundAssetId));
+            } catch { /* A missing background falls back to the current theme. */ }
         }
+        if (!isActive(token)) return main;
         const stream = renderMessageStream(conversation, currentStoryTime, currentIdentity);
         const composer = selectionMode
             ? renderMessageSelectionBar(conversation, {
@@ -4554,8 +4609,8 @@ export function createQQApp({
             return { scrollSnapshot: outgoingScrollSnapshot, deferred: false };
         }
 
-        // Keep the message list intact until the chat content is ready.
-        if (displayedViewKey === 'tab:messages' && targetViewKey.startsWith('page:chat:')) {
+        // Every chat entry keeps its previous surface until content and background are ready.
+        if (displayedViewKey && targetViewKey.startsWith('page:chat:')) {
             return { scrollSnapshot: null, deferred: true, chatEntry: true };
         }
 
@@ -4754,23 +4809,29 @@ export function createQQApp({
     };
 
     const openCreateGroupDialog = async () => {
+        const token = renderEpoch;
         const result = await facade.query.conversations();
+        if (!isActive(token)) return;
         const candidates = groupFriendCandidates(result?.ok ? result.conversations : []);
+        const portraits = createDialogAvatars();
         const content = createElement('div', 'yuzi-qq-dialog-form yuzi-qq-create-group-form');
         const name = createElement('input', 'yuzi-qq-create-group-name');
         name.placeholder = t("群名称");
         name.maxLength = 120;
         name.setAttribute('aria-label', t("群名称"));
-        const members = createElement('div', 'yuzi-qq-group-picker-list');
+        const members = createElement('div', 'phone-ios-group yuzi-qq-group-picker-list');
         candidates.forEach((conversation) => {
-            const row = createElement('label', 'yuzi-qq-group-picker-row');
+            const row = createElement('label', 'phone-ios-row yuzi-qq-group-picker-row');
             const checkbox = createElement('input', 'yuzi-qq-group-picker-checkbox');
             checkbox.type = 'checkbox';
             checkbox.value = conversation.personId;
             checkbox.dataset.qqGroupMemberChoice = conversation.personId;
-            const label = createElement('span', 'yuzi-qq-group-picker-name');
+            const label = createElement('span', 'yuzi-qq-person-picker-name');
             label.textContent = contactFormalName(conversation);
-            row.append(checkbox, label);
+            const check = createElement('span', 'yuzi-qq-picker-check');
+            check.setAttribute('aria-hidden', 'true');
+            check.textContent = '✓';
+            row.append(checkbox, portraits.render(conversation), label, check);
             members.append(row);
         });
         const error = createElement('p', 'yuzi-qq-form-error');
@@ -4801,7 +4862,7 @@ export function createQQApp({
         });
         if (candidates.length < 2) error.textContent = t("至少需要两名已有 QQ 好友");
         content.append(name, members, error);
-        showDialog({ title: t("创建群聊"), content, actions: [cancel, confirm], className: 'yuzi-qq-create-group-dialog' });
+        showDialog({ title: t("创建群聊"), content, actions: [cancel, confirm], className: 'yuzi-qq-create-group-dialog yuzi-qq-person-picker-dialog', onClose: portraits.dispose });
         toggle();
         name.focus();
     };
@@ -4961,7 +5022,7 @@ export function createQQApp({
         const rows = [
             [t("创建群聊"), 'message'],
             [t("创建频道"), 'hashtag'],
-            [t("加好友/群"), 'user-plus'],
+            [t("加好友"), 'user-plus'],
         ];
         rows.forEach(([label, iconName], index) => {
             const isGroupAction = index === 0;
@@ -5562,6 +5623,7 @@ export function createQQApp({
             content: dialog.content,
             actions: dialog.actions,
             className: 'yuzi-qq-sticker-upload-dialog',
+            presentation: 'sheet',
         });
         overlayCleanup = dialog.dispose;
         dialog.focus();
@@ -5989,7 +6051,7 @@ export function createQQApp({
         closeConversationSwipe();
     };
 
-    const assistantUI = createAssistantUI({ facade, createElement, createButton, avatar, showDialog, clearOverlay,
+    const assistantUI = createAssistantUI({ facade, createElement, createButton, createDialogAvatars, showDialog, clearOverlay,
         openChat, render, makeSecondaryPage,
         profileEditor: {
             fieldRow: profileEditRow, assetRow: profileAssetRow, messageColorRow: profileMessageTextColorRow, voiceRow: profileVoiceRow,
@@ -6000,7 +6062,7 @@ export function createQQApp({
 
     const handleClick = async (event) => {
         const target = event.target.closest('button');
-        if (!target || !viewport?.contains(target)) return;
+        if (!target || !root?.contains(target)) return;
         if (target.dataset.qqViewMedia) {
             if (isMessageSelectionMode(target.dataset.qqMediaConversationId || page?.conversationId)) return;
             event.preventDefault();
@@ -6197,7 +6259,7 @@ export function createQQApp({
 
     const handleSubmit = async (event) => {
         const form = event.target;
-        if (!(form instanceof HTMLFormElement) || !viewport?.contains(form)) return;
+        if (!(form instanceof HTMLFormElement) || !root?.contains(form)) return;
         event.preventDefault();
         if (form.dataset.qqComposer) {
             await submitComposer(form.dataset.qqComposer, form.elements.message?.value);
@@ -6238,6 +6300,9 @@ export function createQQApp({
         void enqueueSettingsSave(() => persistSettings(form, field)).catch(report);
     };
 
+    const handleRootClick = (event) => { void handleClick(event).catch(report); };
+    const handleRootSubmit = (event) => { void handleSubmit(event).catch(report); };
+
     return Object.freeze({
         mount(container) {
             if (!(container instanceof HTMLElement)) throw new TypeError('QQ App mount needs an element');
@@ -6247,9 +6312,9 @@ export function createQQApp({
             viewport = createElement('div', 'yuzi-qq-viewport');
             viewport.addEventListener('pointerdown', handleEmojiPanelPointerDown);
             viewport.addEventListener('keydown', handleEmojiPanelKeyDown);
-            viewport.addEventListener('click', (event) => { void handleClick(event).catch(report); });
-            viewport.addEventListener('submit', (event) => { void handleSubmit(event).catch(report); });
-            viewport.addEventListener('change', handleChange);
+            root.addEventListener('click', handleRootClick);
+            root.addEventListener('submit', handleRootSubmit);
+            root.addEventListener('change', handleChange);
             viewport.addEventListener('scroll', handleConversationListScroll, true);
             window.addEventListener('yuzi-phone-resize-start', handlePhoneResizeStart);
             if (root.querySelector('[data-qq-route-skeleton]')) {
@@ -6325,6 +6390,9 @@ export function createQQApp({
             conversationSnapshots.clear();
             displayedViewKey = '';
             window.removeEventListener('yuzi-phone-resize-start', handlePhoneResizeStart);
+            root?.removeEventListener('click', handleRootClick);
+            root?.removeEventListener('submit', handleRootSubmit);
+            root?.removeEventListener('change', handleChange);
             viewport?.removeEventListener('pointerdown', handleEmojiPanelPointerDown);
             viewport?.removeEventListener('keydown', handleEmojiPanelKeyDown);
             viewport?.removeEventListener('scroll', handleConversationListScroll, true);

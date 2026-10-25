@@ -1,6 +1,7 @@
 import { t } from '../i18n/index.js';
 import { escapeHtml, escapeHtmlAttr } from '../utils/dom-escape.js';
 import { buildDetailEditControlHtml } from './detail-edit-field.js';
+import { PHONE_ICONS } from '../phone-home/icons.js';
 import {
     buildPhoneBackButton,
     buildPhoneNavBar,
@@ -22,9 +23,17 @@ export function buildGenericDetailPageHtml(options = {}) {
     const prevIndex = Number.isInteger(pagerInfo.prevIndex) ? pagerInfo.prevIndex : -1;
     const nextIndex = Number.isInteger(pagerInfo.nextIndex) ? pagerInfo.nextIndex : -1;
     const navHtml = buildPhoneNavBar({
-        className: 'phone-generic-slot-nav',
-        leadingHtml: buildPhoneBackButton({ action: 'detail-back' }),
+        className: `phone-generic-slot-nav${state.editMode ? ' has-inline-actions' : ''}`,
+        leadingHtml: buildPhoneBackButton({ action: 'detail-back', disabled: state.saving }),
         centerHtml: buildPhoneNavTitleSwitcher({ title }),
+        trailingHtml: state.editMode
+            ? `<div class="phone-nav-inline-actions phone-generic-detail-edit-actions">
+                    <button type="button" class="phone-nav-icon-button" id="phone-toggle-edit-mode" title="${t("取消")}" aria-label="${t("取消")}" ${state.saving ? 'disabled' : ''}>${PHONE_ICONS.editCancel}</button>
+                    <button type="button" class="phone-nav-icon-button is-primary" id="phone-save-row" title="${t("保存")}" aria-label="${t("保存")}" aria-busy="${state.saving ? 'true' : 'false'}" ${rowLocked || state.saving ? 'disabled' : ''}>${PHONE_ICONS.editSave}</button>
+                </div>`
+            : state.cellLockManageMode
+                ? `<button type="button" class="phone-nav-icon-button phone-generic-manage-done" id="phone-cell-lock-mode-btn">${t("完成")}</button>`
+                : `<button type="button" class="phone-nav-icon-button phone-generic-manage-menu" data-action="detail-management" aria-label="${t("字段锁定")}" aria-haspopup="dialog" title="${t("字段锁定")}"><i class="fa-solid fa-ellipsis" aria-hidden="true"></i></button>`,
     });
     const previousHtml = buildPhoneSwitchButton('previous', {
         className: 'phone-detail-pager-btn',
@@ -48,7 +57,7 @@ export function buildGenericDetailPageHtml(options = {}) {
     });
 
     return `
-        <div class="phone-app-page phone-generic-root ${genericStylePayload.className}" data-generic-template-id="${escapeHtmlAttr(genericStylePayload.templateId)}" ${genericStylePayload.dataAttrs} style="${genericStylePayload.styleAttr}">
+        <div class="phone-app-page phone-generic-root phone-generic-detail-root ${genericStylePayload.className}" data-generic-template-id="${escapeHtmlAttr(genericStylePayload.templateId)}" ${genericStylePayload.dataAttrs} style="${genericStylePayload.styleAttr}">
             ${genericStylePayload.scopedCss ? `<style class="phone-generic-template-inline-style">${genericStylePayload.scopedCss}</style>` : ''}
             ${navHtml}
             <div class="phone-app-body phone-table-body phone-generic-slot-body">
@@ -76,11 +85,11 @@ export function buildGenericDetailPageHtml(options = {}) {
                 ${previousHtml}
                 ${nextHtml}
             </div>
-            <div class="phone-detail-bottom-bar phone-generic-slot-actions" data-phone-bottom-bar>
-                <button type="button" class="phone-detail-bottom-btn" id="phone-toggle-edit-mode">${state.editMode ? t("退出编辑") : t("进入编辑")}</button>
-                <button type="button" class="phone-detail-bottom-btn" id="phone-save-row" ${state.editMode && !rowLocked ? '' : 'disabled'}>${state.saving ? t("保存中...") : t("保存更改")}</button>
-                <button type="button" class="phone-detail-bottom-btn ${state.cellLockManageMode ? 'active' : ''}" id="phone-cell-lock-mode-btn">${state.cellLockManageMode ? t("完成") : t("字段锁定")}</button>
-            </div>
+            ${!state.editMode && !state.cellLockManageMode ? `
+                <button type="button" class="phone-entry-fab phone-detail-fab phone-generic-slot-actions" id="phone-toggle-edit-mode" aria-label="${t("进入编辑")}" title="${t("进入编辑")}" ${rowLocked ? 'disabled' : ''}>
+                    <i class="fa-solid fa-pencil" aria-hidden="true"></i>
+                </button>
+            ` : ''}
         </div>
     `;
 }

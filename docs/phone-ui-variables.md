@@ -70,6 +70,26 @@
 7. 所有**扩展自有** CSS 自定义属性必须以 `--yuzi-` 开头；按职责使用 `--yuzi-phone-*`、`--yuzi-theme-*`、`--yuzi-settings-*`、`--yuzi-variable-manager-*`、`--yuzi-theater-*`、`--yuzi-table-review-*` 或 `--yuzi-generic-template-*`，不得新增 `--phone-*`、`--vm-*`、`--tur-*`、`--calendar-*` 等通用前缀。
 8. 通用表的正式运行时变量是 `--yuzi-generic-template-*` 与 `--yuzi-generic-template-resolved-*`。旧模板中的 `--gt*`、`--_gt-*` 和旧 style token key 会在进入运行时前兼容迁移；它们只属于历史输入，不得在新增样式、内置模板或文档示例中使用。
 
+## 通用列表操作与 QQ 公共弹层
+
+通用表格列表的新增入口使用 `.phone-entry-fab.phone-list-fab`，右上角 `.phone-generic-manage-menu` 通过公共 `showSettingsActionSheet()` 提供锁定管理和批量删除；管理态隐藏新增入口，标题栏显示 `.phone-generic-manage-done`，删除态继续显示全选、清空和删除数量。既有 `structureOptions.bottomBar.showAdd/showLock/showDelete` 和隐藏操作区设置继续控制入口。
+
+详情页使用同一浮动按钮 `.phone-entry-fab.phone-detail-fab` 进入编辑，整行锁定时禁用；编辑态隐藏铅笔，左侧保留返回，右侧 `.phone-nav-inline-actions.phone-generic-detail-edit-actions` 并排放取消「×」／保存「✓」。图标由 `PHONE_ICONS.editCancel/editSave` 提供，沿用底部可视化的 SVG 路径与手机导航热区；保存使用当前模板的强调色浅底。保存成功退出编辑、失败保留草稿，保存中禁用返回、取消和保存。字段锁定放在右上角公共操作菜单，锁定管理态显示完成。
+
+详情页正文与列表页一样延伸至屏幕底部，安全留白放在滚动内容内部，不在外层容器保留截断正文的固定色带。底部上一条／下一条保留原模板和点击逻辑，通过绝对定位保持原视觉位置：底部偏移仍为 Home 热区高度＋浮动按钮间距，并沿用原翻页栏位移。详情页不声明整条底栏，浮动按钮和翻页均不占用正文布局高度。
+
+浮动按钮尺寸只使用 `--yuzi-phone-list-fab-size`（52px）、`--yuzi-phone-list-fab-inset`（18px）、`--yuzi-phone-list-fab-icon-size`（22px）和 `--yuzi-phone-list-fab-z-index`（12）；颜色消费当前模板的 accent / accent-contrast，阴影复用 `--yuzi-phone-shadow-soft`。按钮与列表末尾留白共用 Home Indicator 热区高度 token，不声明 `data-phone-bottom-bar`，避免把浮动按钮识别为整条底栏。
+
+QQ 的 `showDialog()` 保留原有焦点、关闭、处理中禁用和资源清理逻辑，居中弹窗复用 `.phone-confirm-dialog-*`，输入复用 `.phone-ios-field`；创建群聊与陪聊人物选择使用居中 `.yuzi-qq-person-picker-dialog`，表情录入继续使用 `.phone-ios-sheet`。`.yuzi-qq-settings-layer` 统一把公共组件颜色映射到 QQ 深浅主题；几何消费 `--yuzi-settings-alert-*` 与 `--yuzi-settings-sheet-*`。图片查看保留原有专用布局。
+
+人物选择行使用 `.phone-ios-row`：左侧 `.yuzi-qq-picker-avatar`，姓名 `.yuzi-qq-person-picker-name` 紧邻头像并左对齐；群聊多选在最右侧显示 `.yuzi-qq-picker-check`，隐藏原生复选框外观，保留标签点击、键盘与 checked 状态。头像尺寸 `--yuzi-qq-picker-avatar-size` 为 36px，圆圈 `--yuzi-qq-picker-check-size` 为 22px；选中显示主题色圆底与白色勾。陪聊仍点人物直接进入，不增加确认步骤。两处共用头像渲染与缓存，各弹窗单独持有资源会话，关闭时释放，迟到结果不写入已关闭弹窗。
+
+QQ 居中／内容弹窗和公共确认框通过 `getPhoneOverlayMountRoot()` 挂在完整 `.phone-page` 上，让遮罩覆盖外壳延伸的 Home 背景；Home 横条仍由外壳持有。QQ 事件委托随弹窗提升到 App 根节点，并在销毁时注销，主题作用域保持在原 QQ 根内。手机外调用保留原容器；设置底部面板继续使用已有手机临时层。
+
+QQ 消息、联系人和图片包锚定菜单共用透明菜单行；菜单高度随条目数增长，每行最小高度复用公共按钮的 44px token，图标定宽使用 `--yuzi-qq-dialog-menu-icon-size`（20px），外围间距使用 `--yuzi-qq-inline-gap`。旧 `--yuzi-qq-dialog-menu-height` 仅保留兼容声明，不再固定菜单高度。指针打开时聚焦菜单容器，键盘方向键或 Tab 可进入条目，以柔和背景显示焦点。
+
+所有聊天入口均保留上一页，等目标聊天内容及背景图片加载、解码完成后一起切入；背景继续使用独立的有界媒体租约缓存。失效图片回退当前主题，过期渲染不写入页面；这属于宿主渲染时序，不新增作者生命周期或图片格式。
+
 ## 基础与外壳
 
 | 类别 | token | 值 |
@@ -384,7 +404,7 @@ Figma 原始底栏顺序不直接复用。生产 QQ 固定为 消息、联系人
 | 人物资料 | --yuzi-qq-profile-sheet-start / --yuzi-qq-profile-sheet-overlap / --yuzi-qq-profile-row-height / --yuzi-qq-profile-avatar-size / --yuzi-qq-profile-hero-avatar-size / --yuzi-qq-profile-avatar-overlap / --yuzi-qq-profile-avatar-initial-size | 226px / 36px / 102px / 68px / 84px / 36px / 30px |
 | 人物操作栏 | --yuzi-qq-profile-action-bar-height / --yuzi-qq-profile-action-padding-top / --yuzi-qq-profile-action-padding-inline / --yuzi-qq-profile-action-gap / --yuzi-qq-profile-action-radius | 83px / 4px / 16px / 8px / 8px |
 | 编辑资料 | --yuzi-qq-editor-group-radius / --yuzi-qq-editor-group-padding-block / --yuzi-qq-editor-group-padding-inline / --yuzi-qq-form-group-gap | 14px / 13px / 16px / 10px |
-| 添加菜单 | --yuzi-qq-dialog-menu-width / --yuzi-qq-dialog-menu-height / --yuzi-qq-dialog-menu-radius / --yuzi-qq-dialog-menu-padding | 168px / 142px / 14px / 16px |
+| 添加菜单 | --yuzi-qq-dialog-menu-width / --yuzi-qq-dialog-menu-icon-size / --yuzi-qq-dialog-menu-radius | 168px / 20px / 14px；高度随内容增长，行热区复用公共 44px 按钮 |
 | 设置一级 | --yuzi-qq-settings-root-group-radius / --yuzi-qq-settings-root-group-padding-* | 27px / 12px 24px 12px 12px |
 | 设置二级 | --yuzi-qq-settings-detail-card-radius / --yuzi-qq-settings-detail-card-padding-* | 27px / 24px 12px |
 

@@ -264,6 +264,12 @@
     --yuzi-phone-nav-inline-actions-gap: clamp(4px, 1.5cqi, 6px);
     --yuzi-phone-nav-inline-action-padding-inline: clamp(4px, 2cqi, 8px);
 
+    /* 通用表格：列表新增与详情编辑共用浮动按钮，颜色沿用当前模板。 */
+    --yuzi-phone-list-fab-size: 52px;
+    --yuzi-phone-list-fab-inset: 18px;
+    --yuzi-phone-list-fab-icon-size: 22px;
+    --yuzi-phone-list-fab-z-index: 12;
+
     /* 主屏：等比例图标与随手机容器宽度调整的应用槽。 */
     --yuzi-phone-home-grid-columns: 4;
     --yuzi-phone-home-grid-block-size: 642px;
@@ -960,6 +966,7 @@
     --yuzi-qq-dialog-menu-radius: 14px;
     --yuzi-qq-dialog-menu-padding: 16px;
     --yuzi-qq-dialog-menu-row-height: 26px;
+    --yuzi-qq-dialog-menu-icon-size: 20px;
     --yuzi-qq-dialog-menu-row-gap: 18px;
     --yuzi-qq-profile-sheet-radius: 20px 20px 0 0;
     --yuzi-qq-profile-action-padding-bottom: 0;
@@ -1090,6 +1097,8 @@
     --yuzi-qq-send-switch-thumb: 20px;
     --yuzi-qq-send-switch-duration: 150ms;
     --yuzi-qq-checkbox-size: 18px;
+    --yuzi-qq-picker-avatar-size: 36px;
+    --yuzi-qq-picker-check-size: 22px;
     --yuzi-qq-checkbox-radius: 4px;
     --yuzi-qq-profile-cover-height: 234px;
     --yuzi-qq-profile-detail-row-min-height: 50px;

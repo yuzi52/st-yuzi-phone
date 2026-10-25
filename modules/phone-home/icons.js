@@ -39,6 +39,8 @@ export const PHONE_ICONS = {
     battery: `<img class="phone-status-icon" src="${PHONE_STATUS_BATTERY_ICON}" alt="" aria-hidden="true">`,
     back: buildPhoneNavIcon(PHONE_NAV_ICON_PATHS.back),
     forward: buildPhoneNavIcon(PHONE_NAV_ICON_PATHS.forward),
+    editCancel: buildPhoneNavIcon('m6 6 12 12M6 18 18 6'),
+    editSave: buildPhoneNavIcon('m5 12 4 4L19 6'),
     gear: buildDockIcon('settings', '<path d="M21 10h6l1 4 3 2 4-1 3 5-3 3v3l3 3-3 5-4-1-3 2-1 4h-6l-1-4-3-2-4 1-3-5 3-3v-3l-3-3 3-5 4 1 3-2z"/><circle cx="24" cy="24.5" r="6"/>'),
     visualizer: buildDockIcon('visualizer', '<rect x="11" y="12" width="26" height="20" rx="4" fill="currentColor" fill-opacity=".12"/><path d="M11 19h26M21 19v13M16 37h16"/><path d="m26 27 3-3 3 3"/>'),
     database: buildDockIcon('database', '<ellipse cx="24" cy="13" rx="12" ry="5" fill="currentColor" fill-opacity=".16"/><path d="M12 13v22c0 2.8 5.4 5 12 5s12-2.2 12-5V13M12 24c0 2.8 5.4 5 12 5s12-2.2 12-5"/>'),

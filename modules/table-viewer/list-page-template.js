@@ -117,7 +117,10 @@ function buildGenericTitleNavigationHtml(tableName, navigationControlState = {},
 export function buildGenericListNavHtml(options = {}) {
     const {
         tableName = '',
+        lockManageMode = false,
         deleteManageMode = false,
+        showLockAction = true,
+        showDeleteAction = true,
         deletingSelection = false,
         selectedDeleteCount = 0,
         selectableDeleteCount = 0,
@@ -130,19 +133,24 @@ export function buildGenericListNavHtml(options = {}) {
     const clearDisabled = deletingSelection || selectedCount <= 0;
     const deleteDisabled = deletingSelection || selectedCount <= 0;
 
-    const actionsHtml = deleteManageMode ? `
+    const managementHtml = lockManageMode || deleteManageMode
+        ? `<button type="button" class="phone-nav-icon-button phone-generic-manage-done" data-action="${lockManageMode ? 'toggle-lock-mode' : 'toggle-delete-mode'}" ${deletingSelection ? 'disabled' : ''}>${t("完成")}</button>`
+        : showLockAction || showDeleteAction
+            ? `<button type="button" class="phone-nav-icon-button phone-generic-manage-menu" data-action="open-list-management" data-show-lock="${showLockAction}" data-show-delete="${showDeleteAction}" aria-label="${t("管理条目")}" aria-haspopup="dialog" title="${t("管理条目")}"><i class="fa-solid fa-ellipsis" aria-hidden="true"></i></button>`
+            : '';
+    const actionsHtml = managementHtml + (deleteManageMode ? `
                 <div class="phone-nav-secondary-actions phone-generic-nav-delete-actions" aria-label="${t`批量删除操作`}">
                     <button type="button" class="phone-generic-nav-delete-btn ${allVisibleDeleteRowsSelected ? 'is-active' : ''}" data-action="select-all-delete-rows" aria-pressed="${allVisibleDeleteRowsSelected ? 'true' : 'false'}" ${selectAllDisabled ? 'disabled' : ''}>${t`全选`}</button>
                     <button type="button" class="phone-generic-nav-delete-btn" data-action="clear-delete-selection" ${clearDisabled ? 'disabled' : ''}>${t`清空`}</button>
                     <button type="button" class="phone-generic-nav-delete-btn is-danger" data-action="delete-selected-rows" ${deleteDisabled ? 'disabled' : ''}>${deletingSelection ? t("删除中...") : t`删 ${selectedCount}`}</button>
                 </div>
-            ` : '';
+            ` : '');
 
     return buildPhoneNavBar({
         className: `phone-generic-slot-nav ${deleteManageMode ? 'is-generic-delete-mode has-secondary-actions' : ''}`,
         attributes: { 'data-generic-list-region': 'nav' },
         leadingHtml: buildPhoneBackButton({ action: 'nav-back' }),
-        centerHtml: buildGenericTitleNavigationHtml(tableName, navigationControlState, !deleteManageMode),
+        centerHtml: buildGenericTitleNavigationHtml(tableName, navigationControlState, !deleteManageMode && !lockManageMode),
         trailingHtml: actionsHtml,
     });
 }
@@ -320,22 +328,18 @@ export function buildGenericListContentHtml(options = {}) {
 export function buildGenericListBottomBarHtml(options = {}) {
     const {
         showAddAction = true,
-        showLockAction = true,
-        showDeleteAction = true,
         lockManageMode = false,
         deleteManageMode = false,
     } = options;
 
-    if (!showAddAction && !showLockAction && !showDeleteAction) {
+    if (!showAddAction || lockManageMode || deleteManageMode) {
         return '';
     }
 
     return `
-        <div class="phone-list-bottom-bar phone-generic-slot-actions" data-phone-bottom-bar>
-            ${showAddAction ? `<button type="button" class="phone-list-bottom-btn" id="phone-list-add-btn" data-action="add-row">${t("新增")}</button>` : ''}
-            ${showLockAction ? `<button type="button" class="phone-list-bottom-btn ${lockManageMode ? 'active' : ''}" id="phone-list-lock-btn" data-action="toggle-lock-mode">${lockManageMode ? t("完成") : t("锁定")}</button>` : ''}
-            ${showDeleteAction ? `<button type="button" class="phone-list-bottom-btn ${deleteManageMode ? 'active' : ''}" id="phone-list-delete-btn" data-action="toggle-delete-mode">${deleteManageMode ? t("完成") : t("删除")}</button>` : ''}
-        </div>
+        <button type="button" class="phone-entry-fab phone-list-fab phone-generic-slot-actions" id="phone-list-add-btn" data-action="add-row" aria-label="${t("新增条目")}" title="${t("新增条目")}">
+            <i class="fa-solid fa-plus" aria-hidden="true"></i>
+        </button>
     `;
 }
 
@@ -377,7 +381,10 @@ export function buildGenericListPageHtml(options = {}) {
             ${genericStylePayload.scopedCss ? `<style class="phone-generic-template-inline-style">${genericStylePayload.scopedCss}</style>` : ''}
             ${buildGenericListNavHtml({
                 tableName,
+                lockManageMode,
                 deleteManageMode,
+                showLockAction,
+                showDeleteAction,
                 deletingSelection,
                 selectedDeleteCount,
                 selectableDeleteCount,

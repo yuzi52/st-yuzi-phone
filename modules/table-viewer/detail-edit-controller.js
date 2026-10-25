@@ -2,6 +2,7 @@ import { t } from '../i18n/index.js';
 import { Logger } from '../error-handler.js';
 import { findFirstEnumValidationError } from './ddl-field-metadata.js';
 import { resizeDetailTextarea as resizeTextarea } from './detail-edit-field.js';
+import { showSettingsActionSheet } from '../settings-app/ui/settings-layer.js';
 
 const logger = Logger.withScope({ scope: 'table-viewer/detail-edit', feature: 'table-viewer' });
 const DETAIL_CONTROLLER_CLEANUP_KEY = '__yuziGenericDetailControllerCleanup';
@@ -107,6 +108,7 @@ export function bindGenericDetailEditController(options = {}) {
 
         const detailBackEl = target.closest('[data-action="detail-back"]');
         if (detailBackEl instanceof HTMLElement && container.contains(detailBackEl)) {
+            if (state.saving) return;
             state.returnToListMode();
             if (typeof render === 'function') {
                 render();
@@ -118,7 +120,22 @@ export function bindGenericDetailEditController(options = {}) {
         }
 
         if (target.closest('#phone-toggle-edit-mode')) {
+            if (state.saving) return;
             handleToggleEditMode();
+            return;
+        }
+
+        if (target.closest('[data-action="detail-management"]')) {
+            showSettingsActionSheet({
+                title: t("管理条目"),
+                runtime: controllerRuntime,
+                actions: [{
+                    label: t("字段锁定"),
+                    onSelect: () => {
+                        if (!disposed && isViewerActive() && !state.saving) handleToggleCellLockManageMode();
+                    },
+                }],
+            });
             return;
         }
 

@@ -409,6 +409,92 @@
     background: linear-gradient(to bottom, var(--yuzi-generic-template-resolved-body-bg) 70%, transparent);
 }
 
+/* List and detail share one primary action; management uses the shared action sheet. */
+.phone-generic-root.phone-generic-template-scope .phone-entry-fab.phone-generic-slot-actions {
+    position: absolute;
+    inset: auto var(--yuzi-phone-list-fab-inset) calc(var(--yuzi-phone-home-indicator-hit-height) + var(--yuzi-phone-list-fab-inset)) auto;
+    z-index: var(--yuzi-phone-list-fab-z-index);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    inline-size: var(--yuzi-phone-list-fab-size);
+    block-size: var(--yuzi-phone-list-fab-size);
+    margin: 0;
+    padding: 0;
+    border: 0;
+    border-radius: var(--yuzi-phone-radius-pill);
+    background: var(--yuzi-generic-template-resolved-accent);
+    color: var(--yuzi-generic-template-resolved-accent-contrast);
+    box-shadow: var(--yuzi-phone-shadow-soft);
+    font-size: var(--yuzi-phone-list-fab-icon-size);
+    cursor: pointer;
+    touch-action: manipulation;
+}
+
+.phone-generic-root.phone-generic-template-scope .phone-entry-fab:is(:hover, :active):not(:disabled) {
+    background: var(--yuzi-generic-template-resolved-accent-strong);
+}
+
+.phone-generic-root.phone-generic-template-scope .phone-entry-fab:focus-visible {
+    outline: var(--yuzi-phone-nav-focus-ring-width) solid var(--yuzi-generic-template-resolved-accent);
+    outline-offset: var(--yuzi-generic-template-resolved-gap-xs);
+}
+
+.phone-generic-root.phone-generic-template-scope .phone-entry-fab:disabled {
+    opacity: var(--yuzi-phone-nav-disabled-opacity);
+    cursor: default;
+}
+
+.phone-generic-root.phone-generic-template-scope.phone-generic-detail-root > .phone-detail-pager-bar {
+    /* Same position as before, without shortening the scrolling surface. */
+    position: absolute;
+    inset-inline: 0;
+    bottom: calc(var(--yuzi-phone-home-indicator-hit-height) + var(--yuzi-phone-list-fab-inset));
+}
+
+.phone-generic-root.phone-generic-template-scope:has([data-generic-list-region="bottom-bar"]) .phone-generic-slot-body {
+    padding-bottom: calc(var(--yuzi-phone-home-indicator-hit-height) + var(--yuzi-generic-template-resolved-gap-md));
+}
+
+.phone-generic-root.phone-generic-template-scope.phone-generic-detail-root .phone-generic-slot-body,
+.phone-generic-root.phone-generic-template-scope:not([data-layout-action-bar-mode="hidden"]):has(.phone-list-fab) .phone-generic-slot-body {
+    padding-bottom: calc(var(--yuzi-phone-home-indicator-hit-height) + var(--yuzi-phone-list-fab-size) + var(--yuzi-phone-list-fab-inset) * 2);
+}
+
+.phone-generic-root.phone-generic-template-scope .phone-generic-manage-menu,
+.phone-generic-root.phone-generic-template-scope .phone-generic-manage-done {
+    color: var(--yuzi-generic-template-resolved-accent);
+    line-height: normal;
+    font-size: var(--yuzi-settings-row-value-size);
+}
+
+.phone-generic-root.phone-generic-template-scope .phone-generic-manage-menu {
+    font-size: var(--yuzi-phone-nav-icon-size);
+}
+
+.phone-generic-detail-root .phone-generic-slot-nav.has-inline-actions {
+    --yuzi-phone-nav-side-slot-width: calc(var(--yuzi-phone-nav-control-size) * 2 + var(--yuzi-phone-nav-inline-actions-gap) + var(--yuzi-phone-nav-padding-inline-end));
+}
+
+.phone-generic-root.phone-generic-template-scope .phone-generic-detail-edit-actions .phone-nav-icon-button {
+    color: var(--yuzi-generic-template-resolved-muted-text);
+}
+
+.phone-generic-root.phone-generic-template-scope .phone-generic-detail-edit-actions .is-primary {
+    color: var(--yuzi-generic-template-resolved-accent);
+    background: var(--yuzi-generic-template-resolved-accent-soft);
+}
+
+.phone-generic-slot-nav.has-secondary-actions .phone-generic-manage-done {
+    position: absolute;
+    inset-block-start: calc(var(--yuzi-phone-app-nav-top-padding) + (var(--yuzi-phone-nav-content-height) - var(--yuzi-phone-nav-control-size)) / 2);
+    inset-inline-end: var(--yuzi-phone-nav-padding-inline-end);
+}
+
+.phone-generic-root.phone-generic-template-scope[data-layout-action-bar-mode="hidden"] .phone-generic-manage-menu {
+    display: none;
+}
+
 .phone-generic-root.phone-generic-template-scope .phone-settings-btn,
 .phone-generic-root.phone-generic-template-scope .phone-cell-lock-btn,
 .phone-generic-root.phone-generic-template-scope .phone-row-lock-chip {

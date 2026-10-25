@@ -1,7 +1,7 @@
 import { t } from '../../i18n/index.js';
 
 // 只拥有人物选择与人设编辑；会话列表、消息、媒体和请求仍由 QQ App 拥有。
-export function createAssistantUI({ facade, createElement: el, createButton: button, avatar,
+export function createAssistantUI({ facade, createElement: el, createButton: button, createDialogAvatars,
     showDialog, clearOverlay, openChat, render, makeSecondaryPage, profileEditor, isCurrent, report }) {
     const drafts = new Map();
     const check = result => {
@@ -23,6 +23,7 @@ export function createAssistantUI({ facade, createElement: el, createButton: but
             accept.disabled = true;
             try { await action(); } catch (error) { accept.disabled = false; report(error); }
         });
+        content.className = 'yuzi-qq-confirm-copy';
         showDialog({ title, content, actions: [cancel, accept] });
     };
     const createCharacter = () => {
@@ -48,12 +49,13 @@ export function createAssistantUI({ facade, createElement: el, createButton: but
         try {
             const { characters } = check(await facade.query.assistantCharacters());
             if (!isCurrent()) return;
-            const content = el('div', 'yuzi-qq-assistant-characters');
+            const portraits = createDialogAvatars();
+            const content = el('div', 'phone-ios-group yuzi-qq-assistant-characters');
             for (const character of characters) {
-                const row = el('div', 'yuzi-qq-assistant-character-row');
-                const select = button('', 'yuzi-qq-conversation-row');
-                const label = el('span'); label.textContent = character.formalName;
-                select.append(avatar(character), label);
+                const row = el('div', 'phone-ios-row yuzi-qq-assistant-character-row');
+                const select = button('', 'yuzi-qq-person-picker-choice');
+                const label = el('span', 'yuzi-qq-person-picker-name'); label.textContent = character.formalName;
+                select.append(portraits.render(character), label);
                 select.addEventListener('click', async () => {
                     select.disabled = true;
                     try { await open({ characterId: character.characterId }); }
@@ -72,7 +74,7 @@ export function createAssistantUI({ facade, createElement: el, createButton: but
             }
             const add = button(t("新建人物"), 'yuzi-qq-primary-button'); add.addEventListener('click', createCharacter);
             const close = button(t("取消"), 'yuzi-qq-secondary-button'); close.addEventListener('click', clearOverlay);
-            showDialog({ title: t("选择陪聊人物"), content, actions: [close, add] });
+            showDialog({ title: t("选择陪聊人物"), content, actions: [close, add], className: 'yuzi-qq-person-picker-dialog', onClose: portraits.dispose });
         } catch (error) { report(error); }
     };
     const settings = async (conversation, token) => {

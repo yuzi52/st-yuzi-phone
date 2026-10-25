@@ -550,11 +550,13 @@ viewer runtime 对外提供：
 - 模板字段绑定来自 [`createGenericTemplateStylePayload()`](../modules/table-viewer/generic-style-payload.js:96) 输出的 `fieldBindings`。
 - 列表 patch 使用 `rowKey` 与 `rowVersion`，见 [`buildGenericListRowRenderVersion()`](../modules/table-viewer/list-page-renderer.js:264)。删除选择态会进入 `rowVersion`，否则圆圈勾选变化不会触发行节点替换。
 - 搜索基于 [`searchText`](../modules/table-viewer/row-view-model.js:262)，排序通过 [`listSortDescending`](../modules/table-viewer/state.js:576) 控制。删除态下搜索变化必须把 [`selectedDeleteRowIndexes`](../modules/table-viewer/state.js:571) 约束到当前可见且未锁定行，防止隐藏行被误删。
-- 新增、锁定、删除按钮是否显示由模板 `structureOptions.bottomBar` 影响，最终进入 [`buildGenericListBottomBarHtml()`](../modules/table-viewer/list-page-template.js:313)。删除态下右侧单行删除按钮会替换为圆形选择控件，标题栏右侧由 [`buildGenericListNavHtml()`](../modules/table-viewer/list-page-template.js:117) 渲染全选、清空、批量删除按钮。
+- 新增、锁定、删除入口仍由模板 `structureOptions.bottomBar` 控制。`buildGenericListBottomBarHtml()` 只生成右下角新增浮动按钮，管理态隐藏；`buildGenericListNavHtml()` 在普通态显示管理菜单，在管理态显示完成，删除态另显示全选、清空与删除数量。菜单复用 `showSettingsActionSheet()`，继续调用既有锁定／删除状态方法；删除选择仍使用行内圆圈，锁定行不可选。列表与详情共用 `.phone-entry-fab`，均不声明整条底栏契约。
 
 列表页事件由 [`bindGenericListPageController()`](../modules/table-viewer/list-page-controller.js:521) 委托处理。新增行弹窗入口是 [`showGenericAddRowModal()`](../modules/table-viewer/add-row-modal.js:223)。删除入口由 [`createRowDeleteController()`](../modules/table-viewer/row-delete-controller.js:80) 生成。通用表批量删除通过 [`deleteRowsFromList()`](../modules/table-viewer/row-delete-controller.js:97) 调用 [`deleteSheetRows()`](../modules/phone-core/table-support.js:122)，底层进入 [`deleteTableRowsBatch()`](../modules/phone-core/data-api/table-repository.js:1008)。成功删除后保留删除管理态并清空本次选择，方便连续清理；部分失败时将失败行索引按成功删除结果重映射后继续选中。
 
 #### 6.2.5 通用表详情页与编辑保存
+
+阅读态右下角铅笔进入编辑，顶部菜单提供字段锁定；编辑态左侧返回、右侧并排取消「×」／保存「✓」，字段锁定管理态顶部完成。正文滚动区延伸到底部，安全留白放在内容内部；翻页栏浮动定位，保留原视觉位置与切换逻辑。编辑与保存继续调用同一控制器，不另建草稿或持久化入口；保存期间禁用返回、取消及保存，失败保留草稿。
 
 [`renderGenericDetailPage()`](../modules/table-viewer/detail-page-renderer.js:53) 会先同步锁状态，再通过 [`buildGenericDetailRowPayload()`](../modules/table-viewer/detail-row-payload.js:36) 生成字段详情 payload，最后调用 [`bindGenericDetailEditController()`](../modules/table-viewer/detail-edit-controller.js:46) 绑定详情页交互。
 

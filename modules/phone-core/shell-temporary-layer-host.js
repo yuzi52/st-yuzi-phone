@@ -2,6 +2,14 @@ let temporaryLayerHost = null;
 let temporaryLayerHostRegistration = 0;
 const activeLayerDisposers = new Set();
 
+// Include the shell-managed Home background; non-phone callers keep their local container.
+export function getPhoneOverlayMountRoot(container) {
+    const appRoot = container?.matches?.('.phone-app-page')
+        ? container
+        : (container?.querySelector?.('.phone-app-page') || container?.closest?.('.phone-app-page') || container);
+    return appRoot?.closest?.('.phone-page') || appRoot;
+}
+
 function removeFromHost(element) {
     if (!element?.parentNode || typeof element.parentNode.removeChild !== 'function') return;
     element.parentNode.removeChild(element);

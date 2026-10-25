@@ -1,6 +1,7 @@
 import { t } from '../../i18n/index.js';
 import { escapeHtml } from '../../utils/dom-escape.js';
 import { createRuntimeScope } from '../../runtime-manager.js';
+import { getPhoneOverlayMountRoot } from '../../phone-core/shell-temporary-layer-host.js';
 
 const activeDialogs = new WeakMap();
 
@@ -32,9 +33,7 @@ function normalizeClassTokens(value) {
  */
 export function showConfirmDialog(container, title, message, onConfirm, confirmText = t("确认"), cancelText = t("取消"), runtime = null, options = {}) {
     const runtimeApi = createRuntimeScope('settings-confirm-dialog');
-    const candidateMountRoot = container.matches('.phone-app-page')
-        ? container
-        : (container.querySelector('.phone-app-page') || container.closest('.phone-app-page') || container);
+    const candidateMountRoot = getPhoneOverlayMountRoot(container);
     const mountRoot = candidateMountRoot instanceof HTMLElement ? candidateMountRoot : container;
     const existing = mountRoot.querySelector('.phone-confirm-dialog-overlay');
     if (existing) {

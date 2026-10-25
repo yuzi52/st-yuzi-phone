@@ -453,7 +453,7 @@
 
 .yuzi-qq-field input,
 .yuzi-qq-field select,
-.yuzi-qq-dialog-form input,
+.yuzi-qq-dialog-form input:not([type="checkbox"]):not([type="radio"]),
 .yuzi-qq-dialog-form textarea,
 .yuzi-qq-dialog-form select,
 .yuzi-qq-composer-input {
@@ -647,14 +647,12 @@
 }
 
 .yuzi-qq-group-picker-list {
-    display: grid;
-    max-block-size: min(45vh, 20rem);
-    gap: 1px;
+    display: flex;
+    flex-direction: column;
+    max-block-size: var(--yuzi-settings-group-scroll-max-height);
     overflow-y: auto;
     scrollbar-width: none;
     -ms-overflow-style: none;
-    border-radius: var(--yuzi-qq-square-radius);
-    background: var(--yuzi-qq-border);
 }
 
 .yuzi-qq-group-picker-list::-webkit-scrollbar,
@@ -663,38 +661,78 @@
 }
 
 .yuzi-qq-group-picker-row {
-    display: flex;
-    align-items: center;
-    min-inline-size: 0;
-    gap: var(--yuzi-qq-row-gap);
-    padding: 0.55em 0.7em;
-    background: var(--yuzi-qq-elevated);
+    cursor: pointer;
+    flex-shrink: 0;
+    text-align: start;
 }
 
-.yuzi-qq-group-picker-checkbox {
-    flex: 0 0 1.1em;
-    inline-size: 1.1em;
-    block-size: 1.1em;
+.yuzi-qq-group-picker-row > .yuzi-qq-group-picker-checkbox {
+    position: absolute;
+    inline-size: var(--yuzi-qq-picker-check-size);
+    block-size: var(--yuzi-qq-picker-check-size);
     margin: 0;
     padding: 0;
-    appearance: none;
-    -webkit-appearance: none;
-    border: 1px solid var(--yuzi-qq-weak);
-    border-radius: 50%;
-    background: var(--yuzi-qq-content-surface);
+    opacity: 0;
+    pointer-events: none;
 }
 
-.yuzi-qq-group-picker-checkbox:checked {
+.yuzi-qq-picker-check {
+    display: grid;
+    place-items: center;
+    flex: 0 0 var(--yuzi-qq-picker-check-size);
+    inline-size: var(--yuzi-qq-picker-check-size);
+    block-size: var(--yuzi-qq-picker-check-size);
+    margin-inline-start: auto;
+    border: var(--yuzi-qq-line-width) solid var(--yuzi-qq-weak);
+    border-radius: var(--yuzi-phone-radius-pill);
+    color: transparent;
+    background: transparent;
+    font-size: var(--yuzi-settings-row-sub-size);
+    font-weight: var(--yuzi-qq-title-weight);
+    line-height: 1;
+}
+
+.yuzi-qq-group-picker-checkbox:checked ~ .yuzi-qq-picker-check {
     border-color: var(--yuzi-qq-accent);
     background: var(--yuzi-qq-accent);
-    box-shadow: inset 0 0 0 0.22em var(--yuzi-qq-content-surface);
+    color: var(--yuzi-qq-on-accent);
 }
 
-.yuzi-qq-group-picker-name {
+.yuzi-qq-group-picker-checkbox:focus-visible ~ .yuzi-qq-picker-check {
+    outline: var(--yuzi-qq-focus-ring-width) solid var(--yuzi-qq-accent);
+    outline-offset: var(--yuzi-qq-line-width);
+}
+
+.yuzi-qq-avatar.yuzi-qq-picker-avatar {
+    flex: 0 0 var(--yuzi-qq-picker-avatar-size);
+    inline-size: var(--yuzi-qq-picker-avatar-size);
+    block-size: var(--yuzi-qq-picker-avatar-size);
+}
+
+.yuzi-qq-person-picker-name {
+    flex: 1;
     min-inline-size: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    text-align: start;
+}
+
+.yuzi-qq-person-picker-dialog .yuzi-qq-dialog-body {
+    padding: var(--yuzi-settings-alert-padding) var(--yuzi-settings-row-padding-inline);
+}
+
+.yuzi-qq-person-picker-dialog .phone-ios-row {
+    gap: var(--yuzi-settings-row-gap);
+}
+
+.yuzi-qq-person-picker-dialog .phone-ios-row:hover,
+.yuzi-qq-person-picker-dialog .phone-ios-row:has(.yuzi-qq-person-picker-choice:focus-visible) {
+    background: var(--yuzi-qq-control);
+}
+
+.yuzi-qq-app .yuzi-qq-person-picker-choice:focus-visible {
+    outline: none;
 }
 
 .yuzi-qq-message-quote,
@@ -1036,12 +1074,13 @@
     position: absolute;
     inset: 0;
     z-index: var(--yuzi-qq-overlay-z-index);
-    display: grid;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     min-inline-size: 0;
     min-block-size: 0;
     padding: var(--yuzi-qq-page-padding);
     overflow: hidden;
-    place-items: center;
     background: var(--yuzi-qq-overlay);
 }
 
@@ -1059,13 +1098,15 @@
     min-inline-size: 0;
     max-inline-size: 100%;
     max-block-size: 100%;
-    gap: var(--yuzi-qq-dialog-gap);
-    padding: var(--yuzi-qq-dialog-padding);
+    gap: 0;
+    padding: 0;
     overflow: hidden;
-    border-radius: var(--yuzi-qq-radius-dialog);
+    border-radius: var(--yuzi-settings-alert-radius);
     color: var(--yuzi-qq-text);
     background: var(--yuzi-qq-dialog-surface);
-    box-shadow: var(--yuzi-qq-shadow-dialog);
+    box-shadow: var(--yuzi-settings-alert-shadow);
+    transform: none;
+    text-align: start;
 }
 
 .yuzi-qq-dialog-title {
@@ -1073,10 +1114,13 @@
     min-inline-size: 0;
     margin: 0;
     color: var(--yuzi-qq-text);
-    font-size: var(--yuzi-qq-title-size);
+    padding: var(--yuzi-settings-alert-padding) var(--yuzi-settings-row-padding-inline) 0;
+    font-size: var(--yuzi-settings-alert-title-size);
+    line-height: var(--yuzi-settings-group-footer-line-height);
     font-weight: var(--yuzi-qq-title-weight);
     text-align: center;
     overflow-wrap: anywhere;
+    white-space: normal;
 }
 
 .yuzi-qq-dialog-body {
@@ -1092,19 +1136,67 @@
 }
 
 .yuzi-qq-dialog-actions {
-    /* Action labels stay at the baseline; dialog details inherit the live text scale. */
-    font-size: 14px;
-    line-height: 21px;
-    display: flex;
     flex: 0 0 auto;
-    flex-wrap: wrap;
     min-inline-size: 0;
-    gap: var(--yuzi-qq-dialog-gap);
 }
 
-.yuzi-qq-dialog-actions > * {
-    flex: 1 1 120px;
+.yuzi-qq-dialog-actions > .phone-confirm-dialog-btn {
+    flex: 1 1 0;
     min-inline-size: 0;
+    min-block-size: var(--yuzi-settings-alert-button-min-height);
+    padding: var(--yuzi-settings-row-padding-block);
+    border-radius: 0;
+    color: var(--yuzi-qq-accent);
+    background: transparent;
+    font-size: var(--yuzi-settings-alert-button-size);
+    line-height: var(--yuzi-settings-group-footer-line-height);
+    overflow-wrap: anywhere;
+}
+
+.yuzi-qq-dialog-actions > .yuzi-qq-danger-button {
+    color: var(--yuzi-qq-danger);
+}
+
+.yuzi-qq-dialog-actions > :is(.yuzi-qq-primary-button, .yuzi-qq-danger-button) {
+    font-weight: var(--yuzi-qq-title-weight);
+}
+
+.yuzi-qq-app .yuzi-qq-dialog-actions > .phone-confirm-dialog-btn:is(:active, :focus-visible) {
+    outline: none;
+    background: var(--yuzi-qq-control);
+}
+
+.yuzi-qq-dialog.phone-confirm-dialog:has(.yuzi-qq-confirm-copy) {
+    inline-size: min(var(--yuzi-settings-alert-width), 100%);
+}
+
+.yuzi-qq-dialog .yuzi-qq-dialog-illustration {
+    display: none;
+}
+
+.yuzi-qq-overlay.yuzi-qq-sheet-layer {
+    align-items: stretch;
+    justify-content: flex-end;
+    padding: 0;
+}
+
+.yuzi-qq-dialog.phone-ios-sheet {
+    inline-size: 100%;
+    max-block-size: var(--yuzi-settings-sheet-max-height);
+    border-radius: var(--yuzi-settings-sheet-radius) var(--yuzi-settings-sheet-radius) 0 0;
+    padding-bottom: var(--yuzi-settings-sheet-padding-bottom);
+}
+
+.yuzi-qq-dialog.phone-ios-sheet .yuzi-qq-dialog-title {
+    padding-block: var(--yuzi-settings-row-padding-block);
+}
+
+.yuzi-qq-dialog.phone-ios-sheet .yuzi-qq-dialog-body {
+    padding-bottom: var(--yuzi-settings-alert-padding);
+}
+
+.yuzi-qq-dialog .yuzi-qq-form-error:empty {
+    display: none;
 }
 
 .yuzi-qq-message.is-quote-swiping {
@@ -1135,9 +1227,8 @@
     inset-inline-end: max(var(--yuzi-qq-page-padding), var(--yuzi-qq-anchored-menu-right));
     inline-size: var(--yuzi-qq-dialog-menu-width);
     max-inline-size: calc(100% - (var(--yuzi-qq-page-padding) * 2));
-    min-block-size: var(--yuzi-qq-dialog-menu-height);
-    block-size: var(--yuzi-qq-dialog-menu-height);
-    justify-content: space-between;
+    min-block-size: 0;
+    block-size: auto;
     gap: 0;
     padding: var(--yuzi-qq-dialog-menu-padding);
     border-radius: var(--yuzi-qq-dialog-menu-radius);
@@ -1160,6 +1251,7 @@
     flex-direction: column;
     align-items: center;
     gap: var(--yuzi-qq-dialog-gap);
+    margin: 0;
     color: var(--yuzi-qq-muted);
     text-align: center;
 }
@@ -1983,7 +2075,7 @@
 
 .yuzi-qq-field input,
 .yuzi-qq-field select,
-.yuzi-qq-dialog-form input,
+.yuzi-qq-dialog-form input:not([type="checkbox"]):not([type="radio"]),
 .yuzi-qq-dialog-form textarea {
     min-block-size: var(--yuzi-qq-dialog-input-height);
     padding-inline: var(--yuzi-qq-search-padding-inline);
@@ -2018,26 +2110,6 @@
 .yuzi-qq-overlay {
     padding: var(--yuzi-qq-page-padding);
     background: var(--yuzi-qq-overlay);
-}
-
-.yuzi-qq-dialog {
-    inline-size: min(var(--yuzi-qq-dialog-width), 100%);
-    min-inline-size: 0;
-    max-block-size: 100%;
-    gap: var(--yuzi-qq-dialog-gap);
-    padding: var(--yuzi-qq-dialog-padding);
-    overflow: hidden;
-    border-radius: var(--yuzi-qq-radius-dialog);
-    color: var(--yuzi-qq-text);
-    background: var(--yuzi-qq-dialog-surface);
-    box-shadow: var(--yuzi-qq-shadow-dialog);
-}
-
-.yuzi-qq-dialog-title {
-    color: var(--yuzi-qq-text);
-    font-size: var(--yuzi-qq-root-title-size);
-    font-weight: var(--yuzi-qq-title-weight);
-    line-height: var(--yuzi-qq-root-title-line-height);
 }
 
 .yuzi-qq-sticker-upload-dialog {
@@ -2100,6 +2172,11 @@
 
     .yuzi-qq-dialog-actions > * {
         inline-size: 100%;
+    }
+
+    .yuzi-qq-dialog-actions > .phone-confirm-dialog-btn + .phone-confirm-dialog-btn {
+        border-inline-start: 0;
+        border-top: var(--yuzi-settings-row-divider-width) solid var(--yuzi-qq-line);
     }
 
     .yuzi-qq-sticker-upload-row {
@@ -2792,6 +2869,41 @@
     gap: var(--yuzi-qq-inline-gap);
 }
 
+/* One quiet menu surface for messages, contacts and image packs. */
+.yuzi-qq-anchored-menu-layer .yuzi-qq-dialog-menu {
+    gap: 0;
+    min-block-size: 0;
+    padding: var(--yuzi-qq-inline-gap);
+    outline: none;
+}
+
+.yuzi-qq-anchored-menu-layer .yuzi-qq-dialog-menu-item {
+    display: flex;
+    align-items: center;
+    inline-size: 100%;
+    min-block-size: var(--yuzi-settings-alert-button-min-height);
+    padding: var(--yuzi-qq-inline-gap) var(--yuzi-qq-row-gap);
+    gap: var(--yuzi-qq-row-gap);
+    border: 0;
+    border-radius: var(--yuzi-qq-radius-8);
+    background: transparent;
+    text-align: start;
+    font: inherit;
+    font-size: var(--yuzi-qq-row-preview-size);
+}
+
+.yuzi-qq-anchored-menu-layer .yuzi-qq-dialog-menu-item > i {
+    flex: 0 0 var(--yuzi-qq-dialog-menu-icon-size);
+    inline-size: var(--yuzi-qq-dialog-menu-icon-size);
+    font-size: var(--yuzi-qq-dialog-menu-icon-size);
+    text-align: center;
+}
+
+.yuzi-qq-app .yuzi-qq-anchored-menu-layer button.yuzi-qq-dialog-menu-item:is(:hover, :active, :focus-visible) {
+    outline: none;
+    background: var(--yuzi-qq-control);
+}
+
 .yuzi-qq-settings-root-title {
     margin: 0;
 }
@@ -3084,14 +3196,15 @@
     color: var(--yuzi-qq-danger);
 }
 
-/* QQ 的选择面板只复用公共弹层几何，不继承设置页的颜色变量。 */
-.phone-ios-layer.yuzi-qq-settings-layer {
+/* QQ 弹窗和选择面板共用设置组件，只在这里映射 QQ 主题色。 */
+.yuzi-qq-settings-layer {
     --yuzi-settings-group-card: var(--yuzi-qq-dialog-surface);
     --yuzi-settings-group-fill: var(--yuzi-qq-control);
     --yuzi-settings-group-separator: var(--yuzi-qq-line);
     --yuzi-settings-group-danger: var(--yuzi-qq-danger);
     --yuzi-settings-text-primary: var(--yuzi-qq-text);
     --yuzi-settings-text-secondary: var(--yuzi-qq-muted);
+    --yuzi-settings-text-faint: var(--yuzi-qq-muted);
     --yuzi-settings-accent: var(--yuzi-qq-accent);
     background: var(--yuzi-qq-overlay);
 }
@@ -5087,19 +5200,22 @@
 .yuzi-qq-app .yuzi-qq-assistant-characters {
     display: flex;
     flex-direction: column;
-    max-height: 55cqh;
+    max-height: var(--yuzi-settings-group-scroll-max-height);
     overflow-y: auto;
 }
 .yuzi-qq-app .yuzi-qq-assistant-character-row {
+    flex-shrink: 0;
+    flex-wrap: nowrap;
+}
+.yuzi-qq-app .yuzi-qq-person-picker-choice {
     display: flex;
     align-items: center;
-    flex-wrap: wrap;
-    gap: var(--yuzi-qq-inline-gap);
-    padding: var(--yuzi-qq-inline-gap) 0;
-}
-.yuzi-qq-app .yuzi-qq-assistant-character-row > .yuzi-qq-conversation-row {
+    justify-content: flex-start;
+    gap: var(--yuzi-settings-row-gap);
     flex: 1;
     min-width: 0;
+    padding: 0;
+    text-align: start;
 }
 :is(.yuzi-qq-assistant-settings-view, .yuzi-qq-conversation-settings-view) {
     --yuzi-phone-form-surface: var(--yuzi-qq-content-surface);
