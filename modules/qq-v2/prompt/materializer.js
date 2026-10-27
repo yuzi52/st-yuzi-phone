@@ -5,9 +5,9 @@ import {
     QQ_V2_PROMPT_PLACEHOLDERS,
 } from './placeholders.js';
 
-const BUILT_IN_PLACEHOLDERS = Object.freeze(Object.fromEntries(
+const BUILT_IN_PLACEHOLDER_ENTRIES = Object.freeze(Object.entries(Object.fromEntries(
     QQ_V2_PROMPT_PLACEHOLDER_DEFINITIONS.map(({ token, variable }) => [token, variable]),
-));
+)));
 
 function asText(value) {
     return String(value ?? '');
@@ -74,7 +74,7 @@ function isSuccessfulStoryReply(message) {
 export function materializeQQV2PromptBlocks(blocks, variables = {}) {
     return Object.freeze(asMessageBlocks(blocks).map((block) => {
         let content = asText(block?.content);
-        for (const [placeholder, key] of Object.entries(BUILT_IN_PLACEHOLDERS)) {
+        for (const [placeholder, key] of BUILT_IN_PLACEHOLDER_ENTRIES) {
             content = content.replaceAll(placeholder, materializedValue(variables[key]));
         }
         return Object.freeze({
@@ -88,14 +88,14 @@ export function materializeQQV2PromptBlocks(blocks, variables = {}) {
  * 手动回复的角色历史只来自当前 QQ 会话，并作为真实角色消息追加一次。
  */
 export function buildManualQQV2Request({ preset, variables = {}, history = [], currentMessage } = {}) {
-    const request = [...materializeQQV2PromptBlocks(preset, variables)];
+    const request = Array.from(materializeQQV2PromptBlocks(preset, variables), (message) => message ?? Object.freeze({}));
     const visibleHistory = Array.isArray(history) ? history.filter(isVisibleMessage) : [];
     request.push(...visibleHistory.map(historyMessage));
 
     if (currentMessage && !visibleHistory.some((message) => sameMessage(message, currentMessage))) {
         request.push(historyMessage(currentMessage));
     }
-    return Object.freeze(request.map((message) => Object.freeze({ ...message })));
+    return Object.freeze(request);
 }
 
 /**
@@ -111,8 +111,17 @@ export function buildProactiveQQV2Request({ preset, variables = {} } = {}) {
 export function buildQQV2StoryContext(messages, turns = 0, tagSettings = {}) {
     const history = Array.isArray(messages) ? messages : [];
     const limit = positiveInteger(turns);
-    const replies = history.filter(isSuccessfulStoryReply);
-    const selectedReplies = limit ? replies.slice(-limit) : replies;
+    let selectedReplies;
+    if (limit) {
+        selectedReplies = [];
+        for (let index = history.length - 1; index >= 0 && selectedReplies.length < limit; index -= 1) {
+            const message = history[index];
+            if (isSuccessfulStoryReply(message)) selectedReplies.push(message);
+        }
+        selectedReplies.reverse();
+    } else {
+        selectedReplies = history.filter(isSuccessfulStoryReply);
+    }
     const text = selectedReplies
         .map((message) => filterQQV2StoryContent(message?.content, tagSettings))
         .filter(Boolean)

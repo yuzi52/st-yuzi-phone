@@ -17,8 +17,7 @@ export function createQQMessageReferences(messages = [], conversationReference =
 /** The same typed history is used for role messages, proactive sections, and read-only memories. */
 export function formatQQHistory(messages = [], options = {}) {
     const items = messages.filter(visible);
-    const references = options.numbered ? createQQMessageReferences(items, options.referenceId) : {};
-    const referenceById = new Map(Object.entries(references).map(([ref, id]) => [id, ref]));
+    let referenceById;
     const people = options.peopleById || {};
     const referenceByPersonId = options.referenceByPersonId || new Map();
     const personName = (id, fallback = '') => {
@@ -39,7 +38,10 @@ export function formatQQHistory(messages = [], options = {}) {
         if (options.numbered) parts.push(`[${options.referenceId ? `${options.referenceId}-` : ''}M${index + 1}]`);
         if (options.kind === 'group') {
             if (message.quoteMessageId) {
-                const quote = referenceById.get(message.quoteMessageId) || (message.quote?.status === 'deleted' ? 'deleted' : 'outside');
+                if (options.numbered && !referenceById) {
+                    referenceById = new Map(Object.entries(createQQMessageReferences(items, options.referenceId)).map(([ref, id]) => [id, ref]));
+                }
+                const quote = referenceById?.get(message.quoteMessageId) || (message.quote?.status === 'deleted' ? 'deleted' : 'outside');
                 parts.push(`[quote|${quote}]`);
             }
             if (message.mentionAll) parts.push('[at|all]');

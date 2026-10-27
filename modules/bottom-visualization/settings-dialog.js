@@ -4,6 +4,7 @@ import { createRuntimeScope } from '../runtime-manager.js';
 import { pickImageFiles, fileToDataUrl, loadImage } from '../settings-app/services/media-upload.js';
 import { getAppearanceFontFamily } from '../settings-app/services/appearance-settings/font-library-service.js';
 import { escapeHtml as html, escapeHtmlAttr as attr } from '../utils/dom-escape.js';
+import { isBottomVisualizationSetting } from './settings.js';
 
 export function openBottomSettings(owner) {
     const existing = document.querySelector('.yuzi-bottom-dialog');
@@ -42,7 +43,9 @@ export function openBottomSettings(owner) {
             <p class="yuzi-bottom-setting-error" role="status">${html(error)}</p>`;
         if (focused) dialog.querySelector(`[name="${focused}"]`)?.focus();
     }
-    scope.registerCleanup(subscribePhoneSettingsUpdates(render));
+    scope.registerCleanup(subscribePhoneSettingsUpdates(({ key } = {}) => {
+        if (isBottomVisualizationSetting(key)) render();
+    }));
     scope.addEventListener(window, 'resize', render);
     scope.addEventListener(dialog, 'change', event => {
         const { name, value, type } = event.target;

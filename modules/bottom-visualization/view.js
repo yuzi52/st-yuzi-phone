@@ -49,10 +49,11 @@ function buildTableCardsHtml(context, key, descending, editor, deletion) {
             </article>`).join('');
         return (style.scopedCss ? `<style>${style.scopedCss}</style>` : '') + (cards || `<p class="yuzi-bottom-empty">${t('暂无数据')}</p>`);
     }
+    const rowLocks = deletion?.active && entries.length ? deletion.lockedRows() : null;
     const deleteControl = (row, index) => {
         const label = `#${String(row[0] ?? index + 1)}`;
         if (!deletion?.active) return `<span>${html(label)}</span>`;
-        const locked = deletion.locked(index), selected = deletion.has(index);
+        const locked = rowLocks.has(index), selected = deletion.has(index);
         const actionLabel = locked ? t('条目已锁定') : selected ? t('取消选择') : t('选择删除');
         return `<button type="button" class="phone-ios-mini-btn" data-action="toggle-delete-row" data-row-index="${index}" aria-pressed="${selected}" aria-label="${attr(`${actionLabel} ${label}`)}"${deletion.deleting || locked ? ' disabled' : ''}>${selected ? '✓ ' : ''}${html(label)}${locked ? ` · ${t('条目已锁定')}` : ''}</button>`;
     };

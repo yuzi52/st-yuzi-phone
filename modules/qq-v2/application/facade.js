@@ -719,9 +719,9 @@ export function createQQV2Facade(options = {}) {
                 });
             },
             async imageLibrary(input = {}) {
-                if (typeof runtime.getSnapshot !== 'function') return unavailable('getSnapshot');
+                if (!canReadContext()) return unavailable('getSnapshot');
                 if (typeof runtime.listImageLibraryAssets !== 'function') return unavailable('listImageLibraryAssets');
-                const snapshot = asObject(await runtime.getSnapshot());
+                const snapshot = asObject(await readContextSnapshot());
                 const context = cloneContext(snapshot.context);
                 const library = asText(input.library, 64);
                 if (!context.scopeId) return unavailable('currentScope');
@@ -786,6 +786,15 @@ export function createQQV2Facade(options = {}) {
                         asArray(resources.imageGenerationPresets).map(cloneImageGenerationPreset),
                     ),
                     stickers: Object.freeze(asArray(resources.stickers).map(cloneSticker)),
+                });
+            },
+            async stickers() {
+                if (typeof runtime.listStickers !== 'function') return unavailable('listStickers');
+                const stickers = await runtime.listStickers();
+                return Object.freeze({
+                    ok: true,
+                    status: 'ready',
+                    stickers: Object.freeze(asArray(stickers).map(cloneSticker)),
                 });
             },
             async assistantCharacters() {
@@ -891,9 +900,9 @@ export function createQQV2Facade(options = {}) {
                 });
             },
             async media(input = {}) {
-                if (typeof runtime.getSnapshot !== 'function') return unavailable('getSnapshot');
+                if (!canReadContext()) return unavailable('getSnapshot');
                 if (typeof runtime.getMedia !== 'function') return unavailable('getMedia');
-                const snapshot = asObject(await runtime.getSnapshot());
+                const snapshot = asObject(await readContextSnapshot());
                 const context = cloneContext(snapshot.context);
                 const assetId = asText(input.assetId, 256);
                 if (!context.scopeId) return unavailable('currentScope');
@@ -907,10 +916,10 @@ export function createQQV2Facade(options = {}) {
                 });
             },
             async mediaRender(input = {}) {
-                if (typeof runtime.getSnapshot !== 'function') return unavailable('getSnapshot');
+                if (!canReadContext()) return unavailable('getSnapshot');
                 if (typeof runtime.acquireMediaRender !== 'function') return unavailable('acquireMediaRender');
                 try {
-                    const snapshot = asObject(await runtime.getSnapshot());
+                    const snapshot = asObject(await readContextSnapshot());
                     const context = cloneContext(snapshot.context);
                     const assetId = asText(input.assetId, 256);
                     if (!context.scopeId) return unavailable('currentScope');

@@ -29,7 +29,7 @@ function initials(name) {
   const source = clean(name).split(/[\s·•_-]+/).filter(Boolean)[0] || "";
   return [...source][0] || "人";
 }
-function renderPost(record) {
+function renderPost(record, comments) {
   const post = document.createElement("article");
   post.className = "yuzi-theater-square-post";
   const head = document.createElement("header");
@@ -87,7 +87,6 @@ function renderPost(record) {
     likes.append(document.createTextNode(record["互动数据"]));
     post.append(likes);
   }
-  const comments = splitComments(record["评论串"]);
   if (comments.length) {
     const box = document.createElement("div");
     box.className = "yuzi-theater-square-comments";
@@ -193,13 +192,19 @@ export function mount(context) {
     root.querySelector("#yuzi-theater-square-prev").disabled = !state.canPrevious;
     root.querySelector("#yuzi-theater-square-next").disabled = !state.canNext;
     const data = records(state);
-    const commentList = data.flatMap((record) => splitComments(record["评论串"]));
-    const visitors = new Set(commentList.map(commentAuthor).filter(Boolean));
-    const statValues = [data.length, data.filter(row => isPresent(row["图片描述"]) || isPresent(row["视频描述"])).length, commentList.length, visitors.size];
+    let commentCount = 0;
+    const visitors = new Set();
+    const commentsByRow = data.map((record) => {
+      const comments = splitComments(record["评论串"]);
+      commentCount += comments.length;
+      comments.forEach((comment) => { const author = commentAuthor(comment); if (author) visitors.add(author); });
+      return comments;
+    });
+    const statValues = [data.length, data.filter(row => isPresent(row["图片描述"]) || isPresent(row["视频描述"])).length, commentCount, visitors.size];
     root.querySelectorAll(".yuzi-theater-square-stats strong").forEach((node, index) => {
       node.textContent = String(statValues[index] || 0);
     });
-    list.replaceChildren(...data.length ? data.map(renderPost) : [Object.assign(document.createElement("p"), { className: "yuzi-theater-square-empty", textContent: "暂无动态" })]);
+    list.replaceChildren(...data.length ? data.map((record, index) => renderPost(record, commentsByRow[index])) : [Object.assign(document.createElement("p"), { className: "yuzi-theater-square-empty", textContent: "暂无动态" })]);
     applyAvatar();
     hydratePostAvatars();
   };

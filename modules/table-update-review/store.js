@@ -47,6 +47,7 @@ function cloneState(state = currentState) {
 }
 
 function notifySubscribers() {
+    if (subscribers.size === 0) return;
     const snapshot = cloneState();
     Array.from(subscribers).forEach((callback) => {
         try { callback(snapshot); } catch {}
@@ -91,20 +92,24 @@ export function subscribeReviewState(callback) {
     return () => subscribers.delete(callback);
 }
 
-export function getReviewTableBySheetKey(sheetKey) {
+function findReviewTableBySheetKey(sheetKey) {
     const key = String(sheetKey || '').trim();
     if (!key) return null;
-    const table = currentState.tables.find((table) => table.sheetKey === key);
+    return currentState.tables.find((table) => table.sheetKey === key) || null;
+}
+
+export function getReviewTableBySheetKey(sheetKey) {
+    const table = findReviewTableBySheetKey(sheetKey);
     return table ? cloneTable(table) : null;
 }
 
-export function getUpdatedRowsForSheet(sheetKey) {
-    const table = getReviewTableBySheetKey(sheetKey);
+export function getUpdatedRowsForSheet(sheetKey, { includeChanges = true } = {}) {
+    const table = findReviewTableBySheetKey(sheetKey);
     if (!table) return { rowIndexes: new Set(), rowIds: new Set(), changes: [] };
     return {
         rowIndexes: new Set(table.updatedRowIndexes || []),
         rowIds: new Set((table.updatedRowIds || []).map((value) => String(value))),
-        changes: table.changes || [],
+        changes: includeChanges && Array.isArray(table.changes) ? table.changes.map(cloneChange) : [],
     };
 }
 

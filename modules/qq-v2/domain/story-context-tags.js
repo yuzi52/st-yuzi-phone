@@ -65,12 +65,12 @@ function tokenizeTags(source) {
     return tokens;
 }
 
-function collectTagBlocks(source, targetName) {
+function collectTagBlocks(source, targetName, tokens) {
     const target = normalizeQQV2TagName(targetName).toLocaleLowerCase('zh-CN');
     if (!target) return [];
     const stack = [];
     const blocks = [];
-    for (const token of tokenizeTags(source)) {
+    for (const token of tokens || tokenizeTags(source)) {
         if (token.selfClosing) {
             if (token.name === target) {
                 blocks.push({
@@ -108,17 +108,20 @@ function collectTagBlocks(source, targetName) {
     const sorted = blocks.sort((left, right) => (
         left.start - right.start || right.end - left.end
     ));
-    return sorted.filter((block, index) => !sorted.some((other, otherIndex) => (
-        index !== otherIndex
-        && other.start <= block.start
-        && other.end >= block.end
-        && (other.start < block.start || other.end > block.end)
-    )));
+    let covering = null;
+    return sorted.filter((block) => {
+        const contained = covering && covering.end >= block.end
+            && (covering.start < block.start || covering.end > block.end);
+        if (!covering || block.end > covering.end) covering = block;
+        return !contained;
+    });
 }
 
 function removeTagBlocks(source, tagNames) {
-    const blocks = [...new Set(normalizeQQV2TagNames(tagNames).map((tag) => tag.toLocaleLowerCase('zh-CN')))]
-        .flatMap((tag) => collectTagBlocks(source, tag));
+    const tags = [...new Set(normalizeQQV2TagNames(tagNames).map((tag) => tag.toLocaleLowerCase('zh-CN')))];
+    if (tags.length === 0) return source;
+    const tokens = tokenizeTags(source);
+    const blocks = tags.flatMap((tag) => collectTagBlocks(source, tag, tokens));
     if (blocks.length === 0) return source;
     blocks.sort((left, right) => left.start - right.start || right.end - left.end);
     const merged = [];
@@ -130,9 +133,14 @@ function removeTagBlocks(source, tagNames) {
             previous.end = Math.max(previous.end, block.end);
         }
     }
-    return merged
-        .sort((left, right) => right.start - left.start)
-        .reduce((result, block) => result.slice(0, block.start) + result.slice(block.end), source);
+    const parts = [];
+    let cursor = 0;
+    for (const block of merged) {
+        parts.push(source.slice(cursor, block.start));
+        cursor = block.end;
+    }
+    parts.push(source.slice(cursor));
+    return parts.join('');
 }
 
 /**

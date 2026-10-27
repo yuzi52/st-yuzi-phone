@@ -131,11 +131,11 @@ function presetIndex(records) {
  * 该函数不读取存储、不修改绑定，也不解释提示词；它只是提供运行时可用目录。
  */
 export function buildActiveContentPresetImageGenerationDirectory(rawData, records = [], pageByTable = new Map(), popupByTable = new Map()) {
-    const tables = physicalTables(rawData);
-    const tableBySheetKey = new Map(tables.map(entry => [entry.sheetKey, entry]));
-    const recordsById = presetIndex(records);
     const pages = bindings(pageByTable);
     const popups = bindings(popupByTable);
+    const tables = pages.size > 0 || popups.size > 0 ? physicalTables(rawData) : [];
+    const tableBySheetKey = new Map(tables.map(entry => [entry.sheetKey, entry]));
+    const recordsById = presetIndex(records);
     const bySheetKey = new Map();
     const seenBySheetKey = new Map();
 

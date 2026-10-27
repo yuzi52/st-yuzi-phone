@@ -51,17 +51,15 @@ function parseStoryTime(value) {
     return date;
 }
 
-function dateLabel(value) {
-    const date = parseStoryTime(value);
+function dateLabel(date) {
     if (!date) return '未知故事时间';
     const two = (number) => String(number).padStart(2, '0');
     return `${date.getUTCFullYear()}-${two(date.getUTCMonth() + 1)}-${two(date.getUTCDate())}`;
 }
 
-function timeLabel(value) {
+function timeLabel(value, date) {
     const text = asText(value, 128);
     if (!/[ T]\d{2}:\d{2}$/.test(text)) return '';
-    const date = parseStoryTime(text);
     if (!date) return '';
     const two = (number) => String(number).padStart(2, '0');
     return `${two(date.getUTCHours())}:${two(date.getUTCMinutes())}`;
@@ -337,7 +335,8 @@ function buildProjectionContent(data, userName, storyTime) {
     let lastDate = '';
     const lines = ['<yuzi>', ...header, ''];
     for (const message of messages) {
-        const date = dateLabel(message.storyTime);
+        const parsedTime = parseStoryTime(message.storyTime);
+        const date = dateLabel(parsedTime);
         if (date !== lastDate) {
             lines.push(`[${date}]`);
             lastDate = date;
@@ -348,7 +347,7 @@ function buildProjectionContent(data, userName, storyTime) {
                 ? existingMessageIds.has(message.quoteMessageId)
                 : (data.messages || []).some((candidate) => candidate.messageId === message.quoteMessageId));
         const suffix = deletedQuote ? '（引用原消息已删除）' : '';
-        const time = timeLabel(message.storyTime);
+        const time = timeLabel(message.storyTime, parsedTime);
         const projectedMessage = message.type === 'voice'
             ? { ...message, content: parseQQVoiceText(message.content).displayText }
             : message;

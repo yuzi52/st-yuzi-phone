@@ -131,7 +131,7 @@ function bindAppearanceFontLibraryActions(ctx, runtime) {
     if (selectEl) {
         cleanupFns.push(bindEvent(selectEl, 'change', () => {
             const result = appearancePageService.selectAppearanceFont(selectEl.value);
-            appearancePageService.applyAppearanceFontLibrary();
+            if (!result.success) appearancePageService.applyAppearanceFontLibrary();
             showToast(container, result.message || (result.success ? t("字体已应用") : t("字体应用失败")), !result.success);
             rerenderKeepScroll();
         }));
@@ -148,7 +148,7 @@ function bindAppearanceFontLibraryActions(ctx, runtime) {
             if (!file) return;
             const result = await appearancePageService.importAppearanceFontFile(file);
             if (isDisposed()) return;
-            appearancePageService.applyAppearanceFontLibrary();
+            if (!result.success) appearancePageService.applyAppearanceFontLibrary();
             showToast(container, result.message || (result.success ? t("字体已导入") : t("字体导入失败")), !result.success);
             if (result.success) {
                 rerenderKeepScroll();
@@ -175,7 +175,6 @@ function bindAppearanceFontLibraryActions(ctx, runtime) {
                 return;
             }
 
-            appearancePageService.applyAppearanceFontLibrary();
             urlNameInput.value = '';
             cssUrlInput.value = '';
             urlFamilyInput.value = '';
@@ -193,7 +192,7 @@ function bindAppearanceFontLibraryActions(ctx, runtime) {
                 () => {
                     if (isDisposed()) return;
                     const result = appearancePageService.deleteAppearanceFont(fontId);
-                    appearancePageService.applyAppearanceFontLibrary();
+                    if (!result.success) appearancePageService.applyAppearanceFontLibrary();
                     showToast(container, result.message || (result.success ? t("字体已删除") : t("字体删除失败")), !result.success);
                     if (result.success) {
                         rerenderKeepScroll();

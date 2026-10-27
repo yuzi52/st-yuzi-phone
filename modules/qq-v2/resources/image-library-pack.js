@@ -91,8 +91,7 @@ async function exportSticker(sticker, usedIds, readMedia) {
     };
 }
 
-function parsePack(input) {
-    const pack = typeof input === 'string' ? JSON.parse(input) : input;
+function parsePack(pack) {
     if (!pack || typeof pack !== 'object' || Array.isArray(pack)) throw new Error(t("图片资料包必须是 JSON 对象"));
     if (pack.format !== QQ_IMAGE_LIBRARY_PACK_FORMAT) {
         throw new Error(t`图片资料包 format 必须是 ${QQ_IMAGE_LIBRARY_PACK_FORMAT}`);
@@ -152,7 +151,8 @@ function importSticker(raw, index, usedIds) {
 }
 
 function normalizeImportedLibraries(input) {
-    const libraries = parsePack(input);
+    const raw = typeof input === 'string' ? JSON.parse(input) : input;
+    const libraries = parsePack(raw);
     const usedImageIds = new Set();
     const images = {};
     for (const key of Object.keys(IMAGE_LIBRARIES)) {
@@ -163,7 +163,6 @@ function normalizeImportedLibraries(input) {
     }
     const usedStickerIds = new Set();
     const stickers = libraries.stickers.map((raw, index) => importSticker(raw, index, usedStickerIds));
-    const raw = typeof input === 'string' ? JSON.parse(input) : input;
     return { images, stickers, outfits: normalizeOutfits(raw.outfits, images) };
 }
 
@@ -229,11 +228,25 @@ export function createQQImageLibraryPackService(options = {}) {
                 const images = asObject(state.sharedResources[IMAGE_LIBRARY_KEY]);
                 const usedImageIds = new Set(Object.keys(images));
                 const remapped = new Map();
+                let imagesByOrigin;
                 Object.values(imported.images).forEach((asset) => {
-                    const existing = asset.origin && Object.values(images).find(value => value.origin === asset.origin);
+                    if (asset.origin && imagesByOrigin === undefined) {
+                        const records = Object.values(images);
+                        // Keep the legacy lookup's short-circuit errors for malformed stored records.
+                        imagesByOrigin = records.every(value => value !== null && typeof value === 'object') ? new Map() : null;
+                        if (imagesByOrigin) {
+                            for (const value of records) {
+                                if (!imagesByOrigin.has(value.origin)) imagesByOrigin.set(value.origin, value);
+                            }
+                        }
+                    }
+                    const existing = asset.origin && (imagesByOrigin
+                        ? imagesByOrigin.get(asset.origin)
+                        : Object.values(images).find(value => value.origin === asset.origin));
                     if (existing) { remapped.set(asset.assetId, existing.assetId); return; }
                     const assetId = appendableId(asset.assetId, usedImageIds);
                     images[assetId] = { ...asset, assetId };
+                    if (imagesByOrigin && asset.origin) imagesByOrigin.set(asset.origin, images[assetId]);
                     remapped.set(asset.assetId, assetId);
                 });
                 state.sharedResources[IMAGE_LIBRARY_KEY] = images;

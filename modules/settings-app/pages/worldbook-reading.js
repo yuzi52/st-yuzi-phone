@@ -234,29 +234,18 @@ function createWorldbookReadingSession(ctx, paint, paintFilter) {
 
 function bindWorldbookReadingPage(ctx, session) {
     const pageDisposers = [];
-    let entryDisposers = [];
-    const addListener = (target, type, listener, disposers = pageDisposers) => {
+    const addListener = (target, type, listener) => {
         const dispose = ctx.pageRuntime?.addEventListener?.(target, type, listener);
-        if (typeof dispose === 'function') disposers.push(dispose);
+        if (typeof dispose === 'function') pageDisposers.push(dispose);
     };
-    const disposeAll = (disposers) => {
-        while (disposers.length > 0) disposers.pop()?.();
-    };
-    const disposeEntries = () => {
-        disposeAll(entryDisposers);
-        entryDisposers = [];
-    };
-    const bindEntries = () => {
-        ctx.container.querySelectorAll('.phone-worldbook-reading-entry-checkbox').forEach((checkbox) => {
-            addListener(checkbox, 'change', (event) => {
-                const target = event.currentTarget;
-                void session.setSelected([{
-                    bookName: String(target?.dataset?.worldbook ?? '').trim(),
-                    uid: String(target?.dataset?.uid ?? '').trim(),
-                }], target?.checked === true);
-            }, entryDisposers);
-        });
-    };
+    addListener(ctx.container, 'change', (event) => {
+        const target = event.target;
+        if (!target?.matches?.('.phone-worldbook-reading-entry-checkbox') || !ctx.container.contains(target)) return;
+        void session.setSelected([{
+            bookName: String(target.dataset?.worldbook ?? '').trim(),
+            uid: String(target.dataset?.uid ?? '').trim(),
+        }], target.checked === true);
+    });
     addListener(ctx.container.querySelector('.phone-nav-back'), 'click', () => {
         ctx.state.mode = 'home';
         ctx.render();
@@ -277,15 +266,9 @@ function bindWorldbookReadingPage(ctx, session) {
     addListener(ctx.container.querySelector('#phone-worldbook-reading-deselect-all'), 'click', () => {
         void session.setSelected(session.visibleEnabledRefs(), false);
     });
-    bindEntries();
     return {
-        rebindEntries() {
-            disposeEntries();
-            bindEntries();
-        },
         dispose() {
-            disposeEntries();
-            disposeAll(pageDisposers);
+            while (pageDisposers.length > 0) pageDisposers.pop()?.();
         },
     };
 }
@@ -338,7 +321,6 @@ export function createWorldbookReadingPage(ctx) {
             const view = buildWorldbookReadingView(session.pageState);
             entries.innerHTML = view.entriesHtml;
             status.textContent = view.statusText;
-            bindings?.rebindEntries();
         });
     };
     session = createWorldbookReadingSession(ctx, paint, paintFilter);

@@ -385,18 +385,19 @@ function parseStoryTime(value) {
     return Number.isFinite(timestamp) ? timestamp : null;
 }
 
-function formatListTime(value, currentStoryTime) {
-    const timestamp = parseStoryTime(value);
-    const current = parseStoryTime(currentStoryTime);
+function storyDayStart(timestamp) {
+    if (!timestamp) return null;
+    const date = new Date(timestamp);
+    return Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate());
+}
+
+function formatListTimestamp(timestamp, currentDay) {
     if (!timestamp) return '';
     const date = new Date(timestamp);
     const time = `${String(date.getUTCHours()).padStart(2, '0')}:${String(date.getUTCMinutes()).padStart(2, '0')}`;
-    if (!current) return time;
-    const dayDistance = Math.floor((Date.UTC(
-        new Date(current).getUTCFullYear(),
-        new Date(current).getUTCMonth(),
-        new Date(current).getUTCDate(),
-    ) - Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate())) / (24 * 60 * 60 * 1000));
+    if (currentDay === null) return time;
+    const dayDistance = Math.floor((currentDay
+        - Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate())) / (24 * 60 * 60 * 1000));
     if (dayDistance <= 0) return time;
     if (dayDistance === 1) return t("昨天");
     if (dayDistance < 7) return t`${dayDistance}天前`;
@@ -776,20 +777,21 @@ function hasRealMessage(conversation) {
     return Boolean(asText(conversation?.lastMessage?.messageId));
 }
 
-function createMessageRootRow(conversation, index, currentStoryTime) {
+function createMessageRootRow(conversation, index, currentDay) {
     const preview = messagePreview(conversation?.lastMessage);
     const senderName = conversation?.lastMessage?.senderType === 'self'
         ? t("我")
         : asText(conversation?.lastMessage?.senderName);
+    const timestamp = parseStoryTime(conversation?.lastMessage?.storyTime);
     return Object.freeze({
         conversation,
         index,
         hasMessage: hasRealMessage(conversation),
-        activityTimestamp: parseStoryTime(conversation?.lastMessage?.storyTime) ?? Number.NEGATIVE_INFINITY,
+        activityTimestamp: timestamp ?? Number.NEGATIVE_INFINITY,
         preview: conversation?.kind === 'group' && senderName && preview
             ? `${senderName}：${preview}`
             : preview,
-        time: formatListTime(conversation?.lastMessage?.storyTime, currentStoryTime),
+        time: formatListTimestamp(timestamp, currentDay),
         unreadLabel: formatUnreadBadge(conversation?.unreadCount),
     });
 }
@@ -808,9 +810,10 @@ async function loadMessageRootModel(facade, assistant = false) {
         typeof query.currentContext === 'function' ? query.currentContext() : undefined,
     ]);
     const currentStoryTime = contextResult?.ok ? asText(contextResult.context?.storyTime) : '';
+    const currentDay = storyDayStart(parseStoryTime(currentStoryTime));
     const rows = (conversationResult?.ok ? asArray(conversationResult.conversations) : [])
         .filter(isVisibleConversation)
-        .map((conversation, index) => createMessageRootRow(conversation, index, currentStoryTime))
+        .map((conversation, index) => createMessageRootRow(conversation, index, currentDay))
         .sort(compareMessageRootRows);
     return Object.freeze({
         chrome: Object.freeze({ hasSearch: true, hasPresence: true, hasAddMount: true }),
@@ -981,7 +984,9 @@ function createMediaRenderLeaseCoordinator(facade, { cacheLimit = 0, decodeImage
     return createRenderLeaseCoordinator({
         acquire: async (assetId) => {
             const result = await facade.query.mediaRender({ assetId });
-            const render = result?.ok && result.render?.leaseId && result.render?.url ? result.render : null;
+            const render = result?.ok && result.render?.leaseId && result.render?.url
+                ? { ...result.render, media: result.media }
+                : null;
             if (render && decodeImage) {
                 try {
                     const image = await loadImage(render.url);
@@ -1086,8 +1091,6 @@ export function createQQApp({
     if (!facade?.query || !facade?.intent) throw new TypeError('QQ App needs an injected Facade');
 
     let skin = null;
-    const bubbleMetadata = new Map();
-    const avatarFrameMetadata = new Map();
     let root = null;
     let viewport = null;
     let disposed = false;
@@ -1310,19 +1313,16 @@ export function createQQApp({
     const applyPersonalFrame = (element, assetId, token = renderEpoch) => {
         if (!assetId || element.classList.contains('yuzi-qq-group-avatar-member')) return;
         const session = leaseSessionFor(token)?.avatars;
-        if (!avatarFrameMetadata.has(assetId)) avatarFrameMetadata.set(assetId, facade.query.media({ assetId }));
-        const apply = ([render, result]) => {
-            if (render?.url && result?.ok && isActive(token)) {
-                decorateQQAvatar(element, render.url, result.media?.avatarFrameTransform);
+        const apply = (render) => {
+            if (render?.url && isActive(token)) {
+                decorateQQAvatar(element, render.url, render.media?.avatarFrameTransform);
             }
         };
         const cached = session?.peek(assetId);
         if (cached) {
-            void Promise.resolve(avatarFrameMetadata.get(assetId)).then((result) => apply([cached, result])).catch(() => {});
+            void Promise.resolve(cached).then(apply).catch(() => {});
         } else {
-            void Promise.all([session?.load(assetId), avatarFrameMetadata.get(assetId)])
-                .then(apply)
-                .catch(() => { avatarFrameMetadata.delete(assetId); });
+            void session?.load(assetId).then(apply).catch(() => {});
         }
     };
     const applyPersonalBubble = (element, assetId, messageTextColor, token = renderEpoch) => {
@@ -1330,21 +1330,20 @@ export function createQQApp({
         if (!assetId) return;
         const session = leaseSessionFor(token)?.bubbles;
         if (!session) return;
-        if (!bubbleMetadata.has(assetId)) bubbleMetadata.set(assetId, facade.query.media({ assetId }));
         const cached = session.peek(assetId);
         if (cached?.url) {
             decorateQQBubble(element, cached.url, {
                 ...(messageTextColor ? { textColor: messageTextColorCssValue(messageTextColor) } : {}),
             });
         }
-        void Promise.all([session.load(assetId), bubbleMetadata.get(assetId)]).then(([render, result]) => {
-            if (render?.url && result?.ok && isActive(token)) {
+        void session.load(assetId).then((render) => {
+            if (render?.url && isActive(token)) {
                 decorateQQBubble(element, render.url, {
-                    ...asObject(result.media?.bubble),
+                    ...asObject(render.media?.bubble),
                     ...(messageTextColor ? { textColor: messageTextColorCssValue(messageTextColor) } : {}),
                 });
             }
-        }).catch(() => { bubbleMetadata.delete(assetId); });
+        }).catch(() => {});
     };
 
     const avatar = (person, className = 'yuzi-qq-avatar', {
@@ -3249,7 +3248,7 @@ export function createQQApp({
         if (!emojiOpen) return null;
         const panel = createElement('section', `yuzi-qq-emoji-panel yuzi-qq-${chatKind}-emoji-panel`);
         panel.setAttribute('aria-label', t("表情面板"));
-        const resources = await facade.query.sharedResources();
+        const resources = await facade.query.stickers();
         if (!isActive(token)) return panel;
         const upload = createButton('', 'yuzi-qq-emoji-item yuzi-qq-emoji-upload-item', {
             'aria-label': t("上传表情"),
@@ -4055,7 +4054,7 @@ export function createQQApp({
             { library: 'sticker', title: t("表情仓库"), sticker: true },
         ];
         const results = await Promise.all(stores.map(({ library, sticker }) => (
-            sticker ? facade.query.sharedResources() : facade.query.imageLibrary({ library })
+            sticker ? facade.query.stickers() : facade.query.imageLibrary({ library })
         )));
         if (!isActive(token)) return main;
         const cards = stores.map((store, index) => ({
@@ -5836,10 +5835,6 @@ export function createQQApp({
                     profileLibraryRenderLeases.invalidate(deletedAssetIds),
                     stickerRenderLeases.invalidate(deletedStickerIds),
                 ]);
-                deletedAssetIds.forEach((assetId) => {
-                    avatarFrameMetadata.delete(assetId);
-                    bubbleMetadata.delete(assetId);
-                });
                 const succeeded = imageResult?.ok && stickerResult?.ok;
                 if (succeeded && page === libraryPage) clearImageLibrarySelection();
                 if (!isActive(view.token) || imageLibraryView !== view) {
@@ -6408,8 +6403,6 @@ export function createQQApp({
             ]);
             skin?.dispose();
             skin = null;
-            bubbleMetadata.clear();
-            avatarFrameMetadata.clear();
             root?.classList.remove('yuzi-qq-app');
             root?.replaceChildren();
             root = null;

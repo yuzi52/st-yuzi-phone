@@ -100,6 +100,7 @@ function collectMediaKeys(state) {
 function prepareStateForPersistence(value) {
     const state = normalizeState(value);
     const writes = new Map();
+    const keys = new Set();
     visitMediaRecords(state, (record, fallbackKey) => {
         const blob = isBlob(record.blob) ? record.blob : null;
         const key = mediaKey(record.mediaKey) || fallbackKey;
@@ -109,11 +110,13 @@ function prepareStateForPersistence(value) {
             record.size = Math.max(0, Number(blob?.size ?? record.size) || 0);
         }
         if (Object.hasOwn(record, 'blob')) delete record.blob;
+        const preparedKey = mediaKey(record.mediaKey);
+        if (preparedKey) keys.add(preparedKey);
     });
     return {
         state,
         writes,
-        keys: collectMediaKeys(state),
+        keys,
     };
 }
 

@@ -67,13 +67,17 @@ function getTableSignature(sheet) {
     }
 }
 
-function getChangedSheetKeys(previousRawData, nextRawData) {
+function getChangedSheetKeys(previousRawData, nextRawData, changedNextSignatures) {
     const previous = isPlainObject(previousRawData) ? previousRawData : {};
     const next = isPlainObject(nextRawData) ? nextRawData : {};
     const keys = new Set([...getSheetKeys(previous), ...getSheetKeys(next)]);
-    return Array.from(keys).filter((sheetKey) => (
-        getTableSignature(previous[sheetKey]) !== getTableSignature(next[sheetKey])
-    ));
+    return Array.from(keys).filter((sheetKey) => {
+        const previousSignature = getTableSignature(previous[sheetKey]);
+        const nextSignature = getTableSignature(next[sheetKey]);
+        const changed = previousSignature !== nextSignature;
+        if (changed) changedNextSignatures?.set(sheetKey, nextSignature);
+        return changed;
+    });
 }
 
 function getTextColumnIndexes(content) {
@@ -145,8 +149,7 @@ function getTableMapping(config, entry) {
     )) || null;
 }
 
-function getRulesForTable(config, entry) {
-    const globalRules = config.global.enabled ? getValidRules(config.global.rules) : [];
+function getRulesForTable(config, entry, globalRules) {
     const mapping = getTableMapping(config, entry);
     const localRules = mapping?.enabled ? getValidRules(mapping.rules) : [];
     return {
@@ -247,6 +250,7 @@ export function createTableContentReplacementService(options = {}) {
         ));
         let changedCellCount = 0;
         let tableCount = 0;
+        let globalRules;
 
         for (const requestedSheetKey of uniqueSheetKeys) {
             const mapping = config.tableRules.find(item => normalizeSheetKey(item?.sheetKey) === requestedSheetKey)
@@ -258,7 +262,8 @@ export function createTableContentReplacementService(options = {}) {
             );
             if (!entry) continue;
 
-            const { rules } = getRulesForTable(config, entry);
+            globalRules ??= config.global.enabled ? getValidRules(config.global.rules) : [];
+            const { rules } = getRulesForTable(config, entry, globalRules);
             if (rules.length === 0) continue;
 
             const content = entry.sheet.content;
@@ -355,11 +360,12 @@ export function createTableContentReplacementService(options = {}) {
         const currentRawData = safeReadTableData(deps.getTableData);
         const nextRawData = mergeSingleSheetEvent(currentRawData, event);
         const explicitSheetKeys = getExplicitSheetKeys(event);
-        const changedSheetKeys = getChangedSheetKeys(runtime.lastRawData, nextRawData);
+        const changedNextSignatures = new Map();
+        const changedSheetKeys = getChangedSheetKeys(runtime.lastRawData, nextRawData, changedNextSignatures);
         const candidateSheetKeys = new Set([...changedSheetKeys, ...explicitSheetKeys]);
 
         candidateSheetKeys.forEach((sheetKey) => {
-            const signature = getTableSignature(nextRawData?.[sheetKey]);
+            const signature = changedNextSignatures.get(sheetKey) ?? getTableSignature(nextRawData?.[sheetKey]);
             if (signature && runtime.selfWrittenSignatures.get(sheetKey) === signature) {
                 runtime.selfWrittenSignatures.delete(sheetKey);
                 return;

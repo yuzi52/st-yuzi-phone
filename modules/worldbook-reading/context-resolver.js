@@ -142,17 +142,17 @@ function matchesEntryKeys(entry, scanText, getLowerScanText) {
     const secondaryKeys = secondaryEntryKeys(entry);
     if (!isSelectiveEntry(entry) || secondaryKeys.length === 0) return true;
 
-    const matches = secondaryKeys.map((key) => matchesAnyKey(entry, [key], scanText, getLowerScanText));
+    const matches = key => matchesKey(entry, key, scanText, getLowerScanText);
     switch (selectiveLogic(entry)) {
         case 1:
-            return !matches.every(Boolean);
+            return !secondaryKeys.every(matches);
         case 2:
-            return !matches.some(Boolean);
+            return !secondaryKeys.some(matches);
         case 3:
-            return matches.every(Boolean);
+            return secondaryKeys.every(matches);
         case 0:
         default:
-            return matches.some(Boolean);
+            return secondaryKeys.some(matches);
     }
 }
 

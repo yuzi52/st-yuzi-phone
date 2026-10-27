@@ -94,11 +94,18 @@ export function createWorldbookReadingCatalog({ source, preferences, blockedKeyw
                     }
                 }
             } else if (selected === true) {
+                const touchedBooks = new Set();
                 for (const ref of asArray(refs)) {
                     const bookName = String(ref?.bookName ?? '').trim();
                     const uid = String(ref?.uid ?? '').trim();
                     if (!bookName || !uid || !next[bookName]) continue;
                     delete next[bookName][uid];
+                    // Keep legacy cleanup for inherited names and custom prototypes.
+                    if (Object.getPrototypeOf(next) === Object.prototype && !Object.hasOwn(Object.prototype, bookName)) {
+                        touchedBooks.add(bookName);
+                    } else if (Object.keys(next[bookName]).length === 0) delete next[bookName];
+                }
+                for (const bookName of touchedBooks) {
                     if (Object.keys(next[bookName]).length === 0) delete next[bookName];
                 }
             }

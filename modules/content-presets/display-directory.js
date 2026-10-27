@@ -69,10 +69,10 @@ function definition(presetId, display, targetSheetKeys) {
  * are currently valid against real tables and all combination dependencies.
  */
 export function buildActiveContentPresetDisplayDirectory(rawData, popupByTable = new Map()) {
-    const tables = physicalTables(rawData);
     const bindings = popupByTable instanceof Map
         ? popupByTable
         : new Map(Object.entries(popupByTable || {}));
+    const tables = bindings.size > 0 ? physicalTables(rawData) : [];
     const singleBySheetKey = new Map();
     const virtualSources = [];
     const byModelId = new Map();

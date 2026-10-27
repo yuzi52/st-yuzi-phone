@@ -70,18 +70,22 @@ export async function exportBodyDialoguePeoplePack(records) {
     return pack;
 }
 
-async function decodeImage(asset, slot, name, isCurrent) {
+async function decodeImage(asset, slot, name, isCurrent, decodedImages) {
     if (!isCurrent()) throw new Error('角色卡已切换或页面已关闭，已取消读取');
     if (asset === null) return null;
     if (!isObject(asset) || typeof asset.dataUrl !== 'string') throw new Error(`${name}的图片配置缺失或无效`);
     const comma = asset.dataUrl.indexOf(',');
     const match = /^data:(image\/[a-z0-9.+-]+);base64$/i.exec(asset.dataUrl.slice(0, comma));
     if (!match || asset.dataUrl.length - comma - 1 > Math.ceil(IMAGE_BYTES / 3) * 4) throw new Error('图片必须是内嵌数据，且不能超过 8MB');
-    let binary;
-    try { binary = atob(asset.dataUrl.slice(comma + 1)); } catch { throw new Error('图片 Base64 数据损坏'); }
-    if (!binary.length || binary.length > IMAGE_BYTES) throw new Error('图片为空或超过 8MB');
-    const blob = new Blob([Uint8Array.from(binary, char => char.charCodeAt(0))], { type: match[1].toLowerCase() });
-    await loadImage(asset.dataUrl);
+    let blob = decodedImages.get(asset.dataUrl);
+    if (!blob) {
+        let binary;
+        try { binary = atob(asset.dataUrl.slice(comma + 1)); } catch { throw new Error('图片 Base64 数据损坏'); }
+        if (!binary.length || binary.length > IMAGE_BYTES) throw new Error('图片为空或超过 8MB');
+        blob = new Blob([Uint8Array.from(binary, char => char.charCodeAt(0))], { type: match[1].toLowerCase() });
+        await loadImage(asset.dataUrl);
+        decodedImages.set(asset.dataUrl, blob);
+    }
     return { blob, ...decoration(asset, slot) };
 }
 
@@ -94,13 +98,13 @@ export async function readBodyDialoguePeoplePack(source, isCurrent = () => true)
         throw new Error('不是支持的正文人物配置包');
     }
     if (!pack.people.length) throw new Error('配置包中没有人物');
-    const people = [], names = new Set();
+    const people = [], names = new Set(), decodedImages = new Map();
     for (const sourcePerson of pack.people) {
         const person = personFields(sourcePerson);
         if (names.has(person.name)) throw new Error(`配置包内存在重复姓名：${person.name}`);
         names.add(person.name);
         for (const slot of slots) {
-            person[slot] = await decodeImage(sourcePerson[slot], slot, person.name, isCurrent);
+            person[slot] = await decodeImage(sourcePerson[slot], slot, person.name, isCurrent, decodedImages);
         }
         const avatars = sourcePerson.emotionAvatars ?? {};
         if (!isObject(avatars) || Object.keys(avatars).some(id => !BODY_DIALOGUE_EMOTIONS.some(emotion => emotion.id === id))) {
@@ -108,7 +112,7 @@ export async function readBodyDialoguePeoplePack(source, isCurrent = () => true)
         }
         person.emotionAvatars = {};
         for (const { id } of BODY_DIALOGUE_EMOTIONS) {
-            person.emotionAvatars[id] = await decodeImage(avatars[id] ?? null, 'avatar', person.name, isCurrent);
+            person.emotionAvatars[id] = await decodeImage(avatars[id] ?? null, 'avatar', person.name, isCurrent, decodedImages);
         }
         people.push(person);
     }

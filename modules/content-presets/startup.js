@@ -1,7 +1,7 @@
 import { getPhoneCoreState } from '../phone-core/state.js';
 import { isContentPresetFullPageRuntimeEnabled } from './activation-gate.js';
 import { commitContentPresetIndex, markContentPresetIndexUnavailable } from './index-state.js';
-import { listPresetMetadata, loadActiveBindings, loadPopupBindings, loadBottomBindings } from './repository.js';
+import { loadContentPresetIndex } from './repository.js';
 import { convergeCurrentContentPresetRoute } from './route-convergence.js';
 
 const DEFAULT_STARTUP_DEPS = Object.freeze({
@@ -9,18 +9,12 @@ const DEFAULT_STARTUP_DEPS = Object.freeze({
     convergeCurrentContentPresetRoute,
     getPhoneCoreState,
     isContentPresetFullPageRuntimeEnabled,
-    listPresetMetadata,
-    loadActiveBindings,
-    loadPopupBindings,
-    loadBottomBindings,
+    loadContentPresetIndex,
     markContentPresetIndexUnavailable,
 });
 
 function createContentPresetIndexInitializer(overrides = {}) {
     const runtimeDeps = { ...DEFAULT_STARTUP_DEPS, ...overrides };
-    // 旧测试 / 调用方只提供页面绑定加载器时，不触发额外的真实数据库读取。
-    if (overrides.loadActiveBindings && !overrides.loadPopupBindings) runtimeDeps.loadPopupBindings = async () => new Map();
-    if (overrides.loadActiveBindings && !overrides.loadBottomBindings) runtimeDeps.loadBottomBindings = async () => new Map();
     let startupPromise = null;
     return function initializeContentPresetIndexWithDeps() {
         if (!runtimeDeps.isContentPresetFullPageRuntimeEnabled()) return Promise.resolve(null);
@@ -33,12 +27,7 @@ function createContentPresetIndexInitializer(overrides = {}) {
             let popupByTable;
             let snapshot;
             try {
-                const [metadata, pages, popups, bottoms] = await Promise.all([
-                    runtimeDeps.listPresetMetadata(),
-                    runtimeDeps.loadActiveBindings(),
-                    runtimeDeps.loadPopupBindings(),
-                    runtimeDeps.loadBottomBindings(),
-                ]);
+                const { metadata, pageByTable: pages, popupByTable: popups, bottomByTable: bottoms } = await runtimeDeps.loadContentPresetIndex();
                 pageByTable = pages;
                 popupByTable = popups;
                 snapshot = runtimeDeps.commitContentPresetIndex({

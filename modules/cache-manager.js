@@ -67,56 +67,15 @@ function openDb() {
     return dbPromise;
 }
 
-function isIdbRequestLike(value) {
-    return Boolean(value)
-        && typeof value === 'object'
-        && 'onsuccess' in value
-        && 'onerror' in value
-        && 'result' in value;
-}
-
-function withStore(storeName, mode, handler) {
-    return openDb().then((db) => new Promise((resolve, reject) => {
-        const tx = db.transaction(storeName, mode);
-        const store = tx.objectStore(storeName);
-        let result;
-        let settled = false;
-
-        const rejectOnce = (error) => {
-            if (settled) return;
-            settled = true;
-            reject(error);
-        };
-
-        try {
-            const operation = handler(store);
-            if (isIdbRequestLike(operation)) {
-                operation.addEventListener('success', () => {
-                    result = operation.result;
-                }, { once: true });
-                operation.addEventListener('error', () => {
-                    rejectOnce(operation.error || tx.error);
-                }, { once: true });
-            } else {
-                result = operation;
-            }
-        } catch (e) {
-            rejectOnce(e);
-            return;
-        }
-
-        tx.oncomplete = () => {
-            if (settled) return;
-            settled = true;
-            resolve(result);
-        };
-        tx.onerror = () => rejectOnce(tx.error);
-        tx.onabort = () => rejectOnce(tx.error);
-    }));
-}
-
 export async function cacheRemove(storeName, key) {
-    await withStore(storeName, 'readwrite', store => store.delete(key));
+    await openDb().then(db => new Promise((resolve, reject) => {
+        const tx = db.transaction(storeName, 'readwrite');
+        const request = tx.objectStore(storeName).delete(key);
+        request.addEventListener('error', () => reject(request.error || tx.error), { once: true });
+        tx.oncomplete = () => resolve();
+        tx.onerror = () => reject(tx.error);
+        tx.onabort = () => reject(tx.error);
+    }));
     return true;
 }
 

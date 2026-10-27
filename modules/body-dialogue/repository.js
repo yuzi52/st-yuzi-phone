@@ -179,7 +179,8 @@ export const bodyDialogueRepository = {
     },
     resizeAudioWindows(layers) {
         return transaction(['meta', 'audio', 'media'], 'readwrite', async store => {
-            const windows = await result(store('meta').getAll());
+            // The exclusive upper bound keeps this read within window metadata, away from module packs.
+            const windows = await result(store('meta').getAll(IDBKeyRange.bound('window:', 'window;', false, true)));
             for (const window of windows.filter(value => value?.kind === 'window')) {
                 const floors = window.floors.slice(-layers);
                 if (floors.length === window.floors.length) continue;
@@ -201,7 +202,7 @@ export const bodyDialogueRepository = {
                 const keys = await result(store(name).index('card').getAllKeys(card));
                 for (const id of keys) store(name).delete(id);
             }
-            for (const value of await result(store('meta').getAll())) {
+            for (const value of await result(store('meta').getAll(IDBKeyRange.bound('window:', 'window;', false, true)))) {
                 if (value?.kind === 'window' && value.card === card) store('meta').delete(`window:${value.chat}`);
             }
         });

@@ -54,12 +54,15 @@ export function mountBuiltinTheater(container, options, deps = {}) {
         actions:options.actions || {back:guarded(navigateBack),previousTable:guarded(()=>requestTableNavigationSwitch(sheetKey,'previous')),nextTable:guarded(()=>requestTableNavigationSwitch(sheetKey,'next')),editCurrentTable:guarded(()=>navigateToEditableTable({sheetKey}))},
     };
     let unmount;
-    const syncAppearance=()=>{
+    const syncAppearance=({key}={})=>{
+        if(key && key !== 'phoneThemeMode' && key !== 'imageGeneration')return;
         if(!active())return;
-        theme.mode=getSettings().phoneThemeMode === 'dark' ? 'dark':'light';
-        root.firstElementChild?.setAttribute('data-theme',theme.mode);
-        root.querySelectorAll('[data-theme]').forEach(node=>{node.dataset.theme=theme.mode;});
-        imageController.updateSettings();
+        if(!key || key === 'phoneThemeMode') {
+            theme.mode=getSettings().phoneThemeMode === 'dark' ? 'dark':'light';
+            root.firstElementChild?.setAttribute('data-theme',theme.mode);
+            root.querySelectorAll('[data-theme]').forEach(node=>{node.dataset.theme=theme.mode;});
+        }
+        if(!key || key === 'imageGeneration')imageController.updateSettings();
     };
     const dispose=()=>{
         if(signal.aborted)return; controller.abort(); unmount?.(); imageController.dispose();

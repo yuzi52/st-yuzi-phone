@@ -10,24 +10,25 @@ async function checkStartup(gate) {
     const disabled = __test__createContentPresetIndexInitializer({
         isContentPresetFullPageRuntimeEnabled: () => false,
         getPhoneCoreState: failIfCalled('关闭态 phone state'),
-        listPresetMetadata: failIfCalled('关闭态 metadata repository'),
-        loadActiveBindings: failIfCalled('关闭态 bindings repository'),
+        loadContentPresetIndex: failIfCalled('关闭态 index repository'),
         commitContentPresetIndex: failIfCalled('关闭态 index commit'),
         markContentPresetIndexUnavailable: failIfCalled('关闭态 unavailable commit'),
         convergeCurrentContentPresetRoute: failIfCalled('关闭态 route convergence'),
     });
     assert.equal(await disabled(), null, '注入关闭态时 startup 必须在所有状态与 I/O 之前结束');
 
-    const calls = { metadata: 0, bindings: 0, commit: 0, converge: 0 };
+    const calls = { index: 0, commit: 0, converge: 0 };
     const state = { currentRoute: 'table:sheet-a', routeRenderToken: 7 };
     const metadata = [{ id: 'preset-a', name: 'Preset A' }];
     const activeByTable = new Map([['sheet-a', { presetId: 'preset-a', itemId: 'item-a' }]]);
+    const popupByTable = new Map([['sheet-popup', { presetId: 'preset-a', displays: [{ id: 'display-a' }] }]]);
+    const bottomByTable = new Map([['sheet-bottom', { kind: 'builtin', sceneId: 'square' }]]);
+    const index = { metadata, pageByTable: activeByTable, popupByTable, bottomByTable };
     let committedPatch = null;
     const enabled = __test__createContentPresetIndexInitializer({
         isContentPresetFullPageRuntimeEnabled: gate.isContentPresetFullPageRuntimeEnabled,
         getPhoneCoreState: () => state,
-        listPresetMetadata: async () => { calls.metadata += 1; return metadata; },
-        loadActiveBindings: async () => { calls.bindings += 1; return activeByTable; },
+        loadContentPresetIndex: async () => { calls.index += 1; return index; },
         commitContentPresetIndex: patch => {
             calls.commit += 1;
             committedPatch = patch;
@@ -44,24 +45,26 @@ async function checkStartup(gate) {
     assert.strictEqual(first, second, 'startup 同一实例的并发初始化必须合流到同一 Promise');
     const snapshot = await first;
     assert.equal(snapshot.status, 'ready');
-    assert.deepEqual(calls, { metadata: 1, bindings: 1, commit: 1, converge: 1 });
+    assert.deepEqual(calls, { index: 1, commit: 1, converge: 1 });
     assert.equal(committedPatch.metadata.get('preset-a'), metadata[0]);
+    assert.strictEqual(committedPatch.pageByTable, activeByTable);
+    assert.strictEqual(committedPatch.popupByTable, popupByTable);
+    assert.strictEqual(committedPatch.bottomByTable, bottomByTable);
     assert.strictEqual(committedPatch.activeByTable, activeByTable);
 
-    let releaseMetadata;
+    let releaseIndex;
     const driftingState = { currentRoute: 'table:sheet-a', routeRenderToken: 7 };
     const drifted = __test__createContentPresetIndexInitializer({
         isContentPresetFullPageRuntimeEnabled: () => true,
         getPhoneCoreState: () => driftingState,
-        listPresetMetadata: () => new Promise(resolve => { releaseMetadata = resolve; }),
-        loadActiveBindings: async () => activeByTable,
+        loadContentPresetIndex: () => new Promise(resolve => { releaseIndex = resolve; }),
         commitContentPresetIndex: patch => Object.freeze({ ...patch, revision: 2 }),
         markContentPresetIndexUnavailable: failIfCalled('route 漂移时 unavailable commit'),
         convergeCurrentContentPresetRoute: failIfCalled('route 漂移后的 convergence'),
     });
     const driftedPromise = drifted();
     driftingState.routeRenderToken = 8;
-    releaseMetadata(metadata);
+    releaseIndex(index);
     assert.equal((await driftedPromise).status, 'ready', 'route 漂移不应阻止索引提交');
 
     const convergenceError = new Error('route convergence failed');
@@ -70,8 +73,7 @@ async function checkStartup(gate) {
     const convergenceFailed = __test__createContentPresetIndexInitializer({
         isContentPresetFullPageRuntimeEnabled: () => true,
         getPhoneCoreState: () => ({ currentRoute: 'table:sheet-a', routeRenderToken: 7 }),
-        listPresetMetadata: async () => metadata,
-        loadActiveBindings: async () => activeByTable,
+        loadContentPresetIndex: async () => index,
         commitContentPresetIndex: () => readySnapshot,
         markContentPresetIndexUnavailable: () => { convergenceUnavailableCalls += 1; },
         convergeCurrentContentPresetRoute: async () => { throw convergenceError; },
@@ -91,8 +93,7 @@ async function checkStartup(gate) {
     const failed = __test__createContentPresetIndexInitializer({
         isContentPresetFullPageRuntimeEnabled: () => true,
         getPhoneCoreState: () => ({ currentRoute: 'home', routeRenderToken: 1 }),
-        listPresetMetadata: async () => { throw repositoryError; },
-        loadActiveBindings: async () => new Map(),
+        loadContentPresetIndex: async () => { throw repositoryError; },
         commitContentPresetIndex: failIfCalled('repository 失败后的 index commit'),
         markContentPresetIndexUnavailable: error => { unavailableError = error; },
         convergeCurrentContentPresetRoute: failIfCalled('repository 失败后的 convergence'),

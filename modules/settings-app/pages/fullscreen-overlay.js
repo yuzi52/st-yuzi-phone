@@ -262,7 +262,7 @@ export function createFullscreenOverlayPage(ctx) {
                         ...(state.config?.sourceEnabledBySheetKey || {}),
                         [sheetKey]: input.checked === true,
                     },
-                });
+                }, '', false);
             });
         });
 

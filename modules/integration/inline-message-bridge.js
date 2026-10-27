@@ -24,8 +24,8 @@ export async function subscribeInlineMessageInvalidation(callback) {
             EventTypes.GENERATION_STARTED, EventTypes.MESSAGE_DELETED,
             EventTypes.MESSAGE_SWIPED, EventTypes.MESSAGE_UPDATED, EventTypes.CHARACTER_MESSAGE_RENDERED]) {
             const dispose = await onEvent(type, (messageId) => {
-                const latest = getInlineMessageTarget();
                 const targeted = [EventTypes.MESSAGE_UPDATED, EventTypes.CHARACTER_MESSAGE_RENDERED].includes(type);
+                const latest = targeted ? getInlineMessageTarget() : null;
                 if (!targeted || !latest || Number(messageId) === latest.messageId) callback();
             });
             if (typeof dispose === 'function') disposers.push(dispose);

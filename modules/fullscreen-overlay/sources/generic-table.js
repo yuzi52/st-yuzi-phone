@@ -48,14 +48,15 @@ function selectRows(table) {
     if (selectedRowIndexes.size === 0 && selectedRowIds.size === 0) return [];
 
     const rowIdColumnIndex = findRowIdColumnIndex(table.headers);
-    return table.rows
-        .map((row, rowIndex) => ({ row, rowIndex }))
-        .filter(({ row, rowIndex }) => {
-            const rowId = rowIdColumnIndex >= 0 ? normalizeText(row?.[rowIdColumnIndex]) : '';
-            return selectedRowIds.size > 0 && rowId
-                ? selectedRowIds.has(rowId)
-                : selectedRowIndexes.has(rowIndex);
-        });
+    const selected = [];
+    table.rows.forEach((row, rowIndex) => {
+        const rowId = rowIdColumnIndex >= 0 ? normalizeText(row?.[rowIdColumnIndex]) : '';
+        const matches = selectedRowIds.size > 0 && rowId
+            ? selectedRowIds.has(rowId)
+            : selectedRowIndexes.has(rowIndex);
+        if (matches) selected.push({ row, rowIndex });
+    });
+    return selected;
 }
 
 export function getGenericTableSignature(context) {

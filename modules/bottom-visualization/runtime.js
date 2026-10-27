@@ -107,8 +107,9 @@ export function createBottomVisualization() {
         if (deleteInterrupted) { deleteDialog?.dispose(); deleteDialog = null; }
         applyPhoneThemeMode(settings.phoneThemeMode);
         applyAppearanceFontLibrary();
+        const fontFamily = getAppearanceFontFamily();
         for (const surface of [root, dock]) {
-            surface.style.fontFamily = getAppearanceFontFamily();
+            surface.style.fontFamily = fontFamily;
             surface.style.fontSize = `${13 * settings.phoneReadableTextScalePercent / 100}px`;
             surface.style.setProperty('--yuzi-phone-readable-text-scale', settings.phoneReadableTextScalePercent / 100);
             surface.style.setProperty('--yuzi-phone-bottom-opacity', config.opacity / 100);

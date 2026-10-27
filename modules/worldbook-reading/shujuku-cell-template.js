@@ -30,8 +30,8 @@ export function readShujukuCell(tables, path) {
     if (!table || table.content.length === 0 || !Array.isArray(table.content[0])) return null;
     const columnIndex = table.content[0].findIndex((cell) => String(cell ?? '').trim() === columnName);
     if (columnIndex < 0) return null;
-    const row = table.content.slice(1).find((candidate) => (
-        Array.isArray(candidate)
+    const row = table.content.find((candidate, rowIndex) => (
+        rowIndex > 0 && Array.isArray(candidate)
         && candidate.some((cell) => String(cell ?? '').trim() === rowName)
     ));
     if (!row) return null;
@@ -76,19 +76,22 @@ export function evaluateShujukuCellCondition(expression, tables) {
         const table = findTable(tables, tableName);
         if (!table || table.content.length === 0 || !Array.isArray(table.content[0])) return operator === '!=';
         const header = table.content[0];
-        const rows = table.content.slice(1).filter(Array.isArray);
         let foundCandidate = false;
-        const targetRow = rows.find((row) => String(row[0] ?? '').trim() === targetName);
+        const targetRow = table.content.find((row, rowIndex) => (
+            rowIndex > 0 && Array.isArray(row) && String(row[0] ?? '').trim() === targetName
+        ));
         if (targetRow) {
             foundCandidate = true;
-            if (targetRow.slice(1).some((value) => compareCellValue(coerceCellValue(value), operator, expected))) {
+            if (targetRow.some((value, columnIndex) => columnIndex > 0 && compareCellValue(coerceCellValue(value), operator, expected))) {
                 return true;
             }
         }
         const columnIndex = header.findIndex((value) => String(value ?? '').trim() === targetName);
         if (columnIndex >= 0) {
             foundCandidate = true;
-            if (rows.some((row) => compareCellValue(coerceCellValue(row[columnIndex]), operator, expected))) {
+            if (table.content.some((row, rowIndex) => (
+                rowIndex > 0 && Array.isArray(row) && compareCellValue(coerceCellValue(row[columnIndex]), operator, expected)
+            ))) {
                 return true;
             }
         }

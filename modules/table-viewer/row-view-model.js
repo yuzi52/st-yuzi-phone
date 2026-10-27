@@ -181,31 +181,29 @@ function resolveRowEntryTitle(row, headers, rawHeaders, fieldBindings, headerMap
     const boundTitle = getCellByGenericHeaders(row, headerMap, fieldBindings.summaryTitle || []);
     if (boundTitle) return boundTitle;
 
-    const candidates = row
-        .map((value, idx) => {
-            const text = normalizeCellDisplayValue(value);
-            if (!text) return null;
-            if (shouldSkipRowModelColumn(headers, rawHeaders, idx, row)) return null;
+    let best = null;
+    row.forEach((value, idx) => {
+        const text = normalizeCellDisplayValue(value);
+        if (!text) return;
+        if (shouldSkipRowModelColumn(headers, rawHeaders, idx, row)) return;
 
-            const header = String(rawHeaders[idx] ?? headers[idx] ?? '').trim();
-            let score = idx === 1 ? 6 : 0;
+        const header = String(rawHeaders[idx] ?? headers[idx] ?? '').trim();
+        let score = idx === 1 ? 6 : 0;
 
-            if (/(标题|名称|name|title|主题|会话|角色|昵称|主角|作者|发帖人|发送者|来源)/i.test(header)) {
-                score += 10;
-            }
-            if (text.length <= 40) {
-                score += 2;
-            }
-            if (!isLikelyMetaField(header, text)) {
-                score += 2;
-            }
+        if (/(标题|名称|name|title|主题|会话|角色|昵称|主角|作者|发帖人|发送者|来源)/i.test(header)) {
+            score += 10;
+        }
+        if (text.length <= 40) {
+            score += 2;
+        }
+        if (!isLikelyMetaField(header, text)) {
+            score += 2;
+        }
 
-            return { text, score, idx }; 
-        })
-        .filter(Boolean)
-        .sort((a, b) => b.score - a.score || a.idx - b.idx || a.text.length - b.text.length);
+        if (!best || score > best.score) best = { text, score };
+    });
 
-    return candidates[0]?.text || t("未命名");
+    return best?.text || t("未命名");
 }
 
 export function shouldPreferFullRowField(pair) {
@@ -241,21 +239,23 @@ export function buildGenericRowViewModel(row, rowIndex, headers = [], rawHeaders
         .map(value => truncateText(value, 30))
         .join(' · ');
 
-    const previewText = preferredPreviewText || row
-        .map((value, idx) => {
+    let previewText = preferredPreviewText;
+    if (!previewText) {
+        const previewParts = [];
+        row.some((value, idx) => {
             const header = String(rawHeaders[idx] ?? headers[idx] ?? '').trim();
             const text = normalizeCellDisplayValue(value);
-            if (!text) return '';
-            if (shouldSkipRowModelColumn(headers, rawHeaders, idx, row)) return '';
-            if (text === title) return '';
-            if (statusField && idx === statusField.idx) return '';
-            if (timeField && idx === timeField.idx) return '';
-            if (isLikelyMetaField(header, text)) return '';
-            return truncateText(text, 30);
-        })
-        .filter(Boolean)
-        .slice(0, 2)
-        .join(' · ');
+            if (!text) return false;
+            if (shouldSkipRowModelColumn(headers, rawHeaders, idx, row)) return false;
+            if (text === title) return false;
+            if (statusField && idx === statusField.idx) return false;
+            if (timeField && idx === timeField.idx) return false;
+            if (isLikelyMetaField(header, text)) return false;
+            previewParts.push(truncateText(text, 30));
+            return previewParts.length === 2;
+        });
+        previewText = previewParts.join(' · ');
+    }
 
     return {
         rowIndex,

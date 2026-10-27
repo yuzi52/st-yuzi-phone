@@ -12,7 +12,7 @@ var TITLE_MARQUEE_STYLE = ``;
 var LIVE_LAYOUT_STYLE = '';
 function records(state) {
   const map = new Map((state?.headers || []).map((header, index) => [clean(header), index]));
-  return (state?.rows || []).map((row) => Object.fromEntries(FIELDS.map((field) => [field, clean(row[map.get(field)] ?? "")])));
+  return (state?.rows || []).slice(0, 1).map((row) => Object.fromEntries(FIELDS.map((field) => [field, clean(row[map.get(field)] ?? "")])));
 }
 function parseBarrage(value, kind) {
   return split(value).map((item) => {
@@ -23,14 +23,8 @@ function parseBarrage(value, kind) {
 function formatAudience(value) {
   return split(value)[0] || "—";
 }
-function roomMarkup(record) {
-  const messages = [
-    ...parseBarrage(record["剧情弹幕串"], "plot"),
-    ...parseBarrage(record["推角弹幕串"], "stan"),
-    ...parseBarrage(record["对线弹幕串"], "clash")
-  ];
-  const seeded = messages;
-  const chat = seeded.slice(0, 6).map((message) => chatMarkup(message)).join("") || '<p class="yuzi-theater-live-empty-barrage">暂无弹幕</p>';
+function roomMarkup(record, messages) {
+  const chat = messages.slice(0, 6).map((message) => chatMarkup(message)).join("") || '<p class="yuzi-theater-live-empty-barrage">暂无弹幕</p>';
   record = escapeRecord(record);
   return `<header class="yuzi-theater-live-topbar"><div class="yuzi-theater-live-host"><span class="yuzi-theater-live-avatar">${initials(record["直播间名"])}</span><span class="yuzi-theater-live-host-copy"><strong>${record["直播间名"] || "实时片场"}</strong><span>本场点赞 ${split(record["观看/互动数据"])[1] || "—"}</span></span><button class="yuzi-theater-live-follow" data-yuzi-theater-live-action="follow" type="button">关注</button></div><div class="yuzi-theater-live-audience"><span class="yuzi-theater-live-viewer-avatar">热</span><span class="yuzi-theater-live-viewer-avatar">粉</span><span class="yuzi-theater-live-viewer-avatar">新</span><span class="yuzi-theater-live-count">${formatAudience(record["观看/互动数据"])}</span><button class="yuzi-theater-live-close" data-action="back" type="button" aria-label="关闭">${icon("M6 6l12 12 M18 6L6 18")}</button></div></header><section class="yuzi-theater-live-title-panel"><h1>${record["直播标题"] || record["直播间名"] || "直播进行中"}</h1><p>${record["剧情舞台概述"] || record["对手戏看点"] || "正在直播"}</p><span class="yuzi-theater-live-badge">${record["粉丝团挂牌"] || record["阵容标签"] || "直播公告"}</span></section><section class="yuzi-theater-live-chat-wrap"><div id="yuzi-theater-live-chat-list" class="yuzi-theater-live-chat-list">${chat}</div></section><button class="yuzi-theater-live-pause" data-barrage-toggle data-paused="false" type="button" aria-label="暂停弹幕">${icon("M9 5v14 M15 5v14")}</button><span class="yuzi-theater-live-pause-label" data-pause-label>暂停弹幕</span><footer class="yuzi-theater-live-actionbar"><input class="yuzi-theater-live-input" type="text" placeholder="说点什么..." aria-label="说点什么"><button class="yuzi-theater-live-action" data-yuzi-theater-live-action="emoji" type="button" aria-label="表情">${icon("M8 14s1.5 2 4 2 4-2 4-2 M9 9h.01 M15 9h.01 M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20Z")}</button><button class="yuzi-theater-live-action" data-yuzi-theater-live-action="like" type="button" aria-label="点赞">${icon("M20.8 4.6a5.5 5.5 0 0 0-7.8 0L12 5.6l-1-1a5.5 5.5 0 0 0-7.8 7.8L12 21l8.8-8.6a5.5 5.5 0 0 0 0-7.8Z")}</button><button class="yuzi-theater-live-action" data-yuzi-theater-live-action="gift" type="button" aria-label="礼物">${icon("M20 12v9H4v-9 M2 7h20v5H2z M12 7v14 M12 7H7.5a2.5 2.5 0 1 1 0-5C11 2 12 7 12 7Zm0 0h4.5a2.5 2.5 0 1 0 0-5C13 2 12 7 12 7Z")}</button><button class="yuzi-theater-live-action" data-yuzi-theater-live-action="share" type="button" aria-label="分享">${icon("M12 3v12 M7 8l5-5 5 5 M5 12v8h14v-8")}</button></footer>`;
 }
@@ -87,7 +81,7 @@ export function mount(context) {
     messages = [...parseBarrage(record["剧情弹幕串"], "plot"), ...parseBarrage(record["推角弹幕串"], "stan"), ...parseBarrage(record["对线弹幕串"], "clash")];
 
     cursor = Math.min(6, messages.length) % messages.length;
-    room.innerHTML = roomMarkup(record);
+    room.innerHTML = roomMarkup(record, messages);
     const roomName = root.querySelector(".yuzi-theater-live-host-copy strong");
     if (roomName) {
       const text = escapeHtml(roomName.textContent);

@@ -25,8 +25,11 @@ export function mergeWorldbookChanges(before, edited, current) {
     const entries = { ...(current.entries || {}) };
     const old = before.entries || {}, next = edited.entries || {};
     for (const key of new Set([...Object.keys(old), ...Object.keys(next)])) {
-        if (JSON.stringify(old[key]) === JSON.stringify(next[key])) continue;
-        if (JSON.stringify(entries[key]) !== JSON.stringify(old[key]) && JSON.stringify(entries[key]) !== JSON.stringify(next[key])) {
+        const previousSignature = JSON.stringify(old[key]);
+        const nextSignature = JSON.stringify(next[key]);
+        if (previousSignature === nextSignature) continue;
+        const currentSignature = JSON.stringify(entries[key]);
+        if (currentSignature !== previousSignature && currentSignature !== nextSignature) {
             throw new Error('世界书条目已被其他操作修改，请重试同步');
         }
         if (Object.hasOwn(next, key)) entries[key] = next[key];

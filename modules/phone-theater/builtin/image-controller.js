@@ -45,6 +45,7 @@ export function createBuiltinImageController(options) {
     function mount() {
         if (!active()) return;
         const snapshot = options.getSnapshot();
+        let identityCountsByFields;
         root.querySelectorAll('[data-image-canvas]').forEach(frame => {
             const record = snapshot.records[Number(frame.dataset.recordIndex)];
             if (!record) return;
@@ -58,8 +59,20 @@ export function createBuiltinImageController(options) {
             const frameSignal=frameController.signal;
             const abortFrame=()=>frameController.abort();
             signal.addEventListener('abort',abortFrame,{once:true});
-            const validIdentity=snapshot.records.filter(row=>canvas.stableIdentityFields.every(field=>row.fields[field] === record.fields[field])).length === 1;
-            const key = JSON.stringify([canvas.canvas, ...canvas.stableIdentityFields.map(field => record.fields[field])]);
+            identityCountsByFields ||= new Map();
+            let identityCounts = identityCountsByFields.get(canvas.stableIdentityFields);
+            if (!identityCounts) {
+                identityCounts = new Map();
+                for (const row of snapshot.records) {
+                    // Native snapshot fields are strings, so tuple keys preserve strict equality.
+                    const identity = JSON.stringify(canvas.stableIdentityFields.map(field => row.fields[field]));
+                    identityCounts.set(identity, (identityCounts.get(identity) || 0) + 1);
+                }
+                identityCountsByFields.set(canvas.stableIdentityFields, identityCounts);
+            }
+            const identityValues = canvas.stableIdentityFields.map(field => record.fields[field]);
+            const validIdentity = identityCounts.get(JSON.stringify(identityValues)) === 1;
+            const key = JSON.stringify([canvas.canvas, ...identityValues]);
             let state = states.get(key);
             if (!state) { state = { busy: false, imagePath: '', revision: 0 }; states.set(key, state); }
             const description = document.createElement('span'); description.className = 'yuzi-phone-theater-image-note';

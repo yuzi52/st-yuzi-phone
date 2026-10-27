@@ -202,8 +202,8 @@ async function main() {
         && has(contents.snapshot, "'id'")
         && has(contents.snapshot, "'行号'")
         && has(contents.snapshot, 'function isReviewIdentityHeader(header)')
-        && has(contents.snapshot, 'if (isReviewIdentityHeader(headers[index])) continue;')
-        && appearsBefore(contents.snapshot, 'if (isReviewIdentityHeader(headers[index])) continue;', "return t(\"未命名\");"));
+        && has(contents.snapshot, 'if ((titleMetadata.identityMatches[index] ??= isReviewIdentityHeader(headers[index]))) continue;')
+        && appearsBefore(contents.snapshot, 'if ((titleMetadata.identityMatches[index] ??= isReviewIdentityHeader(headers[index]))) continue;', "return t(\"未命名\");"));
     check(results, 'templates', '审核变更项保留 data-row-id 供定位但不再显示 ID 小字', has(contents.templates, 'data-row-id="${escapeHtmlAttr(change.rowId || \'\')}"')
         && has(contents.templates, "const rowLabel = t`第 ${formatCount(change.rowIndex) + 1} 行`;")
         && !has(contents.templates, 'ID ${change.rowId}'));

@@ -50,27 +50,39 @@ export function validateReplacementRule(rule = {}, siblingRules = []) {
     return { valid: true };
 }
 
-export function validateReplacementRules(rules = []) {
-    const normalizedRules = Array.isArray(rules) ? rules.map(normalizeReplacementRule) : [];
+function validateNormalizedRules(normalizedRules) {
+    const sourceCounts = new Map();
+    normalizedRules.forEach(({ id, source }) => {
+        let group = sourceCounts.get(source);
+        if (!group) {
+            group = { total: 0, ids: new Map() };
+            sourceCounts.set(source, group);
+        }
+        group.total += 1;
+        group.ids.set(id, (group.ids.get(id) || 0) + 1);
+    });
+
     const errors = [];
     normalizedRules.forEach((rule, index) => {
-        const siblingRules = normalizedRules.filter((_, siblingIndex) => siblingIndex !== index);
-        const result = validateReplacementRule(rule, siblingRules);
-        if (!result.valid) {
-            errors.push({ index, id: rule.id, code: result.code });
-        }
+        const result = validateReplacementRule(rule);
+        const group = sourceCounts.get(rule.source);
+        // 非空的相同 ID 互相豁免；空 ID 只排除自身。
+        const duplicate = rule.id ? group.total > group.ids.get(rule.id) : group.total > 1;
+        const code = result.valid ? (duplicate ? 'duplicate_source' : '') : result.code;
+        if (code) errors.push({ index, id: rule.id, code });
     });
     return errors;
 }
 
+export function validateReplacementRules(rules = []) {
+    const normalizedRules = Array.isArray(rules) ? rules.map(normalizeReplacementRule) : [];
+    return validateNormalizedRules(normalizedRules);
+}
+
 function getValidRules(rules = []) {
     const normalizedRules = Array.isArray(rules) ? rules.map(normalizeReplacementRule) : [];
-    return normalizedRules.filter((rule, index) => (
-        validateReplacementRule(
-            rule,
-            normalizedRules.filter((_, siblingIndex) => siblingIndex !== index),
-        ).valid
-    ));
+    const invalidIndexes = new Set(validateNormalizedRules(normalizedRules).map(error => error.index));
+    return normalizedRules.filter((_, index) => !invalidIndexes.has(index));
 }
 
 function createTextRuleApplier(rules) {
@@ -93,12 +105,12 @@ export function applyLiteralRulesToText(value, rules = []) {
     return createTextRuleApplier(rules)(value);
 }
 
-function applyRulesToRow(row, headers, applyToText) {
+function applyRulesToRow(row, isIdentityColumn, applyToText) {
     const nextRow = Array.isArray(row) ? [...row] : [];
     let changedCellCount = 0;
 
     nextRow.forEach((value, columnIndex) => {
-        if (isIdentityHeader(headers[columnIndex]) || typeof value !== 'string') return;
+        if (isIdentityColumn(columnIndex) || typeof value !== 'string') return;
         const result = applyToText(value);
         if (!result.changed) return;
         nextRow[columnIndex] = result.value;
@@ -109,7 +121,7 @@ function applyRulesToRow(row, headers, applyToText) {
 }
 
 export function applyLiteralRulesToRow(row, headers = [], rules = []) {
-    return applyRulesToRow(row, headers, createTextRuleApplier(rules));
+    return applyRulesToRow(row, columnIndex => isIdentityHeader(headers[columnIndex]), createTextRuleApplier(rules));
 }
 
 export function applyLiteralRulesToTableContent(content, rules = []) {
@@ -118,10 +130,12 @@ export function applyLiteralRulesToTableContent(content, rules = []) {
     }
 
     const headers = [...content[0]];
+    const identityColumns = [];
+    const isIdentityColumn = columnIndex => (identityColumns[columnIndex] ??= isIdentityHeader(headers[columnIndex]));
     const applyToText = createTextRuleApplier(rules);
     let changedCellCount = 0;
     const rows = content.slice(1).map((row) => {
-        const result = applyRulesToRow(row, headers, applyToText);
+        const result = applyRulesToRow(row, isIdentityColumn, applyToText);
         changedCellCount += result.changedCellCount;
         return result.row;
     });

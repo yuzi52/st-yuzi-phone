@@ -32,7 +32,7 @@ function buildTable(rawData, sheetKey, orderIndex) {
         orderIndex,
         status: headerRow ? 'available' : 'missing_header_row',
         headers,
-        rowCount: headerRow ? content.slice(1).length : 0,
+        rowCount: headerRow ? Math.max(0, content.length - 1) : 0,
     };
 }
 
@@ -162,12 +162,15 @@ function splitExplicitNames(explicitNames) {
     });
 }
 
-function getTableRows(rawData, sheetKey) {
+function getTableRows(rawData, sheetKey, rowsBySheetKey) {
+    if (rowsBySheetKey.has(sheetKey)) return rowsBySheetKey.get(sheetKey);
     const content = Array.isArray(rawData?.[sheetKey]?.content)
         ? rawData[sheetKey].content
         : [];
     if (!Array.isArray(content[0])) return [];
-    return content.slice(1).map(row => Array.isArray(row) ? row : []);
+    const rows = content.slice(1).map(row => Array.isArray(row) ? row : []);
+    rowsBySheetKey.set(sheetKey, rows);
+    return rows;
 }
 
 function normalizePromptPart(value) {
@@ -181,7 +184,7 @@ function normalizePromptPart(value) {
     return normalizeText(value);
 }
 
-function findCharacter(rawData, resolvedMappings, requestedName, source = 'explicit') {
+function findCharacter(rawData, resolvedMappings, requestedName, rowsBySheetKey, source = 'explicit') {
     const requestedKey = normalizeName(requestedName);
     for (const mapping of resolvedMappings) {
         if (
@@ -192,7 +195,7 @@ function findCharacter(rawData, resolvedMappings, requestedName, source = 'expli
         ) {
             continue;
         }
-        const rows = getTableRows(rawData, mapping.sheetKey);
+        const rows = getTableRows(rawData, mapping.sheetKey, rowsBySheetKey);
         const rowIndex = rows.findIndex(
             row => normalizeName(row[mapping.nameColumn.columnIndex]) === requestedKey,
         );
@@ -235,7 +238,7 @@ function findCharacter(rawData, resolvedMappings, requestedName, source = 'expli
     };
 }
 
-function collectKnownNames(rawData, resolvedMappings) {
+function collectKnownNames(rawData, resolvedMappings, rowsBySheetKey) {
     const knownNames = [];
     const seen = new Set();
     resolvedMappings.forEach((mapping) => {
@@ -247,7 +250,7 @@ function collectKnownNames(rawData, resolvedMappings) {
         ) {
             return;
         }
-        getTableRows(rawData, mapping.sheetKey).forEach((row) => {
+        getTableRows(rawData, mapping.sheetKey, rowsBySheetKey).forEach((row) => {
             const name = normalizeText(row[mapping.nameColumn.columnIndex]);
             const key = normalizeName(name);
             if (!key || seen.has(key)) return;
@@ -310,20 +313,21 @@ export function composeCharacterImagePrompt({
         ? rawData
         : {};
     const model = buildCharacterMappingModel(safeRawData, mappings);
+    const rowsBySheetKey = new Map();
     const explicitCharacters = splitExplicitNames(explicitNames)
-        .map(name => findCharacter(safeRawData, model.resolvedMappings, name));
+        .map(name => findCharacter(safeRawData, model.resolvedMappings, name, rowsBySheetKey));
     const explicitKeys = new Set(explicitCharacters.map(character => normalizeName(character.name)));
     const scannedNames = scanDescription
         ? scanDescriptionNames(
             description,
-            collectKnownNames(safeRawData, model.resolvedMappings),
+            collectKnownNames(safeRawData, model.resolvedMappings, rowsBySheetKey),
             explicitKeys,
         )
         : [];
     const characters = [
         ...explicitCharacters,
         ...scannedNames.map(
-            name => findCharacter(safeRawData, model.resolvedMappings, name, 'description'),
+            name => findCharacter(safeRawData, model.resolvedMappings, name, rowsBySheetKey, 'description'),
         ),
     ];
     const promptParts = characters.flatMap(character => [character.name, ...character.promptParts]);

@@ -604,8 +604,7 @@ function updateDeleteCount(page) {
     }
 }
 
-function showDeleteConfirmDialog(page, targets, deps, runtime) {
-    const normalizedTargets = normalizeDeleteTargets(targets);
+function showDeleteConfirmDialog(page, normalizedTargets, deps, runtime) {
     const listHtml = normalizedTargets.map((target) => renderDeleteTargetSummaryHtml(target)).join('');
     const bodyHtml = `
         <div class="vm-confirm-detail">
@@ -619,8 +618,7 @@ function showDeleteConfirmDialog(page, targets, deps, runtime) {
     }, runtime);
 }
 
-function buildDeleteConfirmTitle(targets) {
-    const normalizedTargets = normalizeDeleteTargets(targets);
+function buildDeleteConfirmTitle(normalizedTargets) {
     if (normalizedTargets.length === 1) {
         const target = normalizedTargets[0];
         return t`确认删除${getDeleteTargetKindLabel(target.kind)}「${target.label}」？`;

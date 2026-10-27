@@ -142,8 +142,8 @@ const rowDeleteBody = extractFunctionBody(
 );
 assertOrdered(rowDeleteBody, [
     'const failedRowIndexes = normalizeRowIndexes(result.failedRowIndexes || []);',
-    'const fallbackNotDeletedRowIndexes = requestedRowIndexes.filter((rowIndex) => !deletedRowIndexes.includes(rowIndex));',
-    'const notDeletedRowIndexes = normalizeRowIndexes(result.notDeletedRowIndexes || fallbackNotDeletedRowIndexes);',
+    'const notDeletedRowIndexes = normalizeRowIndexes(result.notDeletedRowIndexes',
+    '|| requestedRowIndexes.filter((rowIndex) => !deletedRowIndexes.includes(rowIndex)));',
     'const unattemptedRowIndexes = normalizeRowIndexes(result.unattemptedRowIndexes || notDeletedRowIndexes.filter((rowIndex) => !failedRowIndexes.includes(rowIndex)));',
     'const notDeletedViewRowIndexes = remapRemainingRowIndexes(notDeletedRowIndexes, deletedRowIndexes);',
     'state.setSelectedDeleteRowIndexes(notDeletedViewRowIndexes);',

@@ -120,7 +120,7 @@ function hasSingleOuterPair(source) {
 }
 
 function evaluateSeedExpression(expression, session) {
-    const content = `${String(session.seedContent ?? '')}\n${String(session.plotContent ?? '')}`.toLocaleLowerCase();
+    const content = session.getSeedContent();
     if (!content.trim()) return false;
 
     function evaluate(source) {
@@ -214,7 +214,11 @@ export async function renderConditionalTemplate(text, session = {}) {
     const maxNestingDepth = Number.isInteger(session.maxNestingDepth) && session.maxNestingDepth > 0
         ? session.maxNestingDepth
         : 10;
-    return renderConditionalContent(String(text ?? ''), { ...session, maxNestingDepth }, 0);
+    const source = String(text ?? '');
+    const context = { ...session, maxNestingDepth };
+    let seedContent;
+    context.getSeedContent = () => (seedContent ??= `${String(context.seedContent ?? '')}\n${String(context.plotContent ?? '')}`.toLocaleLowerCase());
+    return renderConditionalContent(source, context, 0);
 }
 
 import { evaluateShujukuCellCondition } from './shujuku-cell-template.js';

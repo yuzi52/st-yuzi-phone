@@ -70,6 +70,9 @@ const defaultVariants = [BODY_DIALOGUE_PROMPTS,
     { tone: `${legacyToneRule}\n\n例如：「小玉|[whispering]别吵醒她。」` },
     ...[false, true].map(readOriginal => ({ tone: `${legacyToneRule}\n\n例如：\n「${readOriginal ? '[whispering]' : ''}原文台词」\n「小玉|[whispering]中文翻译」` })),
 ];
+const defaultPromptValues = Object.fromEntries(Object.keys(BODY_DIALOGUE_PROMPTS).map(key => [
+    key, new Set(defaultVariants.map(variant => variant[key])),
+]));
 
 // Each capability owns its prompt contribution and its format/display requirements.
 // A future field belongs here and in the parser, not in an unrelated prompt append hook.
@@ -110,7 +113,7 @@ export function normalizeBodyDialogue(value = {}) {
         quote: source.quote === 'pair' ? 'pair' : 'tail',
     };
     config.prompts = Object.fromEntries(Object.entries(bodyDialogueDefaultPrompts(config)).map(([key, text]) => [
-        key, typeof source.prompts?.[key] === 'string' && !defaultVariants.some(variant => variant[key] === source.prompts[key]) ? source.prompts[key] : text,
+        key, typeof source.prompts?.[key] === 'string' && !defaultPromptValues[key].has(source.prompts[key]) ? source.prompts[key] : text,
     ]));
     for (const [key, [, min, max, step, , fallback]] of Object.entries(BODY_DIALOGUE_NUMBERS)) {
         const number = Number(source[key] ?? fallback);
@@ -140,7 +143,7 @@ export function bodyDialogueUsesPersonLanguages(config) {
 export function composeBodyDialoguePrompt(config, people = [], modulePrompt = '') {
     if (!config.enabled) return '';
     const { identity, prompts } = bodyDialogueFormat(config);
-    const defaultName = defaultVariants.some(variant => variant.name === config.prompts.name);
+    const defaultName = defaultPromptValues.name.has(config.prompts.name);
     const mergeDefaults = config.bilingual && identity && config.prompts.bilingual === BODY_DIALOGUE_PROMPTS.bilingual
         && defaultName;
     const emotion = prompts.includes('emotion') ? config.prompts.emotion : '';

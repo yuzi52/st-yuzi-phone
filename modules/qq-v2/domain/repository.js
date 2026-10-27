@@ -2018,13 +2018,15 @@ export function createQQV2Repository(options = {}) {
             const scope = getScope(state, scopeId, false);
             return scope.groups[groupId] ? copy(scope.groups[groupId]) : null;
         },
-        async listMessages(scopeId, conversationId) {
+        async listMessages(scopeId, conversationId, { limit } = {}) {
             const state = await stateStore.read();
             const scope = getScope(state, scopeId, false);
             getConversation(scope, conversationId);
-            return Object.values(scope.messages)
+            const messages = Object.values(scope.messages)
                 .filter((message) => message.conversationId === conversationId)
-                .sort((left, right) => left.sequence - right.sequence)
+                .sort((left, right) => left.sequence - right.sequence);
+            const size = Number(limit);
+            return (Number.isInteger(size) && size > 0 ? messages.slice(-size) : messages)
                 .map((message) => messageWithQuote(scope, message));
         },
         async findMessage(scopeId, conversationId, messageId) {
@@ -2223,7 +2225,8 @@ export function createQQV2Repository(options = {}) {
                     delete scope.messages[messageId];
                 });
                 if (conversation.injection?.selectedMessageIds) {
-                    conversation.injection.selectedMessageIds = conversation.injection.selectedMessageIds.filter((id) => !deletedMessageIds.includes(id));
+                    const deletedIdSet = new Set(deletedMessageIds);
+                    conversation.injection.selectedMessageIds = conversation.injection.selectedMessageIds.filter((id) => !deletedIdSet.has(id));
                 }
                 updateConversationAfterMessageRemoval(scope, conversation);
                 releasedAssetIds.forEach((assetId) => removeAssetIfUnreferenced(scope, assetId));

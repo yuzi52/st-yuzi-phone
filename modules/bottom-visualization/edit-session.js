@@ -1,9 +1,12 @@
-import { getSheetKeys, getTableData, updateTableRow } from '../phone-core/data-api.js';
+import { getTableData, updateTableRow } from '../phone-core/data-api.js';
 import { t } from '../i18n/index.js';
 
 // ponytail: compare snapshots only on refresh/save, not keystrokes; use row revisions if large tables become a bottleneck.
 function snapshot(raw) {
-    return Object.fromEntries(getSheetKeys(raw).sort().map(key => [key, {
+    const keys = raw && typeof raw === 'object'
+        ? Object.keys(raw).filter(key => key.startsWith('sheet_'))
+        : [];
+    return Object.fromEntries(keys.sort().map(key => [key, {
         name: String(raw[key].name || key),
         ddl: String(raw[key].sourceData?.ddl || ''),
         content: (Array.isArray(raw[key].content) ? raw[key].content : []).map(row => Array.isArray(row) ? row.map(value => String(value ?? '')) : []),

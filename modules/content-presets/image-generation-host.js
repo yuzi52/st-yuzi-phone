@@ -60,11 +60,10 @@ export function createContentPresetImageGenerationHost(options = {}) {
     const isTableEnabled = async ({ sheetKey }) => tableDisplayEnabled(normalizeConfig(getSettings), sheetKey);
     const isSourceActive = async ({ source }) => {
         const index = getIndex?.() || {};
-        const rawData = getRawData?.() || {};
         return source?.kind === 'page'
             ? pageBindingIsActive(index, source)
             : source?.kind === 'display'
-                ? displayBindingIsActive(index, rawData, source)
+                ? displayBindingIsActive(index, getRawData?.() || {}, source)
                 : false;
     };
     const makeActions = ({ declaration, source, isCurrent }) => createContentPresetImageActions({
@@ -114,11 +113,12 @@ export function createContentPresetImageGenerationHost(options = {}) {
             } catch {
                 return Object.freeze([]);
             }
+            const index = getIndex?.() || {};
             const directory = buildActiveContentPresetImageGenerationDirectory(
                 rawData,
                 records,
-                asMap(getIndex?.()?.pageByTable || getIndex?.()?.activeByTable),
-                asMap(getIndex?.()?.popupByTable),
+                asMap(index.pageByTable || index.activeByTable),
+                asMap(index.popupByTable),
             );
             if (!directory.bySheetKey.size) return Object.freeze([]);
             const tableNames = new Map(buildTableNavigationCatalog(rawData).map(entry => [entry.sheetKey, entry.tableName]));

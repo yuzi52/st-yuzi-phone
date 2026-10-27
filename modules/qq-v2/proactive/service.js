@@ -429,8 +429,15 @@ export function createQQV2ProactiveService(options = {}) {
             };
             if (typeof repository.findMessageFacts === 'function') {
                 const messages = await repository.findMessageFacts(scopeId, [...appliedMessageIds]);
+                const messagesByConversation = new Map();
+                for (const message of messages) {
+                    const conversationId = message.conversationId;
+                    const group = messagesByConversation.get(conversationId) || [];
+                    group.push(message);
+                    messagesByConversation.set(conversationId, group);
+                }
                 candidateConversationIds.forEach((conversationId) => {
-                    recordMessages(conversationId, messages.filter((message) => message.conversationId === conversationId));
+                    recordMessages(conversationId, messagesByConversation.get(conversationId) || []);
                 });
             } else {
                 const listMessages = requireFunction(repository.listMessages, 'repository.listMessages');

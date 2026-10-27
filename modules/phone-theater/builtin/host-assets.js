@@ -30,9 +30,17 @@ export function createBuiltinTheaterAssets({chatScope, isCurrent, signal, getSet
             }
             const prefix='character-avatar-'; if(!slot.startsWith(prefix)) return '';
             const name=decodeURIComponent(slot.slice(prefix)).normalize('NFKC').trim();
-            contacts ||= Promise.resolve(facade?.query?.conversations?.()).then(result => result?.conversations || []);
-            const matches=(await contacts).filter(person => person.kind === 'private' && String(person.formalName).normalize('NFKC').trim() === name);
-            return matches.length === 1 ? getRender(matches[0].avatarAssetId) : '';
+            contacts ||= Promise.resolve(facade?.query?.conversations?.()).then(result => {
+                const byName = new Map();
+                for (const person of result?.conversations || []) {
+                    if (person.kind !== 'private') continue;
+                    const name = String(person.formalName).normalize('NFKC').trim();
+                    byName.set(name, byName.has(name) ? null : person);
+                }
+                return byName;
+            });
+            const person = (await contacts).get(name);
+            return person ? getRender(person.avatarAssetId) : '';
         })().catch(() => ''); urls.set(slot,promise); return promise;
     };
     return {

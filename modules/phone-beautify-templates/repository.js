@@ -15,7 +15,6 @@ import {
     getCachedBuiltinPhoneBeautifyTemplates,
     getCachedPhoneBeautifyTemplatesByType,
     getCachedPhoneBeautifyTemplateStore,
-    getPhoneBeautifyTemplateCacheVersion,
     invalidatePhoneBeautifyTemplateCache,
 } from './cache.js';
 
@@ -30,7 +29,6 @@ function buildSourceRuntimeCacheKey(templateType, options = {}) {
         options.enabledOnly === true ? 'enabled' : 'all',
         String(settings[BEAUTIFY_SOURCE_MODE_SETTING_KEY_GENERIC] || ''),
         String(settings[BEAUTIFY_ACTIVE_TEMPLATE_ID_SETTING_KEY_GENERIC] || ''),
-        getPhoneBeautifyTemplateCacheVersion(),
     ]);
 }
 

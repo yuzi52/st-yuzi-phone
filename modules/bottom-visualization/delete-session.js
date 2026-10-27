@@ -24,12 +24,14 @@ export function createBottomDeleteSession(isActive) {
     };
     const canSelect = index => !!key && !deleting && Number.isInteger(index)
         && Array.isArray(table?.content?.[index + 1]) && !isTableRowLocked(key, index);
+    const lockedRows = () => new Set(getTableLockState(key).rows);
     return {
         get active() { return !!key; },
         get deleting() { return deleting; },
         get count() { return selected.size; },
         has: index => selected.has(index),
         locked: index => isTableRowLocked(key, index),
+        lockedRows,
         cancel,
         begin(raw, sheetKey) {
             if (deleting) return;
@@ -40,7 +42,8 @@ export function createBottomDeleteSession(isActive) {
         sync(raw) {
             if (!key || deleting) return false;
             if (signature(raw?.[key]) !== version) { cancel(); return true; }
-            for (const index of selected) if (isTableRowLocked(key, index)) selected.delete(index);
+            const rowLocks = selected.size ? lockedRows() : null;
+            for (const index of selected) if (rowLocks.has(index)) selected.delete(index);
             return false;
         },
         toggle(index) {
@@ -50,7 +53,12 @@ export function createBottomDeleteSession(isActive) {
         },
         selectAll() {
             if (!key || deleting) return;
-            table.content.slice(1).forEach((_, index) => { if (canSelect(index)) selected.add(index); });
+            let rowLocks;
+            table.content.slice(1).forEach((row, index) => {
+                if (!Array.isArray(row)) return;
+                rowLocks ||= lockedRows();
+                if (!rowLocks.has(index)) selected.add(index);
+            });
         },
         clear() { if (!deleting) selected.clear(); },
         async remove() {
@@ -58,9 +66,17 @@ export function createBottomDeleteSession(isActive) {
             const token = generation, sheetKey = key, confirmed = table;
             const indexes = [...selected];
             const lockStateBeforeDelete = getTableLockState(sheetKey);
-            const isCurrent = (deleted = []) => isActive() && token === generation
-                && signature(getTableData()?.[sheetKey]) === signature(confirmed, deleted)
-                && indexes.filter(index => !deleted.includes(index)).every(index => !isTableRowLocked(sheetKey, index));
+            const isCurrent = (deleted = []) => {
+                if (!isActive() || token !== generation
+                    || signature(getTableData()?.[sheetKey]) !== signature(confirmed, deleted)) return false;
+                const deletedSet = new Set(deleted);
+                let rowLocks;
+                return indexes.every(index => {
+                    if (deletedSet.has(index)) return true;
+                    rowLocks ||= new Set(getTableLockState(sheetKey).rows);
+                    return !rowLocks.has(index);
+                });
+            };
             if (!isCurrent()) { cancel(); return { status: 'updated' }; }
             deleting = true;
             try {

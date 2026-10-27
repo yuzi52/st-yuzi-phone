@@ -80,7 +80,7 @@ function main() {
     check(results, 'renderer', 'renderer 仅在 fallback 时生成整页 HTML', has(contents.renderer, 'getFullPageHtml()')
         && has(contents.renderer, 'container.innerHTML = nextRegionHtml.getFullPageHtml();')
         && !has(contents.renderer, 'rawData: getTableData()'));
-    check(results, 'renderer', 'renderer 使用审核 store 单次读取当前表更新集合', has(contents.renderer, 'getUpdatedRowsForSheet(sheetKey)') && !has(contents.renderer, 'hasReviewUpdatesForRow(sheetKey'));
+    check(results, 'renderer', 'renderer 使用审核 store 单次轻量读取当前表更新集合', has(contents.renderer, 'getUpdatedRowsForSheet(sheetKey, { includeChanges: false })') && !has(contents.renderer, 'hasReviewUpdatesForRow(sheetKey'));
     check(results, 'renderer', 'renderer 在搜索前应用只看本楼更新过滤', has(contents.renderer, 'const reviewFilteredRows = onlyShowReviewUpdates') && contents.renderer.indexOf('const reviewFilteredRows = onlyShowReviewUpdates') < contents.renderer.indexOf('const filteredRows = searchQueryLower'));
     check(results, 'renderer', 'renderer 审核过滤优先 rowId 并仅在无 rowId 时回退 rowIndex', has(contents.renderer, 'const normalizedReviewRowId = String(reviewRowId || \'\').trim();') && has(contents.renderer, 'const reviewUpdated = normalizedReviewRowId') && has(contents.renderer, '? reviewRowIds.has(normalizedReviewRowId)') && has(contents.renderer, ': reviewRowIndexes.has(Number(rowIndex));'));
     check(results, 'renderer', 'renderer 审核过滤不允许 rowId 与 rowIndex 并列 OR 判定', !has(contents.renderer, 'reviewRowIds.has(String(reviewRowId)))\n            || reviewRowIndexes.has(Number(rowIndex))'));

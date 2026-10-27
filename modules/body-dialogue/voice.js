@@ -162,10 +162,13 @@ export function createBodyDialogueVoice() {
                 const state = { button: rerollButton, enabled, generation: token, cached: false, checked: false };
                 rerollStates.set(button, state); update(button);
                 if (!enabled || !person?.voice?.voiceId) continue;
+                const outdated = () => rerollStates.get(button) !== state || state.checked || token !== generation;
                 connection ||= prepareConnection();
                 void (async () => {
                     const { signature } = await connection;
+                    if (outdated()) return;
                     const { id } = await audioIdentity(args, signature);
+                    if (outdated()) return;
                     const cached = await repository.hasAudio(id);
                     if (rerollStates.get(button) !== state || state.checked || token !== generation || !isCurrent() || !button.isConnected) return;
                     state.cached = cached; state.checked = true; update(button);

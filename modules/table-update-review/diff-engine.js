@@ -24,13 +24,13 @@ function diffCells(beforeCells = {}, afterCells = {}) {
         ...Object.keys(afterCells && typeof afterCells === 'object' ? afterCells : {}),
     ]);
 
-    return Array.from(keys)
-        .map((field) => ({
-            field,
-            before: normalizeText(beforeCells?.[field]),
-            after: normalizeText(afterCells?.[field]),
-        }))
-        .filter((entry) => entry.before !== entry.after);
+    const changes = [];
+    for (const field of keys) {
+        const before = normalizeText(beforeCells?.[field]);
+        const after = normalizeText(afterCells?.[field]);
+        if (before !== after) changes.push({ field, before, after });
+    }
+    return changes;
 }
 
 function createInsertChange(sheet, row, capturedAt) {
@@ -80,9 +80,19 @@ function createDeleteChange(sheet, row, capturedAt) {
 }
 
 function summarizeTableChanges(sheet, changes = []) {
-    const insertCount = changes.filter((change) => change.type === 'insert').length;
-    const updateCount = changes.filter((change) => change.type === 'update').length;
-    const deleteCount = changes.filter((change) => change.type === 'delete').length;
+    let insertCount = 0;
+    let updateCount = 0;
+    let deleteCount = 0;
+    const updatedRowIndexes = new Set();
+    const updatedRowIds = new Set();
+    changes.forEach((change) => {
+        if (change.type === 'insert') insertCount += 1;
+        else if (change.type === 'update') updateCount += 1;
+        else if (change.type === 'delete') deleteCount += 1;
+        if (Number.isInteger(change.rowIndex)) updatedRowIndexes.add(change.rowIndex);
+        const rowId = normalizeText(change.rowId).trim();
+        if (rowId) updatedRowIds.add(rowId);
+    });
     return {
         sheetKey: sheet.sheetKey,
         tableName: sheet.tableName,
@@ -90,8 +100,8 @@ function summarizeTableChanges(sheet, changes = []) {
         updateCount,
         deleteCount,
         changeCount: changes.length,
-        updatedRowIndexes: Array.from(new Set(changes.map((change) => change.rowIndex).filter(Number.isInteger))).sort((a, b) => a - b),
-        updatedRowIds: Array.from(new Set(changes.map((change) => normalizeText(change.rowId).trim()).filter(Boolean))),
+        updatedRowIndexes: Array.from(updatedRowIndexes).sort((a, b) => a - b),
+        updatedRowIds: Array.from(updatedRowIds),
         changes,
     };
 }

@@ -143,7 +143,10 @@ function findHeaderIndex(headers = [], candidates = ROW_ID_HEADERS) {
 
 export function resolveRowIdentity(row = [], headers = [], rawHeaders = [], rowIndex = -1) {
     const headerSource = rawHeaders.length > 0 ? rawHeaders : headers;
-    const rowIdColumnIndex = findHeaderIndex(headerSource);
+    return resolveRowIdentityAtColumn(row, headerSource, rowIndex, findHeaderIndex(headerSource));
+}
+
+function resolveRowIdentityAtColumn(row, headerSource, rowIndex, rowIdColumnIndex) {
     const rowId = rowIdColumnIndex >= 0 ? normalizeText(row?.[rowIdColumnIndex]) : '';
     const fallbackIndex = Number(rowIndex);
     return {
@@ -154,15 +157,15 @@ export function resolveRowIdentity(row = [], headers = [], rawHeaders = [], rowI
     };
 }
 
-function resolveRowTitle(row = [], headers = []) {
+function resolveRowTitle(row = [], headers = [], titleMetadata) {
     const titlePatterns = /(标题|名称|姓名|主题|name|title)/i;
     for (let index = 0; index < headers.length; index++) {
-        if (!titlePatterns.test(normalizeText(headers[index]))) continue;
+        if (!(titleMetadata.titleMatches[index] ??= titlePatterns.test(normalizeText(headers[index])))) continue;
         const text = normalizeText(row[index]);
         if (text) return text;
     }
     for (let index = 0; index < row.length; index++) {
-        if (isReviewIdentityHeader(headers[index])) continue;
+        if ((titleMetadata.identityMatches[index] ??= isReviewIdentityHeader(headers[index]))) continue;
         const cell = row[index];
         const text = normalizeText(cell);
         if (text) return text.slice(0, 48);
@@ -173,8 +176,10 @@ function resolveRowTitle(row = [], headers = []) {
 function normalizeSheet(sheetKey, sheet) {
     const content = Array.isArray(sheet?.content) ? sheet.content : [];
     const headers = Array.isArray(content[0]) ? content[0].map(normalizeText) : [];
+    const rowIdColumnIndex = findHeaderIndex(headers);
+    const titleMetadata = { titleMatches: [], identityMatches: [] };
     const rows = content.slice(1).filter(Array.isArray).map((row, rowIndex) => {
-        const identity = resolveRowIdentity(row, headers, headers, rowIndex);
+        const identity = resolveRowIdentityAtColumn(row, headers, rowIndex, rowIdColumnIndex);
         const cells = {};
         headers.forEach((header, colIndex) => {
             const key = header || t`列${colIndex + 1}`;
@@ -184,7 +189,7 @@ function normalizeSheet(sheetKey, sheet) {
             rowId: identity.rowId,
             rowIndex,
             rowKey: identity.rowKey,
-            rowTitle: resolveRowTitle(row, headers),
+            rowTitle: resolveRowTitle(row, headers, titleMetadata),
             cells,
         };
     });
@@ -193,7 +198,7 @@ function normalizeSheet(sheetKey, sheet) {
         sheetKey,
         tableName: normalizeText(sheet?.name || sheet?.tableName || sheetKey),
         headers,
-        rowIdHeader: findHeaderIndex(headers) >= 0 ? headers[findHeaderIndex(headers)] : '',
+        rowIdHeader: rowIdColumnIndex >= 0 ? headers[rowIdColumnIndex] : '',
         rows,
     };
 }

@@ -11,8 +11,12 @@ function normalizeRowIndexes(rowIndexes = []) {
 
 function remapRemainingRowIndexes(rowIndexes = [], deletedRowIndexes = []) {
     const deletedSorted = normalizeRowIndexes(deletedRowIndexes).sort((a, b) => a - b);
+    let deletedBefore = deletedSorted.length;
     return normalizeRowIndexes(rowIndexes)
-        .map((rowIndex) => rowIndex - deletedSorted.filter((deletedIndex) => deletedIndex < rowIndex).length)
+        .map((rowIndex) => {
+            while (deletedBefore > 0 && deletedSorted[deletedBefore - 1] >= rowIndex) deletedBefore--;
+            return rowIndex - deletedBefore;
+        })
         .filter((rowIndex) => rowIndex >= 0)
         .sort((a, b) => a - b);
 }
@@ -133,8 +137,8 @@ export function createRowDeleteController(options) {
         });
         const deletedRowIndexes = normalizeRowIndexes(result.deletedRowIndexes || []);
         const failedRowIndexes = normalizeRowIndexes(result.failedRowIndexes || []);
-        const fallbackNotDeletedRowIndexes = requestedRowIndexes.filter((rowIndex) => !deletedRowIndexes.includes(rowIndex));
-        const notDeletedRowIndexes = normalizeRowIndexes(result.notDeletedRowIndexes || fallbackNotDeletedRowIndexes);
+        const notDeletedRowIndexes = normalizeRowIndexes(result.notDeletedRowIndexes
+            || requestedRowIndexes.filter((rowIndex) => !deletedRowIndexes.includes(rowIndex)));
         const attemptedRowIndexes = normalizeRowIndexes(result.attemptedRowIndexes || [...deletedRowIndexes, ...failedRowIndexes]);
         const unattemptedRowIndexes = normalizeRowIndexes(result.unattemptedRowIndexes || notDeletedRowIndexes.filter((rowIndex) => !failedRowIndexes.includes(rowIndex)));
         const hasDeletion = deletedRowIndexes.length > 0;

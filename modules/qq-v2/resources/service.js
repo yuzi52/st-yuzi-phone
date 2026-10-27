@@ -337,12 +337,12 @@ export function createQQV2ResourceService(options = {}) {
         }
     };
 
-    const readPromptState = async () => {
+    const readPromptState = async (mapPreset = clonePromptPreset) => {
         const stored = await storage.get(PROMPT_PRESETS_STORAGE_KEY);
         if (stored && typeof stored === 'object' && Array.isArray(stored.presets)) {
-            return { presets: stored.presets.map(clonePromptPreset) };
+            return { presets: stored.presets.map(mapPreset) };
         }
-        return { presets: BUILT_IN_PROMPT_PRESETS.map(clonePromptPreset) };
+        return { presets: BUILT_IN_PROMPT_PRESETS.map(mapPreset) };
     };
 
     const readStickerState = async () => {
@@ -471,8 +471,8 @@ export function createQQV2ResourceService(options = {}) {
             return deleteStickerRecords(ids);
         },
         async listPromptPresets() {
-            const state = await readPromptState();
-            return Object.freeze(state.presets.map(publicPromptPreset));
+            const state = await readPromptState(publicPromptPreset);
+            return Object.freeze(state.presets);
         },
         async getPromptPreset(id) {
             const state = await readPromptState();
@@ -569,8 +569,8 @@ export function createQQV2ResourceService(options = {}) {
             return record ? publicPromptPreset(record) : null;
         },
         async exportAllPromptPresets() {
-            const state = await readPromptState();
-            return Object.freeze(state.presets.map(publicPromptPreset));
+            const state = await readPromptState(publicPromptPreset);
+            return Object.freeze(state.presets);
         },
         async deletePromptPreset(id) {
             const state = await readPromptState();

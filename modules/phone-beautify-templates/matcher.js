@@ -33,7 +33,6 @@ export function detectGenericTemplateForTable({ sheetKey, tableName, headers = [
     if (!safeSheetKey) return null;
 
     const safeTableName = normalizeString(tableName, 80);
-    const headerSet = normalizeHeadersSet(headers);
 
     const activeTemplateId = getActiveBeautifyTemplateIdByType(PHONE_TEMPLATE_TYPE_GENERIC, {
         withFallback: true,
@@ -46,7 +45,6 @@ export function detectGenericTemplateForTable({ sheetKey, tableName, headers = [
 
     if (genericTemplates.length <= 0) return null;
 
-    const templateMap = new Map(genericTemplates.map(t => [t.id, t]));
     const store = getCachedPhoneBeautifyTemplateStore();
 
     const boundTemplateId = sanitizeId(store.bindings?.[safeSheetKey], '');
@@ -65,6 +63,7 @@ export function detectGenericTemplateForTable({ sheetKey, tableName, headers = [
         }
     }
 
+    const templateMap = new Map(genericTemplates.map(t => [t.id, t]));
     if (activeTemplateId && templateMap.has(activeTemplateId)) {
         const activeTemplate = templateMap.get(activeTemplateId);
         if (activeTemplate?.render?.rendererKey === 'generic_table') {
@@ -82,6 +81,7 @@ export function detectGenericTemplateForTable({ sheetKey, tableName, headers = [
         }
     }
 
+    const headerSet = normalizeHeadersSet(headers);
     const scored = [];
 
     genericTemplates.forEach((template) => {

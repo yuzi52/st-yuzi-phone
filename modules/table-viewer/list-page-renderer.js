@@ -78,7 +78,6 @@ function buildRowProjection(options = {}) {
     if (!cacheEntry || cacheEntry.version !== cacheVersion) {
         cacheEntry = {
             version: cacheVersion,
-            reviewRowId: resolveReviewRowId(row, headers, rawHeaders),
             locked: null,
             unlocked: null,
         };
@@ -99,7 +98,6 @@ function buildRowProjection(options = {}) {
     }
 
     return {
-        reviewRowId: cacheEntry.reviewRowId,
         rowDataSignature,
         rowViewModel: cacheEntry[cacheKey],
     };
@@ -155,13 +153,20 @@ function buildGenericListPageViewModel(options = {}) {
     const showLockAction = bottomBarOptions.showLock !== false;
     const showDeleteAction = bottomBarOptions.showDelete !== false;
     const onlyShowReviewUpdates = !!state.onlyShowReviewUpdates;
-    const reviewRows = getUpdatedRowsForSheet(sheetKey);
+    const reviewRows = getUpdatedRowsForSheet(sheetKey, { includeChanges: false });
     const reviewRowIndexes = reviewRows.rowIndexes instanceof Set ? reviewRows.rowIndexes : new Set();
     const reviewRowIds = reviewRows.rowIds instanceof Set ? reviewRows.rowIds : new Set();
 
+    let reviewUpdatedRowCount = 0;
     const rowViewModels = rows.map((row, rowIndex) => {
+        const reviewRowId = resolveReviewRowId(row, headers, rawHeaders);
+        const normalizedReviewRowId = String(reviewRowId || '').trim();
+        const reviewUpdated = normalizedReviewRowId
+            ? reviewRowIds.has(normalizedReviewRowId)
+            : reviewRowIndexes.has(Number(rowIndex));
+        if (reviewUpdated) reviewUpdatedRowCount++;
+        if (onlyShowReviewUpdates && !reviewUpdated && Array.isArray(row)) return null;
         const {
-            reviewRowId,
             rowDataSignature,
             rowViewModel,
         } = buildRowProjection({
@@ -173,10 +178,6 @@ function buildGenericListPageViewModel(options = {}) {
             fieldBindings: genericStylePayload.fieldBindings,
             rowProjectionCache,
         });
-        const normalizedReviewRowId = String(reviewRowId || '').trim();
-        const reviewUpdated = normalizedReviewRowId
-            ? reviewRowIds.has(normalizedReviewRowId)
-            : reviewRowIndexes.has(Number(rowIndex));
         const deleteSelected = selectedDeleteRows.has(rowIndex);
         return {
             ...rowViewModel,
@@ -201,7 +202,7 @@ function buildGenericListPageViewModel(options = {}) {
         };
     });
     const reviewFilteredRows = onlyShowReviewUpdates
-        ? rowViewModels.filter((viewModel) => viewModel.reviewUpdated)
+        ? rowViewModels.filter((viewModel) => viewModel?.reviewUpdated)
         : rowViewModels;
     const filteredRows = searchQueryLower
         ? reviewFilteredRows.filter((viewModel) => viewModel.searchText.includes(searchQueryLower))
@@ -211,7 +212,6 @@ function buildGenericListPageViewModel(options = {}) {
         : filteredRows;
 
     const visibleCount = filteredRows.length;
-    const reviewUpdatedRowCount = rowViewModels.filter((viewModel) => viewModel.reviewUpdated).length;
     const selectableDeleteRowIndexes = orderedFilteredRows
         .filter((viewModel) => !viewModel.rowLocked)
         .map((viewModel) => viewModel.rowIndex);

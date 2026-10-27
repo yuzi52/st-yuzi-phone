@@ -4,7 +4,7 @@ function text(value) {
     return String(value ?? '').trim();
 }
 
-function targetTables(context) {
+function targetTables(context, snapshot = true) {
     const display = context?.customDisplay;
     const rawData = context?.rawData || context?.snapshot || {};
     const sheetKeys = Array.isArray(display?.targetSheetKeys)
@@ -14,12 +14,16 @@ function targetTables(context) {
     return sheetKeys.map(sheetKey => {
         const sheet = rawData?.[sheetKey];
         const content = Array.isArray(sheet?.content) ? sheet.content : [];
-        return Object.freeze({
+        const table = {
             sheetKey,
             tableName: text(sheet?.name) || sheetKey,
-            headers: Object.freeze([...(Array.isArray(content[0]) ? content[0] : [])]),
-            rows: Object.freeze(content.slice(1).filter(Array.isArray).map(row => Object.freeze([...row]))),
-        });
+            headers: Array.isArray(content[0]) ? content[0] : [],
+            rows: content.slice(1).filter(Array.isArray),
+        };
+        if (!snapshot) return table;
+        table.headers = Object.freeze([...table.headers]);
+        table.rows = Object.freeze(table.rows.map(row => Object.freeze([...row])));
+        return Object.freeze(table);
     });
 }
 
@@ -38,7 +42,7 @@ export function createContentPresetDisplaySourceAdapter() {
             if (!display) return '';
             return JSON.stringify([
                 text(display.modelId),
-                targetTables(context).map(table => [
+                targetTables(context, false).map(table => [
                     table.sheetKey,
                     table.tableName,
                     table.headers,

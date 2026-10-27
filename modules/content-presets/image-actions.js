@@ -30,14 +30,19 @@ function tableForCanvas(rawData, canvas, { includeRows = true } = {}) {
     const expectedFields = new Set((canvas?.stableIdentityFields || [])
         .concat(canvas?.promptFields || [])
         .map(normalizeMatchText));
-    const matches = buildTableNavigationCatalog(rawData).map(entry => ({
-        sheetKey: entry.sheetKey,
-        snapshot: createTableSnapshot(rawData, entry.sheetKey, { includeRows: false }),
-    })).filter(({ snapshot }) => (
-        snapshot
-        && normalizeMatchText(snapshot.tableName) === expectedName
-        && [...expectedFields].every(field => snapshot.headers.map(normalizeMatchText).includes(field))
-    ));
+    const matches = buildTableNavigationCatalog(rawData)
+        .filter(({ sheetKey }) => {
+            const key = String(sheetKey ?? '').trim();
+            return normalizeMatchText(String(rawData?.[key]?.name || key).trim() || key) === expectedName;
+        })
+        .map(entry => ({
+            sheetKey: entry.sheetKey,
+            snapshot: createTableSnapshot(rawData, entry.sheetKey, { includeRows: false }),
+        })).filter(({ snapshot }) => {
+            if (!snapshot) return false;
+            const actualFields = new Set(snapshot.headers.map(normalizeMatchText));
+            return [...expectedFields].every(field => actualFields.has(field));
+        });
     const table = matches.length === 1 ? matches[0] : null;
     if (table && includeRows) table.snapshot = createTableSnapshot(rawData, table.sheetKey);
     return table;

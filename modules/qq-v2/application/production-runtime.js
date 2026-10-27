@@ -1150,7 +1150,7 @@ export function createQQV2ProductionRuntime(options = {}) {
                 .filter(Boolean);
             if (labels.length === 0) continue;
             const messages = truncateConversationHistory(
-                await repository.listMessages(scopeId, candidate.conversationId),
+                await repository.listMessages(scopeId, candidate.conversationId, { limit: historyLimit }),
                 historyLimit,
             );
             sections.push({
@@ -1172,7 +1172,7 @@ export function createQQV2ProductionRuntime(options = {}) {
             const person = scope.people[candidate.personId];
             if (!person) continue;
             const messages = truncateConversationHistory(
-                await repository.listMessages(scopeId, candidate.conversationId),
+                await repository.listMessages(scopeId, candidate.conversationId, { limit: historyLimit }),
                 historyLimit,
             );
             sections.push({
@@ -1872,6 +1872,7 @@ export function createQQV2ProductionRuntime(options = {}) {
         getStatus: () => lifecycle.getStatus(),
         getReadContext,
         getSnapshot,
+        listStickers,
         async listSharedResources() {
             const listImageGenerationPresets = typeof resources.listImageGenerationPresets === 'function'
                 ? resources.listImageGenerationPresets.bind(resources)
@@ -2124,6 +2125,8 @@ export function createQQV2ProductionRuntime(options = {}) {
                 kind: asText(asset.kind, 32),
                 mimeType: asText(asset.mimeType, 128),
                 size: Math.max(0, Number(asset.blob.size) || 0),
+                ...(asset.avatarFrameTransform ? { avatarFrameTransform: asset.avatarFrameTransform } : {}),
+                ...(asset.bubble ? { bubble: asset.bubble } : {}),
                 leaseId,
                 url,
             };
