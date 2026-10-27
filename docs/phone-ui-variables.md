@@ -30,10 +30,12 @@
 | `.yuzi-body-voice-controls` / `.yuzi-body-reroll` | 播放与重roll共用的行内按钮组；不拆行，沿用播放键尺寸、强调色与焦点轮廓；重roll仅在开关开启且当前朗读版本已有缓存时显示，生成期间禁用 |
 | `--yuzi-body-default-bubble/text/name` | 默认对白配色，在 `00-theme-modes.css` 登记深浅模式 |
 | `--yuzi-body-preview-background` / `--yuzi-body-avatar-background/foreground` | 预览底色与首字占位头像配色，同样跟随全局主题 |
-| `--yuzi-body-font-size/name-size/line-height/width/spacing/avatar-size/avatar-radius/radius/quote-size` | 由已归一化的用户参数写入正文节点，局部生效 |
+| `--yuzi-body-font-size/name-size/line-height/width/spacing/avatar-size/avatar-radius/radius/padding-inline/quote-size` | 由已归一化的用户参数写入正文节点，局部生效 |
 | `--yuzi-body-name-color/text-color/bubble-color/quote-color` | 用户显式颜色覆盖；空值继续使用主题默认值 |
 
 正文和设置页样例共用 `createDialogueView()`；QQ 头像框校准与气泡装饰复用 `decorateQQAvatar()`、`decorateQQBubble()`。同一渲染楼层共用素材读取和 Blob URL，楼层销毁统一释放；迟到的图片读取不会重新创建 URL。独立样例拥有并清理自己的资源，不调用 TTS、不写聊天，设置页不建立自己的状态栏。图片资料面板按接近可见区申请图片，最多四个并发读取；关闭面板释放临时 Blob URL。
+
+气泡样式开启时，「气泡圆角」下方显示「气泡左右内边距」，复用既有步进器、长按、数值弹层与保存逻辑；配置 `paddingInline` 为 0–48px、步长 1px、默认 12px，左右各使用该值。默认气泡与人物图片气泡共用 `--yuzi-body-padding-inline`，上下内边距沿用原值；非气泡排版保持零内边距。调节只走已有 `updateStyle()` 和预览帧合并，不重建气泡、不重复提取正文或插入占位节点。
 
 “头像与姓名”展开区中的“情绪”默认关闭，复用嵌套展开、公共 switch 和提示词编辑器；头像模块关闭时停用情绪注入与展示，保留配置。固定标签为开心、生气、难过、紧张、平静、害羞、嫌弃、心动，提示词仅要求从列表选择一个适合当前对白的标签。格式为 `「姓名|情绪|对白」`，双语只在第二行译文增加情绪，语速／表现力仍在末尾；历史两段及数字参数格式继续可读，情绪不送入朗读文本。关闭情绪隐藏标签并使用默认头像，已有正文仍正确解析。缺失／未知情绪隐藏标签；已知情绪缺图或图片读取失败回退默认头像，再回退姓名首字。
 

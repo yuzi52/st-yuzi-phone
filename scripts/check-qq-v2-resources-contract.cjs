@@ -247,15 +247,13 @@ async function testApiPresetEndpointPolicyAndDefaults() {
     assert.equal(private192.endpoint, 'http://192.168.1.50:8000/v1');
     assert.equal(completionUrl.endpoint, 'https://api.example.test/v1');
     assert.equal(modelUrl.endpoint, 'https://api.example.test/v1');
-    await assert.rejects(
-        resources.saveApiPreset({
-            name: 'Insecure remote',
-            endpoint: 'http://api.example.test/v1',
-            model: 'gpt-test',
-            apiKey: 'nope',
-        }),
-        (error) => error?.code === 'invalid_api_endpoint',
-    );
+    const publicHttp = await resources.saveApiPreset({
+        name: 'Public HTTP',
+        endpoint: 'http://172.198.0.1:8000',
+        model: 'gpt-test',
+        apiKey: 'public-http-key',
+    });
+    assert.equal(publicHttp.endpoint, 'http://172.198.0.1:8000/v1');
     await assert.rejects(
         resources.saveApiPreset({
             name: 'Endpoint credential',
@@ -348,7 +346,7 @@ async function testInvalidApiPresetEditDoesNotReplaceTheStoredKey() {
     await assert.rejects(
         resources.saveApiPreset({
             id: saved.id,
-            endpoint: 'http://api.example.test/v1',
+            endpoint: 'ftp://api.example.test/v1',
             apiKey: 'should-not-stick',
         }),
         (error) => error?.code === 'invalid_api_endpoint',

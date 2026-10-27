@@ -143,7 +143,7 @@ export const timeBarModule = {
             "description": "给使用者的简短说明。",
             "prompt.default": "作者提供的默认提示词；恢复默认回到此值。",
             "prompt.value": "当前保存的提示词；仅主开关开启时追加到现有正文提示词最后。",
-            "match.pattern": "JavaScript 正则表达式字符串，不写 /.../ 外壳。推荐用 (?<name>...) 命名捕获字段。和气泡一样，在设置的正文楼层范围内查找格式，跳过代码块和已有组件。",
+            "match.pattern": "JavaScript 正则表达式字符串，不写 /.../ 外壳。推荐用 (?<name>...) 命名捕获字段。和气泡一样，在设置的正文楼层范围内查找格式；无样式、无组件标记的普通 HTML 包装也会读取，不限定标签名，不要求在标签后留空行。代码、控件和已有组件仍跳过。",
             "match.flags": "g/i/m/s/u 的组合，宿主补 g 以逐条识别。",
             "html": "只写模块内部 HTML 片段。{{字段名}} 自动替换为转义后的 data 字段，{{asset:名称}} 引用内嵌素材。不要在这里使用 script 标签或事件属性，交互写在 script 的 mount 中。",
             "css": "仅作用于当前实例的 Shadow DOM，可用 :host、局部 class 和 keyframes；不影响正文气泡或其他模块。",
@@ -207,7 +207,9 @@ export const timeBarModule = {
             "[2026-10-16|16：45|星期五]",
             "[2026-12-16|19：40|星期三]",
             "[2026-12-16|06：59|星期三]",
-            "[2026-12-16|07：00|星期三]"
+            "[2026-12-16|07：00|星期三]",
+            "<content>\n[2026-10-16|16：45|星期五]",
+            "<article>\n[2026-10-16|16：45|星期五]</article>"
         ]
     },
     script: `export const parse = ${parseTimeBar.toString()};\nexport const mount = ${mountTimeBar.toString()};`,

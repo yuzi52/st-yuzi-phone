@@ -29,6 +29,7 @@ async function testFishClient() {
     assert.equal(normalizeQQVoiceBaseUrl('https://api.fish.audio/v1/'), 'https://api.fish.audio/v1');
     assert.equal(normalizeQQVoiceBaseUrl('https://api.fish.audio/v1/tts/'), 'https://api.fish.audio/v1');
     assert.equal(normalizeQQVoiceBaseUrl('http://127.0.0.1:8080/v1'), 'http://127.0.0.1:8080/v1');
+    assert.throws(() => normalizeQQVoiceBaseUrl('http://172.198.0.1:8000'), (error) => error.code === 'voice_endpoint_invalid');
     assert.throws(() => normalizeQQVoiceBaseUrl('ftp://api.fish.audio'), (error) => error.code === 'voice_endpoint_invalid');
 
     const direct = buildQQVoiceSynthesisRequest({

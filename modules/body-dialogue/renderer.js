@@ -6,7 +6,8 @@ import { bodyDialogueRepository as repository } from './repository.js';
 import { matchBodyModules, createBodyModuleView } from './beautify-modules.js';
 
 const numericStyles = { fontSize: ['font-size', 'px'], nameSize: ['name-size', 'px'], lineHeight: ['line-height', ''],
-    width: ['width', '%'], spacing: ['spacing', 'px'], avatarSize: ['avatar-size', 'px'], radius: ['radius', 'px'], quoteSize: ['quote-size', 'px'] };
+    width: ['width', '%'], spacing: ['spacing', 'px'], avatarSize: ['avatar-size', 'px'], radius: ['radius', 'px'],
+    paddingInline: ['padding-inline', 'px'], quoteSize: ['quote-size', 'px'] };
 const colorStyles = { nameColor: 'name-color', textColor: 'text-color', bubbleColor: 'bubble-color', quoteColor: 'quote-color' };
 const element = (tag, className, text) => {
     const node = document.createElement(tag); node.className = className;
@@ -110,7 +111,11 @@ export function createDialogueView({ dialogue, config, person, userName = '', on
     (lines || bubble).append(element('span', 'yuzi-body-text', parseQQVoiceText(dialogue.text).displayText));
     if (closingQuote) bubble.append(closingQuote);
     updateStyle(config);
-    if (config.bubble) void load(person?.bubble, url => decorateQQBubble(bubble, url, person.bubble.bubble));
+    if (config.bubble) void load(person?.bubble, url => {
+        decorateQQBubble(bubble, url, person.bubble.bubble);
+        // Keep the artwork's vertical padding; horizontal padding follows live body settings.
+        bubble.style.paddingInline = 'var(--yuzi-body-padding-inline, 12px)';
+    });
     let playButton = null, rerollButton = null;
     if (config.voice && dialogue.name) {
         const play = element('button', 'yuzi-body-play', '▷'); play.type = 'button';
@@ -130,18 +135,26 @@ export function createDialogueView({ dialogue, config, person, userName = '', on
     return { node, playButton, rerollButton, updateStyle, dispose() { alive = false; if (!sharedImages) images.dispose(); } };
 }
 
-// Only native prose containers/inline formatting. Unknown components are a hard boundary.
+// Plain HTML wrappers are readable regardless of their tag name; code and UI stay boundaries.
 // SillyTavern wraps CJK dialogue in native <q> before Markdown conversion.
 const INLINE = new Set(['Q', 'SPAN', 'EM', 'STRONG', 'B', 'I', 'U', 'S', 'DEL', 'SMALL', 'MARK']);
-const BLOCK = new Set(['P', 'DIV', 'LI', 'UL', 'OL', 'BLOCKQUOTE']);
-const isNativeProse = node => !node.className && !node.id && !node.hidden && !node.hasAttribute('style')
-    && !node.getAttributeNames().some(name => name.startsWith('data-') || name === 'role' || name === 'contenteditable');
+const PROSE_BOUNDARIES = new Set([
+    'PRE', 'CODE', 'KBD', 'SAMP', 'VAR', 'SCRIPT', 'STYLE', 'TEMPLATE', 'NOSCRIPT', 'TITLE', 'XMP', 'PLAINTEXT',
+    'A', 'BUTTON', 'INPUT', 'TEXTAREA', 'SELECT', 'OPTION', 'OPTGROUP', 'DATALIST', 'FORM', 'FIELDSET', 'LEGEND', 'LABEL',
+    'DETAILS', 'SUMMARY', 'DIALOG', 'OUTPUT', 'PROGRESS', 'METER', 'TABLE', 'SLOT',
+    'IFRAME', 'OBJECT', 'EMBED', 'CANVAS', 'AUDIO', 'VIDEO', 'PICTURE', 'IMG',
+]);
+const isNativeProse = node => node.namespaceURI === 'http://www.w3.org/1999/xhtml'
+    && !PROSE_BOUNDARIES.has(node.tagName) && !node.shadowRoot && !node.ownerDocument.defaultView?.customElements?.get(node.localName)
+    && !node.className && !node.id && !node.hidden && !node.hasAttribute('style')
+    && !node.getAttributeNames().some(name => name.startsWith('data-') || name.startsWith('on')
+        || ['role', 'contenteditable', 'tabindex', 'is'].includes(name));
 
 // Share the parser's boundaries: component-internal updates are not host prose.
 export function isDialogueProseMutation(record, root) {
     let target = record.target.nodeType === 1 ? record.target : record.target.parentElement;
     for (; target && target !== root; target = target.parentElement) {
-        if (!isNativeProse(target) || !(INLINE.has(target.tagName) || BLOCK.has(target.tagName))) return false;
+        if (!isNativeProse(target)) return false;
     }
     if (target !== root) return false;
     if (record.type === 'characterData') return record.target.nodeType === 3;
@@ -149,7 +162,7 @@ export function isDialogueProseMutation(record, root) {
         if (node.nodeType === 3) return Boolean(node.data);
         if (node.nodeType === 8) return node.data === 'yuzi-body-prose';
         return node.nodeType === 1 && (node.matches('[data-yuzi-body-dialogue], [data-yuzi-body-module]') || node.querySelector('[data-yuzi-body-dialogue], [data-yuzi-body-module]')
-            || (isNativeProse(node) && (INLINE.has(node.tagName) || BLOCK.has(node.tagName) || node.tagName === 'BR')));
+            || isNativeProse(node));
     });
 }
 
@@ -165,8 +178,7 @@ function textRuns(root, bilingual) {
             if (child.tagName === 'BR') run.push({ data: '\n', length: 1, element: child });
             else if (INLINE.has(child.tagName)) visit(child);
             else if (bilingual && ['P', 'DIV'].includes(child.tagName)) { newline(); visit(child); newline(); }
-            else if (BLOCK.has(child.tagName)) { flush(); visit(child); flush(); }
-            else flush();
+            else { flush(); visit(child); flush(); }
         }
     };
     visit(root); flush(); return runs;

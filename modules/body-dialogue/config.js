@@ -96,6 +96,7 @@ export const BODY_DIALOGUE_NUMBERS = Object.freeze({
     spacing: ['对话间距', 0, 48, 1, 'px', 12],
     avatarSize: ['头像大小', 20, 100, 1, 'px', 38],
     radius: ['气泡圆角', 0, 48, 1, 'px', 14],
+    paddingInline: ['气泡左右内边距', 0, 48, 1, 'px', 12],
     quoteSize: ['引号大小', 12, 64, 1, 'px', 28],
 });
 

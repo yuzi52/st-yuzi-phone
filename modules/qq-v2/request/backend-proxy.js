@@ -34,7 +34,7 @@ function readTemperature(value, fallback = 1) {
  */
 export function normalizeQQV2OpenAIBaseUrl(value) {
     try {
-        return normalizeApiEndpoint(asText(value, 2048));
+        return normalizeApiEndpoint(asText(value, 2048), { allowPublicHttp: true });
     } catch (error) {
         throw new QQV2BackendError(error?.message || 'API 地址无效', 'invalid_endpoint', error);
     }

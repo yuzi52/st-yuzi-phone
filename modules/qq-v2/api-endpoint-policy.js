@@ -22,17 +22,17 @@ function isAllowedHttpHost(hostname) {
         || (first === 192 && second === 168);
 }
 
-function invalidEndpointError() {
-    const error = new Error(QQV2_INVALID_ENDPOINT_MESSAGE);
+function invalidEndpointError(message = 'QQ API 地址必须是有效的 HTTP 或 HTTPS 地址') {
+    const error = new Error(message);
     error.code = 'invalid_endpoint';
     return error;
 }
 
 /**
  * Normalize an OpenAI-compatible API base URL for SillyTavern's backend.
- * HTTP is limited to loopback and RFC1918 private IPv4 addresses.
+ * Server-proxied API presets opt into public HTTP; other callers stay restricted.
  */
-export function normalizeQQV2OpenAIBaseUrl(value) {
+export function normalizeQQV2OpenAIBaseUrl(value, { allowPublicHttp = false } = {}) {
     let url;
     try {
         url = new URL(String(value ?? '').trim());
@@ -43,8 +43,8 @@ export function normalizeQQV2OpenAIBaseUrl(value) {
     if (!['https:', 'http:'].includes(url.protocol) || url.username || url.password || url.search || url.hash) {
         throw invalidEndpointError();
     }
-    if (url.protocol === 'http:' && !isAllowedHttpHost(url.hostname)) {
-        throw invalidEndpointError();
+    if (url.protocol === 'http:' && !allowPublicHttp && !isAllowedHttpHost(url.hostname)) {
+        throw invalidEndpointError(QQV2_INVALID_ENDPOINT_MESSAGE);
     }
 
     let pathname = url.pathname.replace(/\/+$/, '');

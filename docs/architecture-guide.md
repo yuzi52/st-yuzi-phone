@@ -644,7 +644,7 @@ CSS 层读取这些 data attributes 和 CSS 变量，见 [`styles/05-phone-gener
 - 页面 mode：[`mode`](../modules/settings-app/state-machine.js:21)。
 - 各页面滚动位置：[`apiPresetsScrollTop`](../modules/settings-app/state-machine.js:4)、[`appearanceScrollTop`](../modules/settings-app/state-machine.js:5)、[`beautifyScrollTop`](../modules/settings-app/state-machine.js:6)、[`buttonStyleScrollTop`](../modules/settings-app/state-machine.js:7)、[`aiInstructionPresetsScrollTop`](../modules/settings-app/state-machine.js:8)。
 
-- QQ API 预设地址由 [`modules/qq-v2/api-endpoint-policy.js`](../modules/qq-v2/api-endpoint-policy.js) 统一规范化：HTTPS 地址可用；HTTP 仅允许回环地址或 RFC1918 私有 IPv4（`10/8`、`172.16/12`、`192.168/16`），保存边界与请求边界必须复用同一策略。地址仍按 OpenAI 兼容 base URL 处理，并自动收敛到 `/v1`。
+- QQ API 预设地址由 [`modules/qq-v2/api-endpoint-policy.js`](../modules/qq-v2/api-endpoint-policy.js) 统一规范化：普通 API 预设允许 HTTP/HTTPS（含公网 IP 和域名），保存边界与酒馆后端转发的请求边界均启用 `allowPublicHttp`；TTS 沿用默认策略，HTTP 仅允许回环地址或 RFC1918 私有 IPv4。地址仍按 OpenAI 兼容 base URL 处理，并自动收敛到 `/v1`；不接受 URL 内嵌账号密码、查询参数或片段。
 - API 预设页面收到 `readOnly: true` 的运行时虚拟预设时，只渲染禁用的“数据库当前 API（只读）”选项；编辑区及保存、删除、加载模型操作必须保持不可用。该虚拟预设不应写入 shared resource storage。QQ v2 的 `activeApiPresetId` 解析器仍须识别其稳定虚拟 ID，并把请求交给数据库受限代理。
 
 新增 state 字段时，必须先进入 [`createSettingsAppState()`](../modules/settings-app/state-machine.js:18)，再同步 context builder、页面 renderer 和类型声明。不要在某个页面局部临时塞匿名字段，否则下一次切页或滚动保留会找不到它。

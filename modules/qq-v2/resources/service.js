@@ -78,7 +78,7 @@ function createId(cryptoApi) {
 
 function normalizeApiEndpoint(value) {
     try {
-        return normalizeQQV2OpenAIBaseUrl(value);
+        return normalizeQQV2OpenAIBaseUrl(value, { allowPublicHttp: true });
     } catch (error) {
         throw resourceError('invalid_api_endpoint', error?.message || 'API 地址无效');
     }

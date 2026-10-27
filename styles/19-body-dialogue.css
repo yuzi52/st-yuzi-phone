@@ -75,7 +75,7 @@
     display: block;
     box-sizing: border-box;
     max-width: 100%;
-    padding: 9px 12px;
+    padding: 9px var(--yuzi-body-padding-inline, 12px);
     border-radius: var(--yuzi-body-radius, 14px);
     background: var(--yuzi-body-bubble-color, var(--yuzi-body-default-bubble));
     color: var(--yuzi-body-text-color, var(--yuzi-body-default-text));

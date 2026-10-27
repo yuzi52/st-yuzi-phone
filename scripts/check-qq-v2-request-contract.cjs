@@ -118,7 +118,7 @@ async function testBackendProxyUsesSillyTavernAndRedactsTheKey() {
 
     const result = await backend.generate({
         preset: {
-            endpoint: 'http://192.168.1.50:8000/v1/chat/completions',
+            endpoint: 'http://172.198.0.1:8000/v1/chat/completions',
             apiKey: 'qq-v2-test-secret',
             model: 'test-model',
             temperature: 0.7,
@@ -144,7 +144,7 @@ async function testBackendProxyUsesSillyTavernAndRedactsTheKey() {
     const body = JSON.parse(calls[0].options.body);
     assert.deepEqual(body, {
         chat_completion_source: 'openai',
-        reverse_proxy: 'http://192.168.1.50:8000/v1',
+        reverse_proxy: 'http://172.198.0.1:8000/v1',
         proxy_password: 'qq-v2-test-secret',
         model: 'test-model',
         messages: [{ role: 'system', content: 'reply with XML' }],
@@ -163,7 +163,7 @@ async function testBackendProxyUsesSillyTavernAndRedactsTheKey() {
     assert.equal(body.messages[0].content, 'reply with XML');
 }
 
-async function testBackendProxyRejectsPublicHttpBeforeSending() {
+async function testBackendProxyRejectsInvalidEndpointBeforeSending() {
     const { createSillyTavernQQV2Backend } = await importModule('modules/qq-v2/request/backend-proxy.js');
     let fetchCount = 0;
     const backend = createSillyTavernQQV2Backend({
@@ -176,8 +176,8 @@ async function testBackendProxyRejectsPublicHttpBeforeSending() {
     await assert.rejects(
         backend.generate({
             preset: {
-                endpoint: 'http://api.example.test/v1',
-                apiKey: 'public-http-key',
+                endpoint: 'ftp://api.example.test/v1',
+                apiKey: 'invalid-endpoint-key',
                 model: 'test-model',
             },
             messages: [{ role: 'user', content: 'reply with XML' }],
@@ -220,7 +220,7 @@ async function testBackendProxyLoadsModelsWithoutModelAndParsesCommonShapes() {
 
         assert.deepEqual(await backend.loadModels({
             preset: {
-                endpoint: 'https://api.example.test/v1',
+                endpoint: 'http://api.example.test/v1',
                 apiKey: 'model-list-secret',
             },
         }), expected);
@@ -228,7 +228,7 @@ async function testBackendProxyLoadsModelsWithoutModelAndParsesCommonShapes() {
         assert.equal(calls[0].url, '/api/backends/chat-completions/status');
         assert.deepEqual(JSON.parse(calls[0].options.body), {
             chat_completion_source: 'openai',
-            reverse_proxy: 'https://api.example.test/v1',
+            reverse_proxy: 'http://api.example.test/v1',
             proxy_password: 'model-list-secret',
         });
     }
@@ -1452,7 +1452,7 @@ async function main() {
     await testDatabaseCurrentApiBackendUsesRestrictedCallAI();
     await testQQV2BackendRouterSelectsDatabaseVirtualPreset();
     await testBackendProxyUsesSillyTavernAndRedactsTheKey();
-    await testBackendProxyRejectsPublicHttpBeforeSending();
+    await testBackendProxyRejectsInvalidEndpointBeforeSending();
     await testBackendProxyLoadsModelsWithoutModelAndParsesCommonShapes();
     await testFinalPromptViewerBridgePostsOnlyThePromptSnapshot();
     testProductionRuntimeWiresThePromptObserver();

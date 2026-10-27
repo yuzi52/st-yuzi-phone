@@ -139,7 +139,7 @@ export function createBodyDialoguePage({ container, state, render, pageRuntime }
             ${selectRow('align')}${numberRow('nameSize')}${colorRow('nameColor', '姓名强调色', '#aa526c')}
             ${numberRow('fontSize')}${numberRow('lineHeight')}${colorRow('textColor', '对白文字色', '#253047')}
             ${numberRow('width')}${numberRow('spacing')}${numberRow('avatarSize')}${selectRow('avatarShape')}
-            ${config.bubble ? colorRow('bubbleColor', '通用气泡底色', '#ffffff') + numberRow('radius') : selectRow('quote') + numberRow('quoteSize') + colorRow('quoteColor', '引号颜色', '#aa526c')}`;
+            ${config.bubble ? colorRow('bubbleColor', '通用气泡底色', '#ffffff') + numberRow('radius') + numberRow('paddingInline') : selectRow('quote') + numberRow('quoteSize') + colorRow('quoteColor', '引号颜色', '#aa526c')}`;
         container.innerHTML = buildSettingsPageFrame({ title: '正文对话气泡', bodyClass: 'phone-app-body phone-settings-scroll phone-ios-grouped-page yuzi-body-settings', bodyHtml: `
             <section class="phone-ios-group"><label class="phone-ios-row"><span class="phone-ios-row-label">启用正文对话气泡</span>${switchControl('enabled', config.enabled, '启用正文对话气泡')}</label>${numberRow('layers')}</section>
             <p class="phone-ios-group-footer">角色卡主世界书 · D0 · 顺序 999 · 蓝灯</p>
