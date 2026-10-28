@@ -1,6 +1,5 @@
 import { getInlineMessageTarget, subscribeInlineMessageInvalidation } from '../integration/inline-message-bridge.js';
 import { createContentPresetInlineInteractions } from '../content-presets/inline-interactions.js';
-import { getAppearanceFontFamily } from '../settings-app/services/appearance-settings/font-library-service.js';
 import { isManagedTauriTavernChatSurface } from '../integration/tauritavern-chat-surface.js';
 import { createRuntimeScope } from '../runtime-manager.js';
 import { getOptionTexts } from './view.js';
@@ -42,7 +41,6 @@ export function createBottomOptions(scope) {
                 });
             }
             node.setAttribute('aria-label', t('选项面板'));
-            node.style.fontFamily = getAppearanceFontFamily();
             node.style.fontSize = `${13 * settings.phoneReadableTextScalePercent / 100}px`;
             node.lang = settings.phoneLanguage;
             node.replaceChildren(...texts.map(text => { const button = document.createElement('button'); button.type = 'button'; button.textContent = text; return button; }));

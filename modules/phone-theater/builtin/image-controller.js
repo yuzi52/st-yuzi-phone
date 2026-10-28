@@ -8,20 +8,20 @@ export function createBuiltinImageController(options) {
     const chatScope = options.getChatScope();
     let disposed = false;
     const active = () => !disposed && !signal.aborted && options.isCurrent() && options.getChatScope() === chatScope;
-    const enabled = () => options.getSettings()?.imageGeneration?.enabled === true && options.getSettings()?.imageGeneration?.theaterEnabled?.[sceneId] === true;
+    const enabled = () => {
+        const settings = options.getSettings()?.imageGeneration;
+        return settings?.enabled === true && settings?.theaterEnabled?.[sceneId] === true;
+    };
     const sourceInput = (canvas, record) => {
         const snapshot = options.getSnapshot();
         return { canvas, rowValues: record.fields, candidateRows: snapshot.records.map(row => row.fields), chatScope,
             requestContext: { isStillCurrent: () => active() && options.getSnapshot().records.some(row => canvas.stableIdentityFields.every(field => row.fields[field] === record.fields[field]) && canvas.promptFields.every(field => row.fields[field] === record.fields[field])) },
         };
     };
-    function paint(frame, binding) {
-        // Routes prepare detached DOM before committing it; painting needs no layout.
-        // The lifecycle guard still rejects disposed pages and stale chat scopes.
-        if (!active()) return;
+    function paint(frame, binding, generationEnabled) {
         const { state, button, description, image, canvas } = binding;
         const imagePath=binding.validIdentity ? state.imagePath : '';
-        button.hidden = !enabled(); button.disabled = state.busy || !binding.validIdentity;
+        button.hidden = !generationEnabled; button.disabled = state.busy || !binding.validIdentity;
         const label = state.busy ? '生成中…' : imagePath ? '重新生成图片' : '生成图片';
         button.title = binding.validIdentity ? label : '记录标识重复，无法安全关联图片';
         button.setAttribute('aria-label', button.title);
@@ -37,9 +37,14 @@ export function createBuiltinImageController(options) {
         }
     }
     function repaint(changedState = null) {
+        let generationEnabled;
         for (const [frame, binding] of frames) {
             if (!root.contains(frame)) { binding.dispose(); frames.delete(frame); continue; }
-            if (!changedState || binding.state === changedState) paint(frame, binding);
+            // Routes prepare detached DOM; only lifecycle and chat scope gate painting.
+            if ((!changedState || binding.state === changedState) && active()) {
+                generationEnabled ??= enabled();
+                paint(frame, binding, generationEnabled);
+            }
         }
     }
     function mount() {
@@ -88,7 +93,7 @@ export function createBuiltinImageController(options) {
                 root.querySelector('.yuzi-theater-live').append(button);
             } else frame.replaceChildren(image, description, button);
             const binding = { state, button, description, image, canvas, stamp, validIdentity, dispose:()=>{frameController.abort();signal.removeEventListener('abort',abortFrame);if(canvas.canvas === 'background'){button.remove();image.remove();}} };
-            frames.set(frame, binding); paint(frame, binding);
+            frames.set(frame, binding);
             if (validIdentity && !state.readRequested) { state.readRequested=true; void service.read({ canvas, rowValues: record.fields, chatScope }).then(saved => { if (active() && state.revision === 0) { state.imagePath=saved?.imagePath || ''; repaint(state); } }).catch(() => {}); }
             button.addEventListener('click', async event => {
                 event.preventDefault(); event.stopPropagation();

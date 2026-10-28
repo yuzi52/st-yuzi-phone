@@ -880,9 +880,9 @@ export function createQQV2Facade(options = {}) {
                 });
             },
             async conversation(input = {}) {
-                if (typeof runtime.getSnapshot !== 'function') return unavailable('getSnapshot');
+                if (!canReadContext()) return unavailable('getSnapshot');
                 if (typeof runtime.getConversation !== 'function') return unavailable('getConversation');
-                const snapshot = asObject(await runtime.getSnapshot());
+                const snapshot = asObject(await readContextSnapshot());
                 const context = cloneContext(snapshot.context);
                 const conversationId = asText(input.conversationId, 256);
                 if (!context.scopeId) return unavailable('currentScope');
@@ -896,9 +896,9 @@ export function createQQV2Facade(options = {}) {
                 });
             },
             async person(input = {}) {
-                if (typeof runtime.getSnapshot !== 'function') return unavailable('getSnapshot');
+                if (!canReadContext()) return unavailable('getSnapshot');
                 if (typeof runtime.getPerson !== 'function') return unavailable('getPerson');
-                const snapshot = asObject(await runtime.getSnapshot());
+                const snapshot = asObject(await readContextSnapshot());
                 const context = cloneContext(snapshot.context);
                 const personId = asText(input.personId, 256);
                 if (!context.scopeId) return unavailable('currentScope');
@@ -1007,10 +1007,10 @@ export function createQQV2Facade(options = {}) {
                 }
             },
             async requestState(input = {}) {
-                if (typeof runtime.getSnapshot !== 'function') return unavailable('getSnapshot');
+                if (!canReadContext()) return unavailable('getSnapshot');
                 if (typeof runtime.getConversation !== 'function') return unavailable('getConversation');
                 if (typeof runtime.getRequestState !== 'function') return unavailable('getRequestState');
-                const snapshot = asObject(await runtime.getSnapshot());
+                const snapshot = asObject(await readContextSnapshot());
                 const context = cloneContext(snapshot.context);
                     const conversationId = asText(input.conversationId, 256);
                     if (!context.scopeId) return unavailable('currentScope');
@@ -1024,10 +1024,10 @@ export function createQQV2Facade(options = {}) {
                 });
             },
             async unread() {
-                if (typeof runtime.getSnapshot !== 'function') return unavailable('getSnapshot');
+                if (!canReadContext()) return unavailable('getSnapshot');
                 if (typeof runtime.getUnreadState !== 'function') return unavailable('getUnreadState');
                 if (typeof runtime.listConversations !== 'function') return unavailable('listConversations');
-                const snapshot = asObject(await runtime.getSnapshot());
+                const snapshot = asObject(await readContextSnapshot());
                 const context = cloneContext(snapshot.context);
                 if (!context.scopeId) return unavailable('currentScope');
                 const [unread, conversations] = await Promise.all([

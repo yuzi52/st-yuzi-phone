@@ -149,7 +149,7 @@ function buildInternalFamily(hash) {
 }
 
 function getNormalizedFontLibrary() {
-    return normalizeAppearanceFontLibrarySettings(getPhoneSettings().appearanceFontLibrary);
+    return getPhoneSettings().appearanceFontLibrary;
 }
 
 function saveFontLibrary(library) {

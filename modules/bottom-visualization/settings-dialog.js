@@ -2,7 +2,6 @@ import { t } from '../i18n/index.js';
 import { getPhoneSettings, savePhoneSetting, subscribePhoneSettingsUpdates, flushPhoneSettingsSave, waitForPhoneSettingsSave } from '../settings.js';
 import { createRuntimeScope } from '../runtime-manager.js';
 import { pickImageFiles, fileToDataUrl, loadImage } from '../settings-app/services/media-upload.js';
-import { getAppearanceFontFamily } from '../settings-app/services/appearance-settings/font-library-service.js';
 import { escapeHtml as html, escapeHtmlAttr as attr } from '../utils/dom-escape.js';
 import { isBottomVisualizationSetting } from './settings.js';
 
@@ -27,7 +26,6 @@ export function openBottomSettings(owner) {
         const range = (name, label, min, max, step, unit) => `<label class="yuzi-bottom-setting"><span>${t(label)} <output>${config[name]}${unit}</output></span><input name="${name}" aria-label="${attr(t(label))}" type="range" min="${min}" max="${max}" step="${step}" value="${config[name]}"></label>`;
         const image = (key, label) => `<div class="yuzi-bottom-setting" data-image="${key}"><span>${t(label)}<small>${settings[key] ? t('已设置') : t('未设置')}</small></span><div><button type="button" data-upload="${key}" ${busy ? 'disabled' : ''}>${t('导入')}</button><button type="button" data-clear="${key}" ${busy ? 'disabled' : ''}>${t('清除')}</button></div></div>`;
         dialog.lang = settings.phoneLanguage;
-        dialog.style.fontFamily = getAppearanceFontFamily();
         dialog.style.fontSize = `${13 * settings.phoneReadableTextScalePercent / 100}px`;
         dialog.innerHTML = `<header><h2 id="yuzi-bottom-settings-title">${t('底部可视化')}</h2><button type="button" data-action="dismiss" aria-label="${t('关闭')}">×</button></header>
             ${select('position', '导航盘位置', [['flow', '悬浮底部'], ['fixed', '固定底部'], ['edge', '侧边栏']])}

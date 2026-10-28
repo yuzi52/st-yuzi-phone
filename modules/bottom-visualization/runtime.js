@@ -3,7 +3,7 @@ import { getPhoneSettings, savePhoneSetting } from '../settings.js';
 import { getTableData } from '../phone-core/data-api.js';
 import { subscribeTableUpdate } from '../phone-core/callbacks.js';
 import { createRuntimeScope } from '../runtime-manager.js';
-import { getAppearanceFontFamily, applyAppearanceFontLibrary } from '../settings-app/services/appearance-settings/font-library-service.js';
+import { applyAppearanceFontLibrary } from '../settings-app/services/appearance-settings/font-library-service.js';
 import { applyPhoneThemeMode } from '../settings-app/services/appearance-settings/theme-settings.js';
 import { getReviewState, subscribeReviewState } from '../table-update-review/store.js';
 import { buildTableUpdateReviewContentHtml } from '../table-update-review/templates.js';
@@ -107,9 +107,7 @@ export function createBottomVisualization() {
         if (deleteInterrupted) { deleteDialog?.dispose(); deleteDialog = null; }
         applyPhoneThemeMode(settings.phoneThemeMode);
         applyAppearanceFontLibrary();
-        const fontFamily = getAppearanceFontFamily();
         for (const surface of [root, dock]) {
-            surface.style.fontFamily = fontFamily;
             surface.style.fontSize = `${13 * settings.phoneReadableTextScalePercent / 100}px`;
             surface.style.setProperty('--yuzi-phone-readable-text-scale', settings.phoneReadableTextScalePercent / 100);
             surface.style.setProperty('--yuzi-phone-bottom-opacity', config.opacity / 100);

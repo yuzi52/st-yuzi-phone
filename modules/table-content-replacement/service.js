@@ -60,7 +60,7 @@ function getTableSignature(sheet) {
     try {
         return JSON.stringify({
             name: sheet.name ?? '',
-            content: cloneTableContent(sheet.content),
+            content: Array.isArray(sheet.content) ? sheet.content : [],
         });
     } catch {
         return '';
@@ -116,12 +116,15 @@ function getExplicitSheetKeys(event) {
         .filter(Boolean);
 }
 
-function mergeSingleSheetEvent(rawData, event) {
+function mergeSingleSheetEvent(readRawData, event) {
     const explicitSheetKeys = getExplicitSheetKeys(event);
     if (explicitSheetKeys.length === 0 || !Array.isArray(event?.content)) {
-        return isPlainObject(event) && getSheetKeys(event).length > 0 ? event : rawData;
+        return isPlainObject(event) && getSheetKeys(event).length > 0
+            ? event
+            : safeReadTableData(readRawData);
     }
 
+    const rawData = safeReadTableData(readRawData);
     const nextRawData = isPlainObject(rawData) ? { ...rawData } : {};
     nextRawData[explicitSheetKeys[0]] = {
         ...(isPlainObject(nextRawData[explicitSheetKeys[0]]) ? nextRawData[explicitSheetKeys[0]] : {}),
@@ -357,8 +360,7 @@ export function createTableContentReplacementService(options = {}) {
 
     function handleTableUpdate(event) {
         if (!runtime.started) return;
-        const currentRawData = safeReadTableData(deps.getTableData);
-        const nextRawData = mergeSingleSheetEvent(currentRawData, event);
+        const nextRawData = mergeSingleSheetEvent(deps.getTableData, event);
         const explicitSheetKeys = getExplicitSheetKeys(event);
         const changedNextSignatures = new Map();
         const changedSheetKeys = getChangedSheetKeys(runtime.lastRawData, nextRawData, changedNextSignatures);

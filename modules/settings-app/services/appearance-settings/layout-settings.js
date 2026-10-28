@@ -45,7 +45,7 @@ export function setupIconLayoutSettings(container) {
         });
 
         addListener(input, 'change', () => {
-            debouncedSave.flush?.();
+            debouncedSave.cancel?.();
             const value = clampLayoutValue(input.value, item);
             input.value = String(value);
             savePhoneSetting(item.key, value);

@@ -4,7 +4,7 @@ import {
     savePhoneSetting as persistPhoneSetting,
     normalizeImageGenerationSettings,
 } from '../settings.js';
-import { filterImagePromptOutput } from './prompt-output-filter.js';
+import { createImageGenerationOrchestrator } from './orchestration.js';
 
 function cloneValue(value) {
     if (value === undefined) return undefined;
@@ -260,132 +260,41 @@ export function createImageGenerationSettingsService(options = {}) {
             scanDescription: true,
         }) || {};
         const naturalPrompt = text(composition.prompt);
-        if (!naturalPrompt) {
-            return {
-                ok: false,
-                status: 'invalid-input',
-                prompt: '',
-                characters: cloneValue(Array.isArray(composition.characters) ? composition.characters : []),
-                unmatchedNames: cloneValue(
-                    Array.isArray(composition.unmatchedNames) ? composition.unmatchedNames : [],
-                ),
-                mappingDiagnostics: cloneValue(
-                    Array.isArray(composition.mappingDiagnostics) ? composition.mappingDiagnostics : [],
-                ),
-                error: { code: 'empty-image-prompt' },
-            };
-        }
-
         const shouldTranslate = config.promptTranslationEnabled
             && text(config.promptTranslationApiPresetId)
             && text(config.promptTranslationPresetId)
             && typeof qqV2PresetService?.translateImagePrompt === 'function';
-        const startedAt = shouldTranslate ? Number(now()) : Number.NaN;
-        const deadline = Number.isFinite(startedAt)
-            ? startedAt + requestConfig.timeoutMs
-            : null;
-        let prompt = naturalPrompt;
-        let aiOutput;
-        if (shouldTranslate) {
-            let translation;
-            try {
-                translation = await qqV2PresetService.translateImagePrompt({
-                    prompt: naturalPrompt,
-                    apiPresetId: config.promptTranslationApiPresetId,
-                    imageGenerationPresetId: config.promptTranslationPresetId,
-                    timeoutMs: deadline === null
-                        ? requestConfig.timeoutMs
-                        : Math.max(0, deadline - Number(now())),
-                    ...(input.signal ? { signal: input.signal } : {}),
-                });
-            } catch (error) {
-                translation = {
-                    ok: false,
-                    status: 'failed',
-                    error: {
-                        code: error?.code || 'image-prompt-translation-failed',
-                        message: error?.message || t("生图提示词转换失败"),
-                    },
-                };
-            }
-
-            if (translation?.ok === true) {
-                const filteredOutput = filterImagePromptOutput(
-                    translation.content,
-                    config,
-                );
-                prompt = filteredOutput;
-                aiOutput = filteredOutput;
-            } else if (translation?.status === 'timeout' || translation?.status === 'cancelled') {
-                return {
-                    ok: false,
-                    status: translation.status,
-                    prompt: naturalPrompt,
-                    characters: cloneValue(Array.isArray(composition.characters) ? composition.characters : []),
-                    unmatchedNames: cloneValue(
-                        Array.isArray(composition.unmatchedNames) ? composition.unmatchedNames : [],
-                    ),
-                    mappingDiagnostics: cloneValue(
-                        Array.isArray(composition.mappingDiagnostics) ? composition.mappingDiagnostics : [],
-                    ),
-                    error: cloneValue(translation.error || {
-                        code: translation.status === 'timeout'
-                            ? 'image-prompt-translation-timeout'
-                            : 'image-prompt-translation-cancelled',
-                    }),
-                };
-            }
-
-            if (deadline !== null && deadline - Number(now()) <= 0) {
-                return {
-                    ok: false,
-                    status: 'timeout',
-                    prompt: naturalPrompt,
-                    characters: cloneValue(Array.isArray(composition.characters) ? composition.characters : []),
-                    unmatchedNames: cloneValue(
-                        Array.isArray(composition.unmatchedNames) ? composition.unmatchedNames : [],
-                    ),
-                    mappingDiagnostics: cloneValue(
-                        Array.isArray(composition.mappingDiagnostics) ? composition.mappingDiagnostics : [],
-                    ),
-                    error: { code: 'image-generation-timeout', message: t("图片生成总超时") },
-                };
-            }
-        }
-
-        let generationResult;
-        try {
-            generationResult = await imageGenerationService.generateAndStore({
-                prompt,
+        const orchestrator = createImageGenerationOrchestrator({
+            // Test the selected draft provider without rereading saved settings mid-request.
+            generateAndStore: request => imageGenerationService.generateAndStore({
+                ...request,
                 provider: requestConfig.provider,
-                width: null,
-                height: null,
-                negativePrompt: text(input.negativePrompt),
-                change: text(input.change),
-                timeoutMs: deadline === null
-                    ? requestConfig.timeoutMs
-                    : Math.max(0, deadline - Number(now())),
                 folder: text(input.folder) || 'yuzi-phone-generated',
                 filename: text(input.filename) || createDefaultTestFilename(),
-            });
-        } catch {
-            generationResult = {
-                ok: false,
-                status: 'failed',
-                error: { code: 'image-generation-failed' },
-            };
-        }
+            }),
+            translateImagePrompt: shouldTranslate
+                ? request => qqV2PresetService.translateImagePrompt(request)
+                : null,
+            now,
+        });
+        const { naturalPrompt: _naturalPrompt, ...generationResult } = await orchestrator.generate({
+            naturalPrompt,
+            timeoutMs: requestConfig.timeoutMs,
+            negativePrompt: input.negativePrompt,
+            change: input.change,
+            ...(shouldTranslate ? {
+                translation: {
+                    apiPresetId: config.promptTranslationApiPresetId,
+                    imageGenerationPresetId: config.promptTranslationPresetId,
+                },
+            } : {}),
+            filterSettings: config,
+            signal: input.signal,
+        });
 
         return {
-            ...(generationResult && typeof generationResult === 'object'
-                ? cloneValue(generationResult)
-                : {
-                    ok: false,
-                    status: 'failed',
-                    error: { code: 'image-generation-failed' },
-                }),
+            ...cloneValue(generationResult),
             prompt: naturalPrompt,
-            ...(aiOutput !== undefined ? { aiOutput } : {}),
             characters: cloneValue(Array.isArray(composition.characters) ? composition.characters : []),
             unmatchedNames: cloneValue(
                 Array.isArray(composition.unmatchedNames) ? composition.unmatchedNames : [],

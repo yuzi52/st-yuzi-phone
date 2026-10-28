@@ -64,8 +64,8 @@ function main() {
     check(
         results,
         'layout',
-        'Appearance 图标布局 change 路径仍强制 flush 并同步规范化保存',
-        has(contents.layout, "addListener(input, 'change', () => {\n            debouncedSave.flush?.();\n            const value = clampLayoutValue(input.value, item);\n            input.value = String(value);\n            savePhoneSetting(item.key, value);")
+        'Appearance 图标布局 change 取消待执行任务并同步规范化保存一次',
+        has(contents.layout, "addListener(input, 'change', () => {\n            debouncedSave.cancel?.();\n            const value = clampLayoutValue(input.value, item);\n            input.value = String(value);\n            savePhoneSetting(item.key, value);")
     );
 
     check(

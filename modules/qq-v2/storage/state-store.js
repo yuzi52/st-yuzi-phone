@@ -25,8 +25,8 @@ export function createEmptyQQV2State() {
     };
 }
 
-function normalizeState(value) {
-    const state = value && typeof value === 'object' ? clone(value) : createEmptyQQV2State();
+function normalizeState(value, copy = true) {
+    const state = value && typeof value === 'object' ? (copy ? clone(value) : value) : createEmptyQQV2State();
     if (!state.scopes || typeof state.scopes !== 'object' || Array.isArray(state.scopes)) {
         state.scopes = {};
     }
@@ -265,7 +265,8 @@ export function createIndexedDbQQV2StateStore(options = {}) {
         const transaction = db.transaction([STORE_NAME], 'readonly');
         const record = await requestResult(transaction.objectStore(STORE_NAME).get(STATE_KEY), '读取 QQ v2 状态');
         await transactionDone(transaction, '读取 QQ v2 状态');
-        return normalizeState(record?.value);
+        // IndexedDB 已返回独立副本；旧 clone fallback 的类型转换仍需保留。
+        return normalizeState(record?.value, typeof globalThis.structuredClone !== 'function');
     };
     const writeState = async (state, previousState) => {
         const db = await database();

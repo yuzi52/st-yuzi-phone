@@ -100,7 +100,7 @@ export function setupReadableTextScaleSettings(container) {
     };
 
     const handleChange = (event) => {
-        debouncedSave.flush?.();
+        debouncedSave.cancel?.();
         const source = event?.target instanceof HTMLInputElement ? event.target : rangeInput;
         const value = saveScale(source.value);
         syncControls(value);
