@@ -12,6 +12,38 @@ import { getPhoneCoreState, markPhoneRouteRefreshPending, phoneRuntime, subscrib
 const logger = Logger.withScope({ scope: 'phone-core/route-renderer', feature: 'route' });
 const TABLE_GENERIC_ROUTE_PREFIX = 'table-generic:';
 const TABLE_ROUTE_PREFIX = 'table:';
+let pendingQQRoute = null;
+const cancelledQQPages = new WeakSet();
+
+function trackPendingQQRoute(page) {
+    pendingQQRoute?.cancel();
+    let resolveCancelled;
+    let unregisterRuntime = () => {};
+    let unsubscribeActivity = () => {};
+    const candidate = {
+        page,
+        cancelled: new Promise(resolve => { resolveCancelled = resolve; }),
+        cancel: () => removeRoutePage(page),
+        release() {
+            unregisterRuntime();
+            unsubscribeActivity();
+            if (pendingQQRoute === candidate) pendingQQRoute = null;
+        },
+    };
+    registerRoutePageCleanup(page, () => {
+        cancelledQQPages.add(page);
+        resolveCancelled(false);
+        candidate.release();
+    });
+    pendingQQRoute = candidate;
+    unsubscribeActivity = subscribePhoneActivity(active => {
+        if (active) return;
+        deferInactivePhoneRouteRender();
+        candidate.cancel();
+    });
+    unregisterRuntime = phoneRuntime.registerCleanup(candidate.cancel);
+    return candidate;
+}
 
 function isActiveRouteRender(renderToken, state = getPhoneCoreState()) {
     if (!Number.isFinite(renderToken)) {
@@ -59,64 +91,12 @@ function resolveQQRouteShell(deps = {}) {
     return Object.freeze({ showToast: showDefaultQQRouteToast });
 }
 
-function renderQQRouteFailure(page, shell) {
-    page?.replaceChildren?.();
+function showQQRouteFailure(shell) {
     try {
         shell?.showToast?.(t("QQ 暂时无法加载"));
     } catch {
-        // Error notification is advisory; the blank QQ shell remains usable.
+        // Error notification is advisory; the previous page remains usable.
     }
-}
-
-function renderQQRouteSkeleton(page) {
-    if (typeof document === 'undefined' || typeof document.createElement !== 'function') return;
-    const create = (tag, className, text = '') => {
-        const element = document.createElement(tag);
-        if (className) element.className = className;
-        if (text) element.textContent = text;
-        return element;
-    };
-    const viewport = create('div', 'yuzi-qq-viewport yuzi-qq-route-skeleton');
-    viewport.dataset.qqRouteSkeleton = '1';
-    viewport.setAttribute('role', 'status');
-    viewport.setAttribute('aria-label', t("QQ 正在加载"));
-    viewport.setAttribute('aria-busy', 'true');
-
-    const main = create('main', 'yuzi-qq-view yuzi-qq-list-view yuzi-qq-message-root-view');
-    const header = create('header', 'yuzi-qq-header');
-    header.append(
-        create('span', 'yuzi-qq-header-spacer'),
-        create('h1', 'yuzi-qq-title', t("消息")),
-        create('span', 'yuzi-qq-header-actions'),
-    );
-    const sheet = create('section', 'yuzi-qq-list-sheet yuzi-qq-route-skeleton-list');
-    for (let index = 0; index < 5; index += 1) {
-        const row = create('div', 'yuzi-qq-conversation-row yuzi-qq-route-skeleton-row');
-        const avatar = create('span', 'yuzi-qq-route-skeleton-avatar');
-        const copy = create('span', 'yuzi-qq-row-main yuzi-qq-route-skeleton-copy');
-        copy.append(
-            create('span', 'yuzi-qq-route-skeleton-line is-title'),
-            create('span', 'yuzi-qq-route-skeleton-line is-preview'),
-        );
-        row.append(avatar, copy, create('span', 'yuzi-qq-route-skeleton-line is-meta'));
-        sheet.append(row);
-    }
-    main.append(header, sheet);
-
-    const navigation = create('nav', 'yuzi-qq-nav yuzi-qq-root-tabbar');
-    navigation.setAttribute('data-phone-bottom-bar', '');
-    [t("消息"), t("联系人"), t("助手"), t("设置")].forEach((label, index) => {
-        const item = create('span', `yuzi-qq-nav-item yuzi-qq-root-tab${index === 0 ? ' is-active' : ''}`);
-        item.append(
-            create('span', 'yuzi-qq-nav-icon yuzi-qq-route-skeleton-nav-icon'),
-            create('span', 'yuzi-qq-nav-label', label),
-        );
-        navigation.append(item);
-    });
-
-    page?.classList?.add('yuzi-qq-app');
-    page?.replaceChildren?.(viewport);
-    viewport.append(main, navigation);
 }
 
 async function loadQQRouteDependencies(deps = {}) {
@@ -176,23 +156,25 @@ async function loadRouteRenderer(route, renderToken, deps = {}, opts = {}) {
                 const shell = resolveQQRouteShell(deps);
                 let lifecycle = null;
                 let disposed = false;
-                renderQQRouteSkeleton(page);
                 registerRoutePageCleanup(page, () => {
                     disposed = true;
                     lifecycle?.destroy();
                 });
+                const pending = trackPendingQQRoute(page);
 
-                void (async () => {
+                const prepare = async () => {
                     try {
+                        if (disposed) return false;
                         const qqDependencies = await loadQQRouteDependencies(deps);
-                        if (disposed) return;
+                        if (disposed) return false;
                         const getFacade = typeof deps.getQQV2Facade === 'function'
                             ? deps.getQQV2Facade
                             : qqDependencies.getQQV2Facade;
                         const facade = getFacade?.();
                         if (!facade) {
-                            renderQQRouteFailure(page, shell);
-                            return;
+                            showQQRouteFailure(shell);
+                            pending.cancel();
+                            return false;
                         }
 
                         lifecycle = qqDependencies.createQQRouteLifecycle({
@@ -206,14 +188,18 @@ async function loadRouteRenderer(route, renderToken, deps = {}, opts = {}) {
                         });
                         if (disposed) {
                             lifecycle.destroy();
-                            return;
+                            return false;
                         }
-                        await lifecycle.mount();
+                        const ready = await lifecycle.mount();
+                        if (!ready || disposed) { pending.cancel(); return false; }
+                        return true;
                     } catch {
-                        lifecycle?.destroy();
-                        if (!disposed) renderQQRouteFailure(page, shell);
+                        if (!disposed) showQQRouteFailure(shell);
+                        pending.cancel();
+                        return false;
                     }
-                })();
+                };
+                return Promise.race([prepare(), pending.cancelled]);
             },
         };
     }
@@ -494,8 +480,7 @@ function createRouteRenderContext(route, opts = {}, state = getPhoneCoreState())
 
 async function renderResolvedRoutePage(routeRenderer, context) {
     try {
-        await routeRenderer.render(context.page);
-        return true;
+        return await routeRenderer.render(context.page) !== false && !cancelledQQPages.has(context.page);
     } catch (error) {
         logger.error({
             action: 'render',
@@ -511,7 +496,7 @@ async function renderResolvedRoutePage(routeRenderer, context) {
 }
 
 function commitRoutePage({ screen, page, route, renderToken, opts }) {
-    if (!isRenderableScreen(screen, renderToken)) {
+    if (cancelledQQPages.has(page) || !isRenderableScreen(screen, renderToken)) {
         logger.warn({
             action: 'commit.skip',
             message: 'route 页面提交跳过：screen 不可渲染或 token 已过期',
@@ -528,6 +513,7 @@ function commitRoutePage({ screen, page, route, renderToken, opts }) {
         return false;
     }
 
+    if (pendingQQRoute?.page === page) pendingQQRoute.release();
     page.classList.add('phone-page-active');
     screen.appendChild(page);
     removeStaleRoutePages(screen, [page]);
@@ -541,10 +527,16 @@ function commitRoutePage({ screen, page, route, renderToken, opts }) {
 
 function scheduleRouteCommit({ screen, page, route, renderToken, opts }) {
     const unregisterPendingPage = phoneRuntime.registerCleanup(() => removeRoutePage(page));
-
-    phoneRuntime.requestAnimationFrame(() => {
+    let frameId;
+    const unregisterFrameCleanup = registerRoutePageCleanup(page, () => {
+        phoneRuntime.cancelAnimationFrame(frameId);
         unregisterPendingPage();
-        if (!isRenderableScreen(screen, renderToken)) {
+    });
+
+    frameId = phoneRuntime.requestAnimationFrame(() => {
+        unregisterFrameCleanup();
+        unregisterPendingPage();
+        if (cancelledQQPages.has(page) || !isRenderableScreen(screen, renderToken)) {
             logger.debug({
                 action: 'commit.schedule.skip',
                 message: 'route 页面延迟提交跳过：screen 不可渲染或 token 已过期',
@@ -583,6 +575,7 @@ export async function renderPhoneRoute(route, opts = {}) {
         return false;
     }
 
+    pendingQQRoute?.cancel();
     const routeRenderer = await resolveRouteRenderer(context.route, context.renderToken, opts);
     if (!routeRenderer) {
         removeRoutePage(context.page);

@@ -56,7 +56,7 @@ async function main() {
     const rootRoute = await __test__loadRouteRenderer('qq', 401, routeDeps);
     assert.equal(rootRoute.routeType, 'qq');
     const rootPage = {};
-    await rootRoute.render(rootPage);
+    assert.equal(await rootRoute.render(rootPage), true);
     await nextTurn();
     assert.equal(records.length, 1);
     assert.equal(records[0].mounted, rootPage);
@@ -81,9 +81,9 @@ async function main() {
             getQQV2Facade: () => null,
         }),
     });
-    await missingFacadeRoute.render({ replaceChildren() { blanked += 1; } });
+    assert.equal(await missingFacadeRoute.render({ replaceChildren() { blanked += 1; } }), false);
     await nextTurn();
-    assert.equal(blanked, 1, 'missing Facade keeps the QQ shell content blank');
+    assert.equal(blanked, 0, 'missing Facade rejects the candidate instead of submitting an empty QQ page');
     assert.equal(shell.toasts.length, 1, 'missing Facade reports one shell toast');
 
     const failedShell = { toasts: [], showToast(message) { this.toasts.push(message); } };
@@ -92,10 +92,10 @@ async function main() {
         getQQRouteShell: () => failedShell,
     });
     let failedBlanked = 0;
-    await loadFailure.render({ replaceChildren() { failedBlanked += 1; } });
+    assert.equal(await loadFailure.render({ replaceChildren() { failedBlanked += 1; } }), false);
     await nextTurn();
     assert.equal(loadFailure.routeType, 'qq');
-    assert.equal(failedBlanked, 1, 'dynamic loader failures keep the QQ shell content blank');
+    assert.equal(failedBlanked, 0, 'dynamic loader failures leave the displayed page untouched');
     assert.equal(failedShell.toasts.length, 1, 'dynamic loader failures produce one safe toast');
 
     let resolveDelayedDependencies;
@@ -107,8 +107,10 @@ async function main() {
         }),
     });
     const delayedPage = {};
-    assert.equal(delayedRoute.render(delayedPage), undefined, 'QQ 路由不得等待动态模块和 bootstrap 才返回');
+    const delayedRender = delayedRoute.render(delayedPage);
+    assert.equal(typeof delayedRender?.then, 'function', 'QQ 路由等到真实首屏就绪才允许外壳提交');
     disposeRoutePage(delayedPage);
+    assert.equal(await delayedRender, false, '取消必须立即结束等待，无需等动态依赖返回');
     resolveDelayedDependencies({
         createQQApp: createAppFactory([]),
         createQQRouteLifecycle: () => {
@@ -120,12 +122,50 @@ async function main() {
     await nextTurn();
     assert.equal(delayedLifecycleCreated, 0, '路由页提前销毁后不得再挂载迟到的 QQ App');
 
+    let resolveReady;
+    let readyDestroyed = 0;
+    const readyGate = new Promise(resolve => { resolveReady = resolve; });
+    const waitingRoute = await __test__loadRouteRenderer('qq', 406, {
+        ...routeDeps,
+        loadQQRouteDependencies: async () => ({
+            createQQApp: createAppFactory([]),
+            createQQRouteLifecycle: () => ({
+                mount: () => readyGate,
+                destroy() { readyDestroyed += 1; },
+            }),
+            getQQV2Facade: () => facade,
+        }),
+    });
+    const waitingPage = {};
+    let submitted = false;
+    const waitingRender = waitingRoute.render(waitingPage).then(result => { submitted = result; return result; });
+    await nextTurn();
+    assert.equal(submitted, false, '创建 App 后，首屏未完成仍不能提交 QQ 页面');
+    resolveReady(true);
+    assert.equal(await waitingRender, true);
+    disposeRoutePage(waitingPage);
+    assert.equal(readyDestroyed, 1);
+
+    const { notifyPhoneActivity, resetPhoneRuntimeScope } = await load('modules/phone-core/state.js');
+    for (const cancel of [notifyPhoneActivity, resetPhoneRuntimeScope]) {
+        let finishLoad;
+        const closingRoute = await __test__loadRouteRenderer('qq', 407, {
+            ...routeDeps,
+            loadQQRouteDependencies: () => new Promise(resolve => { finishLoad = resolve; }),
+        });
+        const closingRender = closingRoute.render({});
+        cancel();
+        assert.equal(await closingRender, false, '隐藏或销毁 runtime 必须立即取消未提交的 QQ 页面');
+        finishLoad({ ...routeDeps, createQQRouteLifecycle: () => { throw new Error('cancelled page must not mount'); } });
+        await nextTurn();
+    }
+
     const fs = require('node:fs');
     const routeSource = fs.readFileSync(path.resolve('modules/phone-core/route-renderer.js'), 'utf8');
-    assert.match(routeSource, /dataset\.qqRouteSkeleton/u,
-        'QQ 路由必须先提交可见骨架');
-    assert.match(routeSource, /void \(async \(\) => \{[\s\S]*loadQQRouteDependencies/u,
-        'QQ 动态依赖与 bootstrap 必须在骨架之后异步加载');
+    assert.doesNotMatch(routeSource, /qqRouteSkeleton|renderQQRouteSkeleton/u,
+        'QQ 首次进入不再创建可见骨架');
+    assert.match(routeSource, /await lifecycle\.mount\(\)/u,
+        'QQ 首屏就绪信号必须传回路由提交层');
 
     const appSource = fs.readFileSync(path.resolve('modules/qq-v2/ui/app.js'), 'utf8');
     assert.doesNotMatch(appSource, /phone-status-bar|phone-home-indicator/, 'QQ must consume shell status and Home Indicator instead of duplicating them');

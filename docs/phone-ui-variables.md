@@ -129,7 +129,7 @@ QQ 消息、联系人和图片包锚定菜单共用透明菜单行；菜单高�
 
 路由页面通过 `data-yuzi-phone-route` 声明已经提交的目标，准备完成后在同一帧直接替换并释放旧页面，不使用缩放、推屏或淡入／淡出，也不保留转场计时器。首页 App 图标保留原有的缩放淡入，按显示顺序间隔 `40ms` 入场，仅使用 CSS 动画；系统开启减少动态效果时直接显示。按压反馈继续保留。`data-yuzi-phone-bottom-bar="docked"` 只由外壳根据既有 `data-phone-bottom-bar` 自动写到当前页面：页面自身用 padding 保留底部空间，`::after` 使用本页的 `--yuzi-phone-home-region-background` 延续底栏背景；screen 不随目标页面缩短。
 
-Home Indicator 仍由外壳持有唯一可点击按钮，背景透明，与新页面同步显示或隐藏。QQ 首次加载沿用单一骨架，正式内容与初始皮肤准备好后一起展示；骨架也声明 `data-phone-bottom-bar`，保持底部空间稳定。这些属于宿主页面切换实现，不增加作者包字段、动作或控件。
+Home Indicator 仍由外壳持有唯一可点击按钮，背景透明，与新页面同步显示或隐藏。从首页打开 QQ 时保留首页，等真实首屏数据、初始皮肤样式和带 `data-phone-bottom-bar` 的底栏准备好，再在同一帧切入 QQ 并更新状态栏与 Home Indicator；头像渐进显示，主题失败回退默认样式。首次读取失败保留原页并只提示一次短暂 toast，取消、过期或停用时释放候选页与资源。这些属于宿主页面切换实现，不增加作者包字段、动作或控件。
 
 标题栏的视觉基准来自 Figma `02_设计画板` 的“用户页 / 编辑资料”标题栏（`177:1532`）：内容高度 `54px`，左/右内边距分别为 `10px` / `12px`，方向图标为 `24px`，交互热区为 `32px` 方形。共享实现位于 [`navigation-ui.js`](../modules/phone-core/navigation-ui.js)，页面通过 `buildPhoneNavBar()`、`buildPhoneBackButton()`、`buildPhoneSwitchButton()` 与 `buildPhoneNavTitleSwitcher()` 生成字符串模板；QQ 的 DOM 构建路径使用同一模块的 `createPhoneNavIconElement()` 和相同公共 class。
 
@@ -465,3 +465,5 @@ Figma 原始底栏顺序不直接复用。生产 QQ 固定为 消息、联系人
 连接区的“前端直连”复用 `.phone-ios-switch`，开关随预设保存，试听读取当前已保存预设；关闭时走酒馆转发。新连接默认关闭，旧配置尊重已保存的选择，不照搬默认值覆盖。
 
 三处人物编辑页的「角色音色」都紧接消息字色，复用 `.phone-ios-row` + `.phone-ios-row-label` + `.phone-ios-row-value` + `.phone-ios-row-chevron`。右侧只显示所选名称或「未配置」，公共 `showSettingsOptionSheet()` 从仓库选择，带 `.yuzi-qq-settings-layer` 复用 QQ 弹层配色，不提供人物页手填入口。仓库编辑和操作走 `showSettingsSheet()` / `showSettingsActionSheet()`，不增加平行弹层或颜色尺寸系统。
+
+联系人资料包自带的音色在同一行显示名字，缺名时显示 ID；选择弹层保留一项标注「随联系人携带」的当前声音，与仓库选项分开识别，即使 ID 相同也不会自动改绑。保持当前项不写入仓库，主动选「未配置」或仓库声音才替换人物配置。联系人包携带的头像框、气泡继续使用原有缩略图、选择和卸下入口，保留图片参数与消息字色，不增加公共素材条目或新样式。

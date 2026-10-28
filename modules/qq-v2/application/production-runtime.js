@@ -53,6 +53,7 @@ import { sillyTavernWorldbookReadingCatalog } from '../../worldbook-reading/st-c
 import { sillyTavernWorldbookReadingRuntimes } from '../../worldbook-reading/st-runtime-adapter.js';
 import { synthesizeQQVoice } from '../voice/fish-client.js';
 import { loadQQVoiceModels } from '../voice/models.js';
+import { resolveQQProfileVoice } from '../voice/contact-voice.js';
 import {
     QQ_VOICE_SETTINGS_DEFAULTS,
     normalizeQQVoiceSettings,
@@ -60,7 +61,6 @@ import {
 import {
     measureQQVoiceDurationMs,
     prepareQQVoiceText,
-    resolveQQVoiceId,
 } from '../voice/service.js';
 import {
     normalizeQQVoiceLibrary,
@@ -302,22 +302,22 @@ function currentContext(host, scope) {
 }
 
 function voiceBindingsForRead(selfProfile, people, library, selfName) {
-    const describe = (personId, name, localVoiceId, extra = {}) => {
-        const local = asText(localVoiceId, 256);
+    const describe = (personId, name, profile, extra = {}) => {
+        const voice = resolveQQProfileVoice(profile, library);
         return {
             personId: asText(personId, 256),
             name: asText(name, 120),
-            voiceId: local,
-            effectiveVoiceId: library.some(entry => entry.voiceId === local) ? local : '',
+            voiceId: voice?.voiceId || asText(profile?.voiceId, 256),
+            effectiveVoiceId: voice?.voiceId || '',
             ...extra,
         };
     };
     return [
-        describe(SELF_ID, selfName, selfProfile?.voiceId, { isSelf: true }),
+        describe(SELF_ID, selfName, selfProfile, { isSelf: true }),
         ...people.map((person) => describe(
             person?.personId,
             person?.formalName,
-            person?.voiceId,
+            person,
             { isAssistant: Boolean(person?.assistantCharacterId) },
         )),
     ].filter((binding) => binding.name);
@@ -442,7 +442,6 @@ export function createQQV2ProductionRuntime(options = {}) {
     const sharedStorage = options.sharedStorage || createQQV2SharedResourceStorage({ stateStore });
     const repository = options.repository || createQQV2Repository({ stateStore });
     const globalRuntimeSettings = options.globalRuntimeSettings || createQQV2GlobalRuntimeSettings({ stateStore });
-    const contactPacks = options.contactPacks || createQQContactPackService({ repository });
     const imageLibraryPacks = options.imageLibraryPacks || createQQImageLibraryPackService({ stateStore });
     const defaultImageLibrary = options.defaultImageLibrary || createQQDefaultImageLibraryInstaller({
         stateStore,
@@ -455,6 +454,10 @@ export function createQQV2ProductionRuntime(options = {}) {
         storage: sharedStorage,
         readMedia: (key) => stateStore.readMedia(key),
         cryptoApi: options.cryptoApi,
+    });
+    const contactPacks = options.contactPacks || createQQContactPackService({
+        repository,
+        listVoiceEntries: () => resources.listVoiceEntries?.() || [],
     });
     const primaryBackend = options.backend || createSillyTavernQQV2Backend({
         getRequestHeaders: () => resolveHeaders(host),
@@ -2055,8 +2058,8 @@ export function createQQV2ProductionRuntime(options = {}) {
                         sendButtonEnabled: settings.sendButtonEnabled === true,
                         worldbook: { enabled: settings.worldbook?.enabled === true },
                     },
-                    bindings: library ? voiceBindingsForRead(data.selfProfile, data.people, library,
-                        currentContext(host, null).user.name) : [],
+                    bindings: voiceBindingsForRead(data.selfProfile, data.people, library || [],
+                        currentContext(host, null).user.name),
                 };
             });
         },
@@ -2729,11 +2732,11 @@ export function createQQV2ProductionRuntime(options = {}) {
                 const isSelf = message.senderId === SELF_ID;
                 const scope = savedScope;
                 const person = isSelf ? null : await repository.getPerson(normalizedScopeId, message.senderId);
-                const voiceId = resolveQQVoiceId({
-                    personVoiceId: isSelf ? scope?.selfProfile?.voiceId : person?.voiceId,
-                });
-                const library = await resources.listVoiceEntries();
-                if (!voiceId || !library.some(entry => entry.voiceId === voiceId)) {
+                const profile = isSelf ? scope?.selfProfile : person;
+                const voice = resolveQQProfileVoice(profile)
+                    || resolveQQProfileVoice(profile, await resources.listVoiceEntries());
+                const voiceId = voice?.voiceId;
+                if (!voiceId) {
                     throw voiceSynthesisError(
                         isSelf
                             ? t("当前用户资料里还没有绑定音色 ID")
@@ -2963,10 +2966,10 @@ export function createQQV2ProductionRuntime(options = {}) {
             return result;
         },
         listVoiceLibrary: () => resources.listVoiceEntries(),
-        /** 当前聊天的声音选择；只有仍在仓库中的音色 ID 生效。 */
+        /** 当前聊天使用联系人自带音色，或仍有效的仓库选择。 */
         async listVoiceBindings({ scopeId } = {}) {
             const scope = await repository.getScope(asText(scopeId, 512));
-            const library = await resources.listVoiceEntries();
+            const library = await safeReadAsync(() => resources.listVoiceEntries(), []);
             return {
                 bindings: voiceBindingsForRead(scope?.selfProfile, Object.values(asObject(scope?.people)),
                     library, currentContext(host, null).user.name),

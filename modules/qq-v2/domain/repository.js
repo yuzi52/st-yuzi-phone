@@ -4,6 +4,8 @@ import { assistantCharacterLibrary, assistantCharacterView } from './assistant-c
 import { createEmptyQQV2State } from '../storage/state-store.js';
 import { QQ_V2_BUILT_IN_PROMPT_PRESET_IDS } from './prompt-preset-ids.js';
 import { normalizeAvatarFrameTransform } from '../resources/avatar-frame-transform.js';
+import { normalizeBubbleStyle } from '../resources/appearance-contract.js';
+import { normalizeQQContactVoice } from '../voice/contact-voice.js';
 import { normalizeMessageTextColor } from './message-text-color.js';
 
 const SELF_ID = '__self__';
@@ -15,6 +17,7 @@ const WORLDBOOK_TIME_UNITS = new Set(['hour', 'day', 'month', 'year']);
 const DEFAULT_WORLDBOOK_INJECTION_COUNT = 30;
 const SHARED_WORLDBOOK_ENABLED_KEY = 'worldbookInjectionEnabled';
 const SHARED_IMAGE_LIBRARY_KEY = 'imageLibraryAssets';
+const PERSON_ASSET_FIELDS = ['avatarAssetId', 'profileBackgroundAssetId', 'avatarFrameAssetId', 'bubbleAssetId'];
 const IMAGE_LIBRARY_KINDS = Object.freeze({
     avatar: 'avatar',
     'avatar-frame': 'avatar-frame',
@@ -64,6 +67,7 @@ function exactContactFormalName(value) {
 
 function normalizeQQProfile(value, defaultMessageTextColor = 'black') {
     const profile = value && typeof value === 'object' ? value : {};
+    const voice = normalizeQQContactVoice(profile.voice);
     return {
         avatarAssetId: asText(profile.avatarAssetId, 256),
         ...(profile.avatarFrameAssetId ? { avatarFrameAssetId: asText(profile.avatarFrameAssetId, 256) } : {}),
@@ -73,7 +77,8 @@ function normalizeQQProfile(value, defaultMessageTextColor = 'black') {
         gender: asText(profile.gender, 120),
         birthday: asText(profile.birthday, 120),
         profileBackgroundAssetId: asText(profile.profileBackgroundAssetId, 256),
-        voiceId: asText(profile.voiceId, 256),
+        voiceId: voice ? '' : asText(profile.voiceId, 256),
+        ...(voice ? { voice } : {}),
     };
 }
 
@@ -155,7 +160,9 @@ function copyScope(state, scope) {
 }
 
 function ensurePersonProfile(person) {
-    Object.assign(person, normalizeQQProfile(person, 'black'));
+    const profile = normalizeQQProfile(person, 'black');
+    Object.assign(person, profile);
+    if (!profile.voice) delete person.voice;
 }
 
 function emptyScope(scopeId) {
@@ -544,21 +551,40 @@ function normalizeImportedContactAsset(value, expectedKind, label) {
     if (!/^image\/[a-z0-9.+-]+$/u.test(mimeType)) {
         throw new QQV2DomainError(t`${label}图片类型无效`, 'contact_import_asset_invalid');
     }
-    return { kind: expectedKind, blob: value.blob, mimeType };
+    return {
+        kind: expectedKind,
+        blob: value.blob,
+        mimeType,
+        ...(expectedKind === 'avatar-frame' && value.avatarFrameTransform ? {
+            avatarFrameTransform: normalizeAvatarFrameTransform(value.avatarFrameTransform),
+        } : {}),
+        ...(expectedKind === 'bubble' && value.bubble !== undefined ? {
+            bubble: normalizeBubbleStyle(value.bubble),
+        } : {}),
+    };
 }
 
 function normalizeImportedPrivateContact(input, index) {
     const source = input && typeof input === 'object' && !Array.isArray(input) ? input : null;
     if (!source) throw new QQV2DomainError(t`导入联系人 ${index + 1} 无效`, 'contact_import_invalid');
+    const voice = normalizeQQContactVoice(source.voice);
     return {
         formalName: exactContactFormalName(source.formalName),
         signature: asText(source.signature, 1000),
         gender: asText(source.gender, 120),
         birthday: asText(source.birthday, 120),
-        voiceId: asText(source.voiceId, 256),
+        voiceId: voice ? '' : asText(source.voiceId, 256),
+        ...(voice ? { voice } : {}),
+        messageTextColor: requireMessageTextColor(source.messageTextColor ?? 'black'),
         avatar: normalizeImportedContactAsset(source.avatar, 'avatar', '头像'),
         profileBackground: normalizeImportedContactAsset(source.profileBackground, 'profile-background', '资料背景'),
         chatBackground: normalizeImportedContactAsset(source.chatBackground, 'background', '聊天背景'),
+        ...(Object.hasOwn(source, 'avatarFrame') ? {
+            avatarFrame: normalizeImportedContactAsset(source.avatarFrame, 'avatar-frame', '头像框'),
+        } : {}),
+        ...(Object.hasOwn(source, 'bubble') ? {
+            bubble: normalizeImportedContactAsset(source.bubble, 'bubble', '气泡'),
+        } : {}),
     };
 }
 
@@ -580,8 +606,7 @@ function deleteUnactivatedPrivateContact(scope, conversation, person) {
     const conversationId = conversation.conversationId;
     const releasableAssetIds = new Set([
         conversation.backgroundAssetId,
-        person.avatarAssetId,
-        person.profileBackgroundAssetId,
+        ...PERSON_ASSET_FIELDS.map((field) => person[field]),
     ]);
     Object.values(scope.messages)
         .filter((message) => message.conversationId === conversationId)
@@ -841,11 +866,8 @@ function personStillReferenced(scope, personId) {
 function assetStillReferenced(scope, assetId) {
     const id = asText(assetId, 256);
     if (!id) return false;
-    return scope.selfProfile?.avatarAssetId === id
-        || scope.selfProfile?.profileBackgroundAssetId === id
-        || Object.values(scope.people).some((person) => (
-            person.avatarAssetId === id || person.profileBackgroundAssetId === id
-        ))
+    return PERSON_ASSET_FIELDS.some((field) => scope.selfProfile?.[field] === id)
+        || Object.values(scope.people).some((person) => PERSON_ASSET_FIELDS.some((field) => person[field] === id))
         || Object.values(scope.conversations).some((conversation) => conversation.backgroundAssetId === id)
         || Object.values(scope.messages).some((message) => (
             message.assetId === id || message.senderAvatarAssetId === id
@@ -1107,7 +1129,9 @@ function deleteConversationState(state, scopeId, conversationId) {
         .map((message) => asText(message.voice?.assetId, 256))
         .filter(Boolean))];
     deletedMessages.forEach((message) => delete scope.messages[message.messageId]);
-    Object.values(scope.assets).filter((asset) => asset.conversationId === conversationId).forEach((asset) => delete scope.assets[asset.assetId]);
+    Object.values(scope.assets)
+        .filter((asset) => asset.conversationId === conversationId)
+        .forEach((asset) => releasedAssetIds.add(asset.assetId));
     if (retainPrivateContact || retainActiveGroup) {
         conversation.status = 'contact';
         if (retainActiveGroup) {
@@ -1129,9 +1153,8 @@ function deleteConversationState(state, scopeId, conversationId) {
             if (personStillReferenced(scope, personId)) return;
             const person = scope.people[personId];
             if (!person) return;
-            const avatarAssetId = person.avatarAssetId;
+            PERSON_ASSET_FIELDS.forEach((field) => releasedAssetIds.add(person[field]));
             delete scope.people[personId];
-            removeAssetIfUnreferenced(scope, avatarAssetId);
         });
     }
     releasedAssetIds.forEach((assetId) => removeAssetIfUnreferenced(scope, assetId));
@@ -1505,6 +1528,7 @@ export function createQQV2Repository(options = {}) {
                     personId: person.personId,
                     formalName: person.formalName,
                     voiceId: person.voiceId,
+                    ...(person.voice ? { voice: copy(person.voice) } : {}),
                     assistantCharacterId: person.assistantCharacterId,
                 })),
             };
@@ -1682,7 +1706,7 @@ export function createQQV2Repository(options = {}) {
                 const scope = getScope(state, scopeId, false);
                 const current = scope.selfProfile;
                 const previousAvatarAssetId = current.avatarAssetId;
-                const previousProfileBackgroundAssetId = current.profileBackgroundAssetId;
+                const previousAssetIds = PERSON_ASSET_FIELDS.map((field) => current[field]);
                 if (Object.hasOwn(profile, 'avatarAssetId')) {
                     current.avatarAssetId = requireProfileAsset(state, scope, profile.avatarAssetId, 'avatar');
                 }
@@ -1701,14 +1725,14 @@ export function createQQV2Repository(options = {}) {
                 if (Object.hasOwn(profile, 'profileBackgroundAssetId')) {
                     current.profileBackgroundAssetId = requireProfileAsset(state, scope, profile.profileBackgroundAssetId, 'profile-background');
                 }
-                if (Object.hasOwn(profile, 'voiceId')) current.voiceId = asText(profile.voiceId, 256);
+                if (Object.hasOwn(profile, 'voiceId')) {
+                    current.voiceId = asText(profile.voiceId, 256);
+                    delete current.voice;
+                }
                 if (previousAvatarAssetId !== current.avatarAssetId) {
                     syncSenderAvatar(scope, SELF_ID, current.avatarAssetId);
-                    removeAssetIfUnreferenced(scope, previousAvatarAssetId);
                 }
-                if (previousProfileBackgroundAssetId !== current.profileBackgroundAssetId) {
-                    removeAssetIfUnreferenced(scope, previousProfileBackgroundAssetId);
-                }
+                previousAssetIds.forEach((assetId) => removeAssetIfUnreferenced(scope, assetId));
                 return copy(current);
             });
         },
@@ -1722,8 +1746,10 @@ export function createQQV2Repository(options = {}) {
                 }
                 const person = getPerson(scope, conversation.personId);
                 const previousAvatarAssetId = person.avatarAssetId;
-                const previousProfileBackgroundAssetId = person.profileBackgroundAssetId;
-                const previousBackgroundAssetId = conversation.backgroundAssetId;
+                const previousAssetIds = [
+                    ...PERSON_ASSET_FIELDS.map((field) => person[field]),
+                    conversation.backgroundAssetId,
+                ];
                 if (Object.hasOwn(profile, 'formalName')) {
                     const formalName = exactContactFormalName(profile.formalName);
                     const collision = Object.values(scope.people).find((candidate) => (
@@ -1752,20 +1778,17 @@ export function createQQV2Repository(options = {}) {
                 if (Object.hasOwn(profile, 'profileBackgroundAssetId')) {
                     person.profileBackgroundAssetId = requireProfileAsset(state, scope, profile.profileBackgroundAssetId, 'profile-background');
                 }
-                if (Object.hasOwn(profile, 'voiceId')) person.voiceId = asText(profile.voiceId, 256);
+                if (Object.hasOwn(profile, 'voiceId')) {
+                    person.voiceId = asText(profile.voiceId, 256);
+                    delete person.voice;
+                }
                 if (Object.hasOwn(profile, 'backgroundAssetId')) {
                     conversation.backgroundAssetId = requireProfileAsset(state, scope, profile.backgroundAssetId, 'background', conversation.conversationId);
                 }
                 if (previousAvatarAssetId !== person.avatarAssetId) {
                     syncSenderAvatar(scope, person.personId, person.avatarAssetId);
-                    removeAssetIfUnreferenced(scope, previousAvatarAssetId);
                 }
-                if (previousBackgroundAssetId !== conversation.backgroundAssetId) {
-                    removeAssetIfUnreferenced(scope, previousBackgroundAssetId);
-                }
-                if (previousProfileBackgroundAssetId !== person.profileBackgroundAssetId) {
-                    removeAssetIfUnreferenced(scope, previousProfileBackgroundAssetId);
-                }
+                previousAssetIds.forEach((assetId) => removeAssetIfUnreferenced(scope, assetId));
                 return copy({ person, conversation });
             });
         },
@@ -1778,6 +1801,7 @@ export function createQQV2Repository(options = {}) {
                 const scope = getScope(state, scopeId, false);
                 const person = getPerson(scope, personId);
                 person.voiceId = asText(voiceId, 256);
+                delete person.voice;
                 return copy({ person });
             });
         },
@@ -1788,7 +1812,7 @@ export function createQQV2Repository(options = {}) {
             if (!previous || previous === next) return;
             return stateStore.transact((state) => {
                 const replace = (profile) => {
-                    if (profile?.voiceId === previous) profile.voiceId = next;
+                    if (!profile?.voice && profile?.voiceId === previous) profile.voiceId = next;
                 };
                 for (const scope of Object.values(state.scopes)) {
                     replace(scope.selfProfile);
@@ -1829,12 +1853,10 @@ export function createQQV2Repository(options = {}) {
                 const saveAsset = (conversation, asset) => {
                     if (!asset) return '';
                     const record = {
+                        ...asset,
                         assetId: createId('asset'),
                         scopeId: scope.scopeId,
                         conversationId: conversation.conversationId,
-                        kind: asset.kind,
-                        blob: asset.blob,
-                        mimeType: asset.mimeType,
                     };
                     scope.assets[record.assetId] = record;
                     return record.assetId;
@@ -1850,6 +1872,8 @@ export function createQQV2Repository(options = {}) {
                         gender: contact.gender,
                         birthday: contact.birthday,
                         voiceId: contact.voiceId || '',
+                        ...(contact.voice ? { voice: contact.voice } : {}),
+                        messageTextColor: contact.messageTextColor,
                         profileBackgroundAssetId: '',
                     };
                     const conversation = {
@@ -1870,7 +1894,12 @@ export function createQQV2Repository(options = {}) {
                     person.avatarAssetId = saveAsset(conversation, contact.avatar);
                     person.profileBackgroundAssetId = saveAsset(conversation, contact.profileBackground);
                     conversation.backgroundAssetId = saveAsset(conversation, contact.chatBackground);
-                    assignPersonAppearance(state, person, random);
+                    if (Object.hasOwn(contact, 'avatarFrame') || Object.hasOwn(contact, 'bubble')) {
+                        person.avatarFrameAssetId = saveAsset(conversation, contact.avatarFrame);
+                        person.bubbleAssetId = saveAsset(conversation, contact.bubble);
+                    } else {
+                        assignPersonAppearance(state, person, random);
+                    }
                     scope.people[person.personId] = person;
                     scope.conversations[conversation.conversationId] = conversation;
                     return copy({ person, conversation });

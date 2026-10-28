@@ -35,6 +35,127 @@ function createAppRecorder() {
     return { created, createApp };
 }
 
+async function checkFirstRenderReadiness(createQQRouteLifecycle) {
+    const { FakeElement, installFakeDom, flushUi, privateConversation, createFakeFacade } = require('./helpers/qq-ui-fixture.cjs');
+    global.HTMLElement = FakeElement;
+    global.Element = FakeElement;
+    installFakeDom().getElementById = () => null;
+    const { createQQApp } = await load('modules/qq-v2/ui/app.js');
+    const createApp = options => createQQApp({ ...options, getSettings: () => ({}) });
+
+    const firstRead = deferred();
+    const firstStarted = deferred();
+    const { facade } = createFakeFacade({ initialConversations: [privateConversation('最新', 'latest')] });
+    const readConversations = facade.query.conversations;
+    let listener, firstQuery = true;
+    facade.query.conversations = () => {
+        if (!firstQuery) return readConversations();
+        firstQuery = false;
+        firstStarted.resolve();
+        return firstRead.promise;
+    };
+    facade.subscribe = fn => { listener = fn; return () => {}; };
+    const page = new FakeElement();
+    const prepared = createQQRouteLifecycle({ page, facade, createApp });
+    let settled = false;
+    const mounting = prepared.mount().then(result => { settled = true; return result; });
+    await firstStarted.promise;
+    await flushUi();
+    assert.equal(settled, false, 'mount waits for real first content, not App.mount returning');
+    assert.equal(page.isConnected, false, 'QQ can prepare before the route is connected');
+    await listener({ scopeId: 'scope-add-contact-ui' });
+    assert.equal(await mounting, true, 'a preparation-time update can complete the latest first render');
+    assert.ok(page.querySelector('[data-qq-conversation-id="latest"]'));
+    assert.ok(page.querySelector('.yuzi-qq-root-tabbar'), 'the first ready frame includes navigation');
+    firstRead.resolve({ ok: true, conversations: [privateConversation('旧数据', 'stale')] });
+    await flushUi();
+    assert.equal(page.querySelector('[data-qq-conversation-id="stale"]'), null, 'late first reads cannot replace a newer prepared frame');
+    prepared.destroy();
+
+    const hiddenRead = deferred();
+    const hiddenStarted = deferred();
+    const hiddenFixture = createFakeFacade();
+    let visible = true, activity, hiddenFirst = true;
+    hiddenFixture.facade.query.conversations = () => {
+        if (!hiddenFirst) return Promise.resolve({ ok: true, conversations: [] });
+        hiddenFirst = false;
+        hiddenStarted.resolve();
+        return hiddenRead.promise;
+    };
+    const hiddenToasts = [];
+    const hidden = createQQRouteLifecycle({ page: new FakeElement(), facade: hiddenFixture.facade, createApp,
+        isVisible: () => visible, subscribeActivity(fn) { activity = fn; return () => {}; },
+        shell: { showToast: message => hiddenToasts.push(message) },
+    });
+    let hiddenSettled = false;
+    const hiddenMount = hidden.mount().then(result => { hiddenSettled = true; return result; });
+    await hiddenStarted.promise;
+    visible = false;
+    activity();
+    hiddenRead.reject(new Error('obsolete hidden read'));
+    await flushUi();
+    assert.equal(hiddenSettled, false, 'a suspended first render keeps readiness pending');
+    assert.deepEqual(hiddenToasts, [], 'a hidden obsolete failure does not report a first-render failure');
+    visible = true;
+    activity();
+    assert.equal(await hiddenMount, true, 'the resumed successful frame settles readiness');
+    hidden.destroy();
+
+    const failedFixture = createFakeFacade();
+    failedFixture.facade.query.conversations = async () => { throw new Error('first render failed'); };
+    const toasts = [];
+    const failed = createQQRouteLifecycle({ page: new FakeElement(), facade: failedFixture.facade, createApp,
+        shell: { showToast: message => toasts.push(message) },
+    });
+    assert.equal(await failed.mount(), false, 'a real first-render failure rejects the candidate route');
+    await flushUi();
+    assert.equal(toasts.length, 1, 'a first-render failure reports only one toast');
+    failed.destroy();
+
+    const contextRead = deferred();
+    let created = 0;
+    const cancelled = createQQRouteLifecycle({ page: createPage(),
+        facade: { query: { currentContext: () => contextRead.promise } },
+        createApp() { created += 1; throw new Error('cancelled route must not mount'); },
+    });
+    const cancelledMount = cancelled.mount();
+    cancelled.destroy();
+    assert.equal(await cancelledMount, false, 'destroy settles mount while the initial context read is still pending');
+    contextRead.resolve(bootstrap());
+    await flushUi();
+    assert.equal(created, 0);
+
+    const cancelledRead = deferred();
+    const cancelledStarted = deferred();
+    const cancelledFixture = createFakeFacade();
+    cancelledFixture.facade.query.conversations = () => { cancelledStarted.resolve(); return cancelledRead.promise; };
+    let cancelledApp;
+    const cancelledPage = new FakeElement();
+    const pending = createQQRouteLifecycle({ page: cancelledPage, facade: cancelledFixture.facade,
+        createApp(options) { cancelledApp = createApp(options); return cancelledApp; },
+    });
+    const pendingMount = pending.mount();
+    await cancelledStarted.promise;
+    pending.destroy();
+    assert.equal(await pendingMount, false, 'destroy settles mount while the real App is still preparing');
+    assert.equal(await cancelledApp.whenReady(), false, 'destroy also settles App readiness');
+    cancelledRead.resolve({ ok: true, conversations: [] });
+    await flushUi();
+    assert.equal(cancelledPage.children.length, 0, 'a cancelled first render cannot repopulate its page');
+
+    const previousIndexedDB = global.indexedDB;
+    global.indexedDB = { open() { throw new Error('skin repository unavailable'); } };
+    const fallbackFixture = createFakeFacade();
+    const fallback = createQQRouteLifecycle({ page: new FakeElement(), facade: fallbackFixture.facade, createApp });
+    try {
+        assert.equal(await fallback.mount(), true, 'an unavailable skin falls back to the default and still becomes ready');
+    } finally {
+        fallback.destroy();
+        if (previousIndexedDB === undefined) delete global.indexedDB;
+        else global.indexedDB = previousIndexedDB;
+    }
+}
+
 async function main() {
     const { createQQRouteLifecycle } = await load('modules/qq-v2/ui/route-lifecycle.js');
 
@@ -236,6 +357,7 @@ async function main() {
     coalesced.destroy();
     stale.destroy();
     failed.destroy();
+    await checkFirstRenderReadiness(createQQRouteLifecycle);
     console.log('[qq-route-lifecycle-contract] passed');
 }
 

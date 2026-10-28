@@ -9,13 +9,6 @@ function asText(value, maxLength = 0) {
     return maxLength > 0 ? text.slice(0, maxLength) : text;
 }
 
-/**
- * 每个人只使用自己选定的音色，不按名字或默认音色兜底。
- */
-export function resolveQQVoiceId({ personVoiceId = '' } = {}) {
-    return asText(personVoiceId, 256);
-}
-
 /** 合成保留声音标记，展示只保留台词；纯标记不能作为语音正文。 */
 export function prepareQQVoiceText(content) {
     const parsed = parseQQVoiceText(content);

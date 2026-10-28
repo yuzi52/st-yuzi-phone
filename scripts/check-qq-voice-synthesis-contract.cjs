@@ -113,14 +113,6 @@ async function testFishClient() {
     );
 
     const service = await importModule('modules/qq-v2/voice/service.js');
-    assert.equal(service.resolveQQVoiceId({ settings: { defaultVoiceId: 'd' }, personVoiceId: 'p' }), 'p');
-    assert.equal(service.resolveQQVoiceId({ settings: { defaultVoiceId: 'd' }, personVoiceId: '' }), '',
-        '未配置人物音色时不能自动使用默认音色');
-    assert.equal(service.resolveQQVoiceId({ settings: { defaultVoiceId: 'd', speakSelf: false }, senderType: 'self' }), '');
-    assert.equal(
-        service.resolveQQVoiceId({ settings: { defaultVoiceId: 'd', speakSelf: true }, personVoiceId: 'me', senderType: 'self' }),
-        'me',
-    );
     assert.equal(service.prepareQQVoiceText('[happy]你好').text, '[happy]你好');
     assert.throws(() => service.prepareQQVoiceText('[happy][sad]'), (error) => error.code === 'voice_text_empty');
     assert.equal(await service.measureQQVoiceDurationMs('not-a-blob'), 0);

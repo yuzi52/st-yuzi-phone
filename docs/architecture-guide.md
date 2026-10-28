@@ -156,7 +156,7 @@ sequenceDiagram
 - `app:<sheetKey>` 兼容 route -> 复用同一目录分类，只为历史链接和 history 保留；它不是跨表循环的目标 route，不参与 content preset 绑定或自动刷新。
 - `theater:<sceneId>` 兼容 route -> [`renderTheaterScene()`](../modules/phone-theater/render.js:118) 的历史 scene 入口；正常用户入口必须使用主物理表的 `table:<sheetKey>`，它不参与 content preset 绑定或自动刷新。
 - `table-generic:<sheetKey>` -> [`renderTableViewer()`](../modules/table-viewer/render.js:23) with force generic list mode；它只保留给小剧场编辑桥，永久旁路 content preset。
-- `qq` / `qq:*` -> [`createQQRouteLifecycle()`](../modules/qq-v2/ui/route-lifecycle.js) 驱动的 QQ v2 App。route page 先同步提交只含现有 QQ class 的轻量骨架，再在后台动态加载 UI、runtime Facade 与 bootstrap；旧 route 被销毁或 render token 失效后，迟到的 mount 不得写入新页面。
+- `qq` / `qq:*` -> [`createQQRouteLifecycle()`](../modules/qq-v2/ui/route-lifecycle.js) 驱动的 QQ v2 App。保留已提交页面，后台加载 UI、核对当前作用域并准备真实首屏数据、皮肤样式与底栏，再由外壳同帧提交；旧 route 被销毁或 render token 失效后，释放候选 page，迟到的 mount 不得写入新页面。
 - table-update-review route -> [`renderTableUpdateReview()`](../modules/table-update-review/index.js:112)
 - settings route -> [`renderSettings()`](../modules/settings-app/render.js:102)
 - fusion route -> [`renderFusion()`](../modules/phone-fusion/render.js:80)
@@ -1512,7 +1512,7 @@ graph TD
 
 ### QQ 视图刷新状态
 
-- QQ route 首次进入时由 [`route-renderer.js`](../modules/phone-core/route-renderer.js) 立即提交消息页骨架，并立刻登记 route page cleanup；动态 import、Facade bootstrap 和 App mount 在后台继续。骨架只提供稳定视觉框架，不承载可交互的伪数据。
+- QQ route 首次进入时由 [`route-renderer.js`](../modules/phone-core/route-renderer.js) 保留已提交页面，并为未提交的候选 page 登记清理；动态 import、作用域核对和 App mount 完成真实首屏数据、皮肤样式与底栏准备后，沿用外壳异步 render 的提交门槛同帧切换。主题失败降级为默认样式，头像渐进显示；首次读取失败保留原页并只提示一次短暂 toast，取消、过期或停用时释放候选页及资源。
 - [`createPhoneViewScrollState()`](../modules/phone-core/view-scroll-state.js) 是跨 App 复用入口。页面必须显式注册页面 key、滚动根和恢复模式；动态列表使用稳定内容锚点，设置表单使用受限的 `scrollTop`。
 - 滚动快照同时绑定作用域 key、页面 key 和注册 key。切换 SillyTavern 聊天、QQ 根 Tab、会话或设置二级页后，旧快照必须失效，禁止把滚动位置串到另一个视图。
 - [`createViewSnapshotCache()`](../modules/qq-v2/ui/view-snapshot-cache.js) 只为消息根页、私聊页和会话设置页保留有限的上一帧 DOM，当前容量为 4；切换时必须先恢复目标快照，没有快照则立即提交固定页面框架，再从 Facade 后台读取事实数据并原子替换。图片资料等媒体密集页面不进入 DOM 快照缓存，禁止把该机制扩展成全页面常驻缓存。
@@ -1520,7 +1520,7 @@ graph TD
 - 普通媒体保持零空闲缓存；聊天/资料背景、头像和表情分别使用独立的有限租约缓存，当前上限为 8、48、96。删除图片资料时必须同步失效头像与背景缓存，恢复 DOM 快照时不得引用已释放的 Blob URL。
 - 图片资料页复用 [`createLazyLoader()`](../modules/utils/observers.js)，以二级页滚动容器为观察 root、在可见区前后 `180px` 预取；图片与表情共用最多 4 个并发媒体任务并使用异步解码。每轮 QQ render 和 destroy 都必须断开旧 observer、丢弃未开始任务，过期 token 不得应用迟到结果。
 - Facade 高频通知由 QQ route lifecycle 合并为“一个进行中刷新 + 一个最新待刷新”。保存动作仍以运行时状态为事实源，但同一波通知不得并发重建多份页面。
-- 已挂载 QQ 的刷新只用轻量 `currentContext()` 核对作用域，首次挂载仍走完整 bootstrap。聊天页通过 `chatContext()` 聚合会话、当前资料、必要设置与音色绑定，并与消息窗口并发读取；初始化与设置迁移完成后，核心事实查询为 4 次 root read、0 次写入，冷媒体租约读取另计。`messages()` 在同次分页读取中判断会话是否存在，不再先读取完整设置和会话。
+- QQ 首次挂载和已挂载后的刷新都优先用轻量 `currentContext()` 核对作用域；旧注入 Facade 没有该查询时回退 `bootstrap()`。聊天页通过 `chatContext()` 聚合会话、当前资料、必要设置与音色绑定，并与消息窗口并发读取；初始化与设置迁移完成后，核心事实查询为 4 次 root read、0 次写入，冷媒体租约读取另计。`messages()` 在同次分页读取中判断会话是否存在，不再先读取完整设置和会话。
 - 本地发送、批次发送、编辑、删除、撤回、转账处理及资料素材操作，按通知 `reason` 和 `conversationId` 精确合并自有变化；每个完整操作独立结算草稿、选择和弹层后请求刷新，批次操作复用原始草稿保存函数而不嵌套刷新。AI、失败、其他会话和未知通知仍正常进入刷新队列。资料控件原地保存与图库局部删除继续使用各自既有交互。
 - 媒体显示租约清扫通过 Repository 批量查询资源元数据存在性，按 kind 与 assetId 区分，不读取 Blob；实际渲染和播放仍使用完整资源查询。主动周期按已提交消息 ID 批量读取归属，不扫描全部候选历史，旧注入仓库保留回退。
 - 提示词准备仅复用本次请求或主动周期已有的 scope 人物、群和会话资料，手动请求透传已读取的表情目录来源；历史与引用读取、提交时身份权限校验继续走原入口，不建立跨请求缓存。
@@ -1533,7 +1533,7 @@ graph TD
 - 窗口刷新替换而非盲目合并旧缓存，保证编辑、删除、撤回与引用变化以仓库为准。整个窗口被删除时在同次仓库读取中回退到剩余最新 50 条。UI 窗口不限制 AI 历史、世界书、全选删除或完整业务读取。
 - 同会话重复触顶复用进行中的翻页，翻页与刷新串行；失败不改已有数据和游标。隐藏、重新打开会话或销毁使旧请求失效，旧结果不能覆盖新浏览窗口。阅读锚点复用共享滚动机制，已删除的锚点按可见滚动 key 就近回退；DOM 只参与滚动定位，不作为消息事实源。
 - Phone Core 通过 subscribePhoneActivity 通知实际活动状态，激活通知在需要的路由 token 失效之后发出。QQ route lifecycle 保留原 App，隐藏时合并待刷新状态；没有变化则恢复原视图，有变化则只补一轮最新事实刷新，后续新事件继续走一个进行中加一个待刷新机制。无关 table-update 不得给隐藏的 QQ 标记整路由重建；宿主聊天切换和显式路由失效仍服从原有生命周期。
-- 隐藏同时失效 UI render epoch、未完成消息读取和未提交媒体租约，停止未开始的图片显示任务与输入框测量；当前画面仍持有的租约保留。已发出的读取允许结束但不提交迟到画面；消息保存、AI 请求、主动消息与世界书等后台业务不暂停。初始 route page 尚未提交 DOM 不等于手机隐藏，不能因 isConnected=false 永久停在骨架。
+- 隐藏同时失效 UI render epoch、未完成消息读取和未提交媒体租约，停止未开始的图片显示任务与输入框测量；当前画面仍持有的租约保留。已发出的读取允许结束但不提交迟到画面；消息保存、AI 请求、主动消息与世界书等后台业务不暂停。初始 route page 尚未提交 DOM 不等于手机隐藏，不能因 isConnected=false 跳过首次渲染或阻塞提交。
 - 行为回归入口：check-qq-message-window-behavior.cjs、check-qq-window-visibility-behavior.cjs、check-qq-hidden-refresh-behavior.cjs，以及现有 QQ 查询、Facade、路由、滚动与租约检查。浏览器中的真实布局和滚动由人工验收。
 
 ## 8. 样式组织规则
@@ -1555,7 +1555,7 @@ graph TD
 - 通用模板样式必须以 [`phone-generic-template-scope`](../styles/05-phone-generic-template.css:7) 为根。
 - 通用模板 token 优先级必须保持 `payload inline（--yuzi-generic-template-*） > --yuzi-generic-template-resolved-* > --yuzi-theme-* > fallback`；旧 `--gt*` / `--_gt-*` 只在模板导入与自定义 CSS 注入时迁移兼容，新增样式不得重新引入。
 - Theater 样式必须以 [`phone-theater-page`](../styles/phone-theater/00-core.css:7) 和 `data-theater-scene` 为根。
-- QQ v2 页面样式统一保留在 [`styles/phone-base/12-qq-app.css`](../styles/phone-base/12-qq-app.css) 的 `.yuzi-qq-app` 作用域内；route 启动骨架必须复用同一 token 和现有 QQ class，不建立第二套加载主题。
+- QQ v2 页面样式统一保留在 [`styles/phone-base/12-qq-app.css`](../styles/phone-base/12-qq-app.css) 的 `.yuzi-qq-app` 作用域内；首次 route 在候选 page 上准备既有样式，不建立独立骨架或第二套加载主题。
 - 新增页面样式必须先确认作用域根，再决定是否进入 base、template、scene 或 page-specific 层。
 - `!important` 只能用于压制宿主输入控件样式等明确场景；新增前必须确认普通作用域、token 或 import 顺序无法解决。
 - 设置页/变量管理/缝合反馈等基础页面颜色统一走 `--yuzi-settings-*` 或 `--yuzi-variable-manager-* -> --yuzi-theme-*` 映射链路；允许保留 `--yuzi-phone-*` 仅用于布局语义变量（如安全宽度、radius、文本缩放倍率），不要把布局变量和主题颜色变量混为一谈。

@@ -19,6 +19,9 @@ export function createQQRouteLifecycle({
     let refreshPending = false;
     let refreshPromise = null;
     let visibilityEpoch = 0;
+    let pageWasConnected = page?.isConnected === true;
+    let cancelMount;
+    const cancelled = new Promise(resolve => { cancelMount = resolve; });
     const isActive = () => !disposed && isCurrent() === true;
     // A new route page is populated before its scheduled DOM commit. Detachment alone is not invisibility.
     const canRender = () => isActive() && isVisible() === true;
@@ -32,13 +35,16 @@ export function createQQRouteLifecycle({
         if (!canRender()) return;
         page?.replaceChildren?.();
         showToastOnce();
+        cancelMount(false);
     };
     const bindSubscription = async () => {
         if (typeof facade.subscribe !== 'function') return;
         try {
             const cleanup = await facade.subscribe(event => {
+                if (page?.isConnected === true) pageWasConnected = true;
                 if (LOCAL_NAVIGATION_REASONS.has(String(event?.reason || '').trim())
-                    || String(event?.scopeId || '').trim() !== activeScopeId || !isActive() || page?.isConnected === false) return Promise.resolve();
+                    || String(event?.scopeId || '').trim() !== activeScopeId || !isActive()
+                    || (pageWasConnected && page?.isConnected === false)) return Promise.resolve();
                 // A local mutation can update its mounted view without a second full redraw.
                 if (app?.handleChange?.(event) === true) return Promise.resolve();
                 defer();
@@ -56,7 +62,7 @@ export function createQQRouteLifecycle({
                 refreshPending = false;
                 const epoch = visibilityEpoch;
                 try {
-                    const snapshot = await (app && typeof facade.query.currentContext === 'function'
+                    const snapshot = await (typeof facade.query.currentContext === 'function'
                         ? facade.query.currentContext()
                         : facade.query.bootstrap?.());
                     if (!isActive()) return false;
@@ -99,10 +105,24 @@ export function createQQRouteLifecycle({
         }
     });
     return Object.freeze({
-        mount() { mountRequested = true; defer(); return drain(); },
+        mount() {
+            mountRequested = true;
+            defer();
+            const waitForReady = async () => {
+                if (!await drain() || !isActive()) return false;
+                const mountedApp = app;
+                const ready = await (mountedApp.whenReady?.() ?? true);
+                if (!isActive() || app !== mountedApp) return false;
+                if (ready !== true) { showReadFailure(); return false; }
+                await drain();
+                return isActive() && app === mountedApp && isVisible() === true;
+            };
+            return Promise.race([waitForReady(), cancelled]);
+        },
         destroy() {
             if (disposed) return;
             disposed = true;
+            cancelMount(false);
             visibilityEpoch += 1;
             refreshPending = false;
             try { stopActivity?.(); } finally {

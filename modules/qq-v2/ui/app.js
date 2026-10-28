@@ -1,5 +1,6 @@
 import { createVoicePlaybackController } from '../voice/playback.js';
 import { pickQQVoice } from '../voice/picker.js';
+import { normalizeQQContactVoice } from '../voice/contact-voice.js';
 import { parseQQVoiceText } from '../voice/emotion-tags.js';
 import { mountQQSkin } from '../../content-presets/qq-skin.js';
 import { decorateQQAvatar, decorateQQBubble } from './appearance.js';
@@ -1095,6 +1096,9 @@ export function createQQApp({
     let viewport = null;
     let disposed = false;
     let renderEpoch = 0;
+    let resolveReady;
+    const ready = new Promise(resolve => { resolveReady = resolve; });
+    const settleReady = (result) => { resolveReady?.(result); resolveReady = null; };
     let overlay = null;
     let overlayCleanup = null;
     let restoreOverlayFocus = null;
@@ -1333,6 +1337,7 @@ export function createQQApp({
         const cached = session.peek(assetId);
         if (cached?.url) {
             decorateQQBubble(element, cached.url, {
+                ...asObject(cached.media?.bubble),
                 ...(messageTextColor ? { textColor: messageTextColorCssValue(messageTextColor) } : {}),
             });
         }
@@ -2483,13 +2488,18 @@ export function createQQApp({
         return row;
     };
 
-    const profileVoiceRow = ({ value = '', owner, conversationId = '', characterId = '', token }) => {
+    const profileVoiceRow = ({ value = '', voice = null, owner, conversationId = '', characterId = '', token }) => {
+        voice = normalizeQQContactVoice(voice);
         const row = createButton('', 'phone-ios-row is-tappable yuzi-qq-profile-editor-row yuzi-qq-profile-voice-row');
         const label = createElement('span', 'phone-ios-row-label');
         label.textContent = t("角色音色");
         const selected = createElement('span', 'phone-ios-row-value');
-        selected.textContent = t("未配置");
+        selected.textContent = voice?.name || t("未配置");
         const describe = async () => {
+            if (voice) {
+                if (isActive(token)) selected.textContent = voice.name;
+                return;
+            }
             const library = await facade.query.voiceLibrary();
             if (isActive(token)) selected.textContent = library.entries?.find(entry => entry.voiceId === value)?.name || t("未配置");
         };
@@ -2497,7 +2507,7 @@ export function createQQApp({
         row.append(label, selected, createIcon('chevron-right', 'phone-ios-row-chevron'));
         row.addEventListener('click', () => {
             void pickQQVoice({
-                facade, value, runtime: layerRuntime, isCurrent: () => isActive(token),
+                facade, value, voice, runtime: layerRuntime, isCurrent: () => isActive(token),
                 onSelect: async (voiceId) => {
                     if (!isActive(token)) return;
                     row.disabled = true;
@@ -2509,6 +2519,7 @@ export function createQQApp({
                                 : await facade.intent.updatePrivateProfile({ conversationId, profile: { voiceId } });
                         if (!result.ok) throw new Error(t("保存失败"));
                         value = voiceId;
+                        voice = null;
                         await describe();
                     } catch (error) {
                         shell.showToast?.(t("保存失败"), true);
@@ -2587,7 +2598,7 @@ export function createQQApp({
                 owner,
                 conversationId,
             }),
-            profileVoiceRow({ value: profile.voiceId, owner, conversationId, token }),
+            profileVoiceRow({ value: profile.voiceId, voice: profile.voice, owner, conversationId, token }),
         ]);
         addGroup(t("资料"), [
             profileEditRow({ field: 'formalName', value: displayName, owner, conversationId, readonly: current }),
@@ -4640,7 +4651,7 @@ export function createQQApp({
     };
 
     const render = async ({ preserveEmoji = false, refreshMessages = true } = {}) => {
-        if (disposed || !isCurrent()) return;
+        if (disposed || !isCurrent()) { settleReady(false); return; }
         if (!isVisible()) { onDeferredRender(); return; }
         const scrollSnapshot = viewScrollState.capture();
         let previousScrollKeys = scrollSnapshot?.registrationKey === 'private-chat'
@@ -4682,6 +4693,7 @@ export function createQQApp({
                     leaseSessions.bubbles.abort(),
                     leaseSessions.stickers.abort(),
                 ]);
+                if (disposed || !isCurrent()) settleReady(false);
                 return;
             }
             if (immediateSnapshot.deferred && displayedViewKey && isSnapshotEligibleView(displayedViewKey)) {
@@ -4696,10 +4708,9 @@ export function createQQApp({
             }
             viewport.replaceChildren(content);
             if (!page) viewport.append(makeNav());
-            root.querySelector('[data-qq-route-skeleton]')?.remove();
-            viewport.hidden = false;
             composerAutoHeight.schedule(viewport.querySelector('.yuzi-qq-composer-input'));
             displayedViewKey = targetViewKey;
+            settleReady(true);
             if (immediateSnapshot.chatEntry) {
                 // Position the first chat frame after composer sizing, without waiting for lease cleanup.
                 viewScrollState.restore(nextScrollSnapshot, { token, isCurrent: isActive });
@@ -4722,10 +4733,11 @@ export function createQQApp({
                 leaseSessions.bubbles.abort(),
                 leaseSessions.stickers.abort(),
             ]);
-            if (isActive(token) && viewport?.hidden) {
-                root.querySelector('[data-qq-route-skeleton]')?.remove();
-                viewport.hidden = false;
+            if (!isActive(token)) {
+                if (disposed || !isCurrent()) settleReady(false);
+                return;
             }
+            settleReady(false);
             throw error;
         } finally {
             renderLeaseSessions.delete(token);
@@ -6299,6 +6311,7 @@ export function createQQApp({
     const handleRootSubmit = (event) => { void handleSubmit(event).catch(report); };
 
     return Object.freeze({
+        whenReady: () => ready,
         mount(container) {
             if (!(container instanceof HTMLElement)) throw new TypeError('QQ App mount needs an element');
             disposed = false;
@@ -6312,14 +6325,9 @@ export function createQQApp({
             root.addEventListener('change', handleChange);
             viewport.addEventListener('scroll', handleConversationListScroll, true);
             window.addEventListener('yuzi-phone-resize-start', handlePhoneResizeStart);
-            if (root.querySelector('[data-qq-route-skeleton]')) {
-                viewport.hidden = true;
-                root.append(viewport);
-            } else {
-                root.replaceChildren(viewport);
-            }
+            root.replaceChildren(viewport);
             skin = mountQQSkin(root, 'theme', report);
-            void render().catch(report);
+            void render().catch(error => { settleReady(false); report(error); });
             return this;
         },
         handleChange: (event) => consumeLocalChange(event) || (
@@ -6368,6 +6376,7 @@ export function createQQApp({
         destroy() {
             closeOpenedChat();
             disposed = true;
+            settleReady(false);
             localChanges.clear();
             pages.clear();
             renderEpoch += 1;

@@ -1,9 +1,47 @@
 import { createAssetRuntime } from './asset-runtime.js';
 import { getActiveQQPreset } from './repository.js';
 import { subscribeContentPresetIndex } from './index-state.js';
+import { getContentPresetGeneration } from './mutation-coordinator.js';
 import { getPhoneSettings, subscribePhoneSettingsUpdates } from '../settings.js';
 
 let nextSkinId = 0;
+const preparedSkins = new Map();
+let unsubscribeCacheIndex = null;
+let cacheEpoch = 0;
+
+function retireSkin(kind) {
+    const skin = preparedSkins.get(kind);
+    if (!skin) return;
+    preparedSkins.delete(kind);
+    skin.cached = false;
+    if (!skin.users) skin.assets.dispose();
+}
+
+export function clearQQSkinCache() {
+    cacheEpoch += 1;
+    unsubscribeCacheIndex?.();
+    unsubscribeCacheIndex = null;
+    for (const kind of preparedSkins.keys()) retireSkin(kind);
+}
+
+function sameFiles(previous, current) {
+    const paths = Object.keys(previous);
+    return paths.length === Object.keys(current).length && paths.every(path => {
+        const before = previous[path]; const after = current[path];
+        return after && before.mimeType === after.mimeType
+            && before.encoding === after.encoding && before.content === after.content;
+    });
+}
+
+function watchCachedSkins() {
+    unsubscribeCacheIndex ??= subscribeContentPresetIndex(snapshot => {
+        for (const [kind, skin] of preparedSkins) {
+            if (snapshot.changedPresetIds.includes(skin.presetId)
+                || skin.generation !== getContentPresetGeneration('qq:' + kind)) retireSkin(kind);
+        }
+    });
+}
+
 function scopedRules(rules, selector, kind) {
     return Array.from(rules, rule => {
         if (rule.selectorText) {
@@ -17,27 +55,50 @@ function scopedRules(rules, selector, kind) {
     }).join('\n');
 }
 export async function prepareQQSkin(kind, { mode, documentRef = globalThis.document } = {}) {
+    const epoch = cacheEpoch;
     const record = await getActiveQQPreset(kind);
+    if (epoch !== cacheEpoch) return null;
     const definition = record?.qq?.[kind];
-    if (!definition) return null;
+    if (!definition) { retireSkin(kind); return null; }
     mode ??= getPhoneSettings()?.phoneThemeMode;
     const file = mode === 'dark' && definition.darkCss ? definition.darkCss : definition.css;
-    const assets = createAssetRuntime(record);
-    let element = null; let root = null;
-    try {
-        const token = 'qq-skin-' + (++nextSkinId);
-        const selector = '[data-qq-skin="' + token + '"]';
-        const sheet = new CSSStyleSheet();
-        sheet.replaceSync(assets.rewriteCss(record.files[file].content, file));
-        const css = scopedRules(sheet.cssRules, selector, kind);
-        return {
-            apply(target) {
-                root = target; root.setAttribute('data-qq-skin', token);
-                element = documentRef.createElement('style'); element.textContent = css; root.appendChild(element);
-            },
-            dispose() { element?.remove(); if (root?.getAttribute('data-qq-skin') === token) root.removeAttribute('data-qq-skin'); assets.dispose(); },
-        };
-    } catch (error) { assets.dispose(); throw error; }
+    let skin = preparedSkins.get(kind);
+    // Re-read the record: runtime asset writes need not publish an index change.
+    if (!skin || skin.presetId !== record.id || skin.file !== file || !sameFiles(skin.files, record.files)) {
+        retireSkin(kind);
+        const assets = createAssetRuntime(record);
+        try {
+            const sheet = new CSSStyleSheet();
+            sheet.replaceSync(assets.rewriteCss(record.files[file].content, file));
+            skin = { presetId: record.id, file, files: record.files, assets,
+                rules: sheet.cssRules, users: 0, cached: true,
+                generation: getContentPresetGeneration('qq:' + kind) };
+            // Only the current theme and notification skin survive leaving QQ.
+            preparedSkins.set(kind, skin);
+            watchCachedSkins();
+        } catch (error) { assets.dispose(); throw error; }
+    }
+    const token = 'qq-skin-' + (++nextSkinId);
+    let css;
+    try { css = scopedRules(skin.rules, '[data-qq-skin="' + token + '"]', kind); }
+    catch (error) { retireSkin(kind); throw error; }
+    skin.users += 1;
+    let element = null; let root = null; let disposed = false;
+    return {
+        apply(target) {
+            if (disposed) return;
+            root = target; root.setAttribute('data-qq-skin', token);
+            element = documentRef.createElement('style'); element.textContent = css; root.appendChild(element);
+        },
+        dispose() {
+            if (disposed) return;
+            disposed = true;
+            element?.remove();
+            if (root?.getAttribute('data-qq-skin') === token) root.removeAttribute('data-qq-skin');
+            skin.users -= 1;
+            if (!skin.cached && !skin.users) skin.assets.dispose();
+        },
+    };
 }
 export function mountQQSkin(root, kind, onError = () => {}) {
     let disposed = false; let epoch = 0; let current = null;

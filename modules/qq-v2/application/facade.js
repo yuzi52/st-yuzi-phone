@@ -1,5 +1,6 @@
 import { normalizeQQV2TagName, normalizeQQV2TagNames } from '../domain/story-context-tags.js';
 import { normalizeAvatarFrameTransform } from '../resources/avatar-frame-transform.js';
+import { normalizeQQContactVoice } from '../voice/contact-voice.js';
 
 function asText(value, maxLength = 1024) {
     return String(value ?? '').trim().slice(0, maxLength);
@@ -48,6 +49,11 @@ function cloneVoiceBindings(bindings) {
             isAssistant: source.isAssistant === true,
         });
     }));
+}
+
+function cloneContactVoice(value) {
+    const voice = normalizeQQContactVoice(value);
+    return voice ? Object.freeze(voice) : null;
 }
 
 function parseStoryTime(value) {
@@ -427,6 +433,7 @@ function cloneConversation(conversation, storyTime = '') {
     const source = asObject(conversation);
     const kind = source.kind === 'group' ? 'group' : 'private';
     const person = asObject(source.person);
+    const voice = kind === 'private' ? cloneContactVoice(source.voice || person.voice) : null;
     const group = cloneGroup(source.group, storyTime);
     const status = asText(source.status, 32) || 'active';
     const muted = kind === 'group' && group?.selfMuted === true;
@@ -447,6 +454,7 @@ function cloneConversation(conversation, storyTime = '') {
         ...((source.bubbleAssetId || person.bubbleAssetId) ? { bubbleAssetId: asText(source.bubbleAssetId || person.bubbleAssetId, 256) } : {}),
         messageTextColor: asText(source.messageTextColor || person.messageTextColor, 32),
         ...(kind === 'private' && (source.voiceId || person.voiceId) ? { voiceId: asText(source.voiceId || person.voiceId, 256) } : {}),
+        ...(voice ? { voice } : {}),
         backgroundAssetId: asText(source.backgroundAssetId, 256),
         remark: asText(source.remark, 120),
         profileBackgroundAssetId: asText(source.profileBackgroundAssetId || person.profileBackgroundAssetId, 256),
@@ -538,6 +546,7 @@ function normalizeMessagePage(value) {
 
 function clonePerson(person) {
     const source = asObject(person);
+    const voice = cloneContactVoice(source.voice);
     return Object.freeze({
         personId: asText(source.personId || source.id, 256),
         formalName: asText(source.formalName || source.name, 256),
@@ -550,10 +559,12 @@ function clonePerson(person) {
         birthday: asText(source.birthday, 120),
         profileBackgroundAssetId: asText(source.profileBackgroundAssetId, 256),
         voiceId: asText(source.voiceId, 256),
+        ...(voice ? { voice } : {}),
     });
 }
 function cloneProfile(profile) {
     const source = asObject(profile);
+    const voice = cloneContactVoice(source.voice);
     return Object.freeze({
         avatarAssetId: asText(source.avatarAssetId, 256),
         ...(source.avatarFrameAssetId ? { avatarFrameAssetId: asText(source.avatarFrameAssetId, 256) } : {}),
@@ -564,6 +575,7 @@ function cloneProfile(profile) {
         birthday: asText(source.birthday, 120),
         profileBackgroundAssetId: asText(source.profileBackgroundAssetId, 256),
         voiceId: asText(source.voiceId, 256),
+        ...(voice ? { voice } : {}),
     });
 }
 
@@ -706,9 +718,9 @@ export function createQQV2Facade(options = {}) {
                 });
             },
             async currentProfile() {
-                if (typeof runtime.getSnapshot !== 'function') return unavailable('getSnapshot');
+                if (!canReadContext()) return unavailable('getSnapshot');
                 if (typeof runtime.getCurrentProfile !== 'function') return unavailable('getCurrentProfile');
-                const snapshot = asObject(await runtime.getSnapshot());
+                const snapshot = asObject(await readContextSnapshot());
                 const context = cloneContext(snapshot.context);
                 if (!context.scopeId) return unavailable('currentScope');
                 const profile = await runtime.getCurrentProfile({ scopeId: context.scopeId });
@@ -806,16 +818,16 @@ export function createQQV2Facade(options = {}) {
             },
             async assistantConversations() {
                 try {
-                    const { context } = await runtime.getSnapshot();
+                    const { context } = await readContextSnapshot();
                     if (!context?.scopeId) return unavailable('currentScope');
                     const conversations = await runtime.listConversations({ scopeId: context.scopeId });
                     return { ok: true, conversations: conversations.filter(item => item.assistantCharacterId).map(item => cloneConversation(item, context.storyTime)) };
                 } catch (error) { return failed(error); }
             },
             async conversations() {
-                if (typeof runtime.getSnapshot !== 'function') return unavailable('getSnapshot');
+                if (!canReadContext()) return unavailable('getSnapshot');
                 if (typeof runtime.listConversations !== 'function') return unavailable('listConversations');
-                const snapshot = asObject(await runtime.getSnapshot());
+                const snapshot = asObject(await readContextSnapshot());
                 const context = cloneContext(snapshot.context);
                 if (!context.scopeId) return unavailable('currentScope');
                 const conversations = await runtime.listConversations({ scopeId: context.scopeId });
@@ -2580,9 +2592,9 @@ export function createQQV2Facade(options = {}) {
         }),
         async subscribe(listener) {
             if (typeof listener !== 'function') return () => {};
-            if (typeof runtime.getSnapshot !== 'function' || typeof runtime.subscribe !== 'function') return () => {};
+            if (!canReadContext() || typeof runtime.subscribe !== 'function') return () => {};
 
-            const initialSnapshot = asObject(await runtime.getSnapshot());
+            const initialSnapshot = asObject(await readContextSnapshot());
             const initialScopeId = cloneContext(initialSnapshot.context).scopeId;
             if (!initialScopeId) return () => {};
 
@@ -2591,7 +2603,7 @@ export function createQQV2Facade(options = {}) {
                 if (!active) return;
                 let notifiedScopeId = asText(event?.scopeId, 512);
                 if (!notifiedScopeId) {
-                    const currentSnapshot = asObject(await runtime.getSnapshot());
+                    const currentSnapshot = asObject(await readContextSnapshot());
                     notifiedScopeId = cloneContext(currentSnapshot.context).scopeId;
                 }
                 if (!active || notifiedScopeId !== initialScopeId) return;

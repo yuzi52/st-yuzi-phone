@@ -194,7 +194,9 @@ function quoteCssUrl(value) {
 function decodeFile(file) {
     if (file.encoding === 'base64') {
         const binary = atob(file.content);
-        return Uint8Array.from(binary, char => char.charCodeAt(0));
+        const bytes = new Uint8Array(binary.length);
+        for (let index = 0; index < binary.length; index += 1) bytes[index] = binary.charCodeAt(index);
+        return bytes;
     }
     return file.content;
 }

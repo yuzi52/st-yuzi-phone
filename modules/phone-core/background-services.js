@@ -1,5 +1,6 @@
 import { startBottomVisualization, stopBottomVisualization, suspendBottomVisualization, resumeBottomVisualization } from '../bottom-visualization/index.js';
 import { Logger } from '../error-handler.js';
+import { clearQQSkinCache } from '../content-presets/qq-skin.js';
 import { subscribeTableUpdate } from './callbacks.js';
 import {
     startChronicleTodayRelationInjection,
@@ -32,6 +33,7 @@ export function applyTableContentReplacementArea(area = {}) {
 }
 
 const defaultDeps = Object.freeze({
+    clearQQSkinCache,
     startBottomVisualization, stopBottomVisualization, suspendBottomVisualization, resumeBottomVisualization,
     startChronicle: () => startChronicleTodayRelationInjection(),
     stopChronicle: () => stopChronicleTodayRelationInjection(),
@@ -334,6 +336,7 @@ export function stopPhoneBackgroundServices(reason = 'disabled') {
         'fullscreen-overlay.stop',
         { reason, generation: runtime.generation },
     );
+    callLifecycleDependency(deps.clearQQSkinCache, 'qq-skin.clear');
     callIsolatedTableUpdateReviewLifecycle(
         deps.stopTableUpdateReview,
         'table-update-review.stop',

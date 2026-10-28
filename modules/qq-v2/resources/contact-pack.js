@@ -1,4 +1,8 @@
 import { requireImageMimeType, requireDataUrl, dataUrlToBlob, blobToDataUrl } from './image-pack-codec.js';
+import { normalizeAvatarFrameTransform } from './avatar-frame-transform.js';
+import { normalizeBubbleStyle } from './appearance-contract.js';
+import { normalizeMessageTextColor } from '../domain/message-text-color.js';
+import { normalizeQQContactVoice, resolveQQProfileVoice } from '../voice/contact-voice.js';
 import { t } from '../../i18n/index.js';
 const PRIVATE_CONTACT_STATUSES = new Set(['active', 'contact']);
 
@@ -52,7 +56,23 @@ function parsePack(input) {
     return pack.contacts;
 }
 
-function importImage(raw, label) {
+function imageParameters(source, kind, label) {
+    if (kind === 'avatar-frame' && source.avatarFrameTransform !== undefined) {
+        const transform = source.avatarFrameTransform;
+        if (!transform || typeof transform !== 'object' || Array.isArray(transform)
+            || Object.keys(transform).some((key) => !['x', 'y', 'scale'].includes(key))
+            || ['x', 'y', 'scale'].some((key) => !Number.isFinite(transform[key]))) {
+            throw new Error(t`${label}的头像框位置或缩放参数无效`);
+        }
+        return { avatarFrameTransform: normalizeAvatarFrameTransform(transform) };
+    }
+    if (kind === 'bubble' && source.bubble !== undefined) {
+        return { bubble: normalizeBubbleStyle(source.bubble) };
+    }
+    return {};
+}
+
+function importImage(raw, label, kind = '') {
     if (raw === null) return null;
     if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new Error(t`${label}必须是图片对象或 null`);
     const source = asObject(raw);
@@ -60,7 +80,17 @@ function importImage(raw, label) {
     return {
         blob: dataUrlToBlob(requireDataUrl(source.dataUrl, mimeType, label), mimeType),
         mimeType,
+        ...imageParameters(source, kind, label),
     };
+}
+
+function importVoice(raw, label) {
+    if (raw === null || raw === undefined) return null;
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) throw new Error(t`${label}必须是音色对象或 null`);
+    return normalizeQQContactVoice({
+        voiceId: requireTextField(raw.voiceId, `${label}.voiceId`, 256, { required: true }),
+        name: requireTextField(raw.name ?? '', `${label}.name`, 256),
+    });
 }
 
 function normalizeImportedContacts(input) {
@@ -69,6 +99,10 @@ function normalizeImportedContacts(input) {
             throw new Error(t`contacts[${index}]必须是对象`);
         }
         const source = asObject(raw);
+        const messageTextColor = source.messageTextColor === undefined ? 'black' : source.messageTextColor;
+        if (messageTextColor !== 'white' && messageTextColor !== 'black') {
+            throw new Error(t("消息字色只能选择白色或黑色"));
+        }
         return {
             formalName: requireTextField(source.name, `contacts[${index}].name`, 120, { required: true }),
             signature: requireTextField(source.signature, `contacts[${index}].signature`, 1000),
@@ -77,6 +111,14 @@ function normalizeImportedContacts(input) {
             avatar: importImage(source.avatar, `contacts[${index}].avatar`),
             profileBackground: importImage(source.profileBackground, `contacts[${index}].profileBackground`),
             chatBackground: importImage(source.chatBackground, `contacts[${index}].chatBackground`),
+            ...(Object.hasOwn(source, 'avatarFrame') ? {
+                avatarFrame: importImage(source.avatarFrame, `contacts[${index}].avatarFrame`, 'avatar-frame'),
+            } : {}),
+            ...(Object.hasOwn(source, 'bubble') ? {
+                bubble: importImage(source.bubble, `contacts[${index}].bubble`, 'bubble'),
+            } : {}),
+            messageTextColor,
+            voice: importVoice(source.voice, `contacts[${index}].voice`),
         };
     });
 }
@@ -92,10 +134,19 @@ async function exportImage(repository, scopeId, assetId, expectedKind, label) {
     return {
         mimeType,
         dataUrl: await blobToDataUrl(asset.blob, mimeType),
+        ...imageParameters(asset, expectedKind, label),
     };
 }
 
-async function exportContact(repository, scopeId, conversation) {
+async function exportVoice(person, listVoiceEntries) {
+    const ownVoice = normalizeQQContactVoice(person.voice);
+    if (ownVoice) return ownVoice;
+    const voiceId = asText(person.voiceId, 256);
+    if (!voiceId) return null;
+    return resolveQQProfileVoice(person, await listVoiceEntries()) || { voiceId, name: voiceId };
+}
+
+async function exportContact(repository, scopeId, conversation, listVoiceEntries) {
     const person = await repository.getPerson(scopeId, conversation.personId);
     if (!person) throw new Error(t("联系人资料不存在"));
     return {
@@ -104,6 +155,10 @@ async function exportContact(repository, scopeId, conversation) {
         gender: asLiteralText(person.gender, 120),
         birthday: asLiteralText(person.birthday, 120),
         avatar: await exportImage(repository, scopeId, person.avatarAssetId, 'avatar', '头像'),
+        avatarFrame: await exportImage(repository, scopeId, person.avatarFrameAssetId, 'avatar-frame', '头像框'),
+        bubble: await exportImage(repository, scopeId, person.bubbleAssetId, 'bubble', '气泡'),
+        messageTextColor: normalizeMessageTextColor(person.messageTextColor),
+        voice: await exportVoice(person, listVoiceEntries),
         profileBackground: await exportImage(
             repository,
             scopeId,
@@ -123,18 +178,25 @@ async function exportContact(repository, scopeId, conversation) {
 
 export function createQQContactPackService(options = {}) {
     const repository = requireRepository(options.repository);
+    const listVoiceEntries = typeof options.listVoiceEntries === 'function' ? options.listVoiceEntries : async () => [];
 
     return Object.freeze({
         async exportPack({ scopeId } = {}) {
             const normalizedScopeId = asText(scopeId, 512);
             if (!normalizedScopeId) throw new Error(t("QQ 作用域不可用"));
             const conversations = await repository.listConversations(normalizedScopeId);
+            let voiceEntriesPromise;
+            const voiceEntries = () => {
+                voiceEntriesPromise ||= Promise.resolve().then(listVoiceEntries)
+                    .then((entries) => Array.isArray(entries) ? entries : []);
+                return voiceEntriesPromise;
+            };
             const contacts = await Promise.all(conversations
                 .filter((conversation) => (
                     !conversation?.assistantCharacterId && conversation?.kind === 'private'
                     && PRIVATE_CONTACT_STATUSES.has(asText(conversation.status, 32))
                 ))
-                .map((conversation) => exportContact(repository, normalizedScopeId, conversation)));
+                .map((conversation) => exportContact(repository, normalizedScopeId, conversation, voiceEntries)));
             return {
                 format: QQ_CONTACT_PACK_FORMAT,
                 schemaVersion: QQ_CONTACT_PACK_SCHEMA_VERSION,
