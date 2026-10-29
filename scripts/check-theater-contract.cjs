@@ -127,7 +127,8 @@ const SCENES = [
         requiredClasses: [
             'phone-theater-calendar-page',
             'phone-theater-calendar-header',
-            'phone-theater-calendar-grid',
+            'phone-theater-calendar-columns',
+            'phone-theater-calendar-days',
             'phone-theater-calendar-day',
             'phone-theater-calendar-detail',
         ],
@@ -467,14 +468,14 @@ function main() {
     pushCheck(results, 'liveCss', 'live CSS 包含 prefers-reduced-motion 降级', has(contents.liveCss, 'prefers-reduced-motion: reduce'));
     pushCheck(results, 'liveCss', 'live CSS 弹幕挂牌限制超长文本', has(contents.liveCss, '.phone-theater-live-barrage-badge') && has(contents.liveCss, 'overflow: hidden') && has(contents.liveCss, 'text-overflow: ellipsis'));
     pushCheck(results, 'liveCss', 'live CSS 不再依赖旧动态滚动弹幕模型', !hasAny(contents.liveCss, ['@keyframes phone-theater-barrage-scroll', 'is-barrage-paused', '.phone-theater-barrage-pill.is-fan', '.phone-theater-barrage-pill.is-other', '.phone-theater-barrage-pill.is-hater']));
-    pushCheck(results, 'calendarCss', 'calendar CSS 覆盖月历网格与详情面板', has(contents.calendarCss, '[data-theater-scene="calendar"]') && has(contents.calendarCss, '.phone-theater-calendar-grid') && has(contents.calendarCss, '.phone-theater-calendar-detail'));
-    pushCheck(results, 'calendarCss', 'calendar CSS 支持今天标红、有内容点、非当前月弱化', has(contents.calendarCss, '.phone-theater-calendar-day.is-today') && has(contents.calendarCss, '.phone-theater-calendar-dot') && has(contents.calendarCss, '.phone-theater-calendar-day.is-outside-month'));
-    pushCheck(results, 'calendarCss', 'calendar CSS 保留 nav 标题与返回按钮深色文字', has(contents.calendarCss, '[data-theater-scene="calendar"] .phone-theater-nav .phone-nav-title') && has(contents.calendarCss, '[data-theater-scene="calendar"] .phone-theater-nav .phone-nav-back'));
+    pushCheck(results, 'calendarCss', 'calendar CSS 覆盖七日左右分栏与事件详情', has(contents.calendarCss, '[data-theater-scene="calendar"]') && has(contents.calendarCss, '.phone-theater-calendar-columns') && has(contents.calendarCss, '.phone-theater-calendar-days') && has(contents.calendarCss, '.phone-theater-calendar-detail'));
+    pushCheck(results, 'calendarCss', 'calendar CSS 使用日期按钮选中态并区分天气与休假', has(contents.calendarCss, '[aria-pressed="true"]') && has(contents.calendarCss, '.phone-theater-calendar-weather') && has(contents.calendarCss, '.phone-theater-calendar-status.is-rest'));
+    pushCheck(results, 'calendarCss', 'calendar CSS 通过公共导航颜色角色跟随日夜主题', ['--yuzi-phone-nav-background', '--yuzi-phone-nav-title-color', '--yuzi-phone-nav-action-color', '--yuzi-theater-calendar-bg', '--yuzi-theater-calendar-text'].every(token => has(contents.calendarCss, token)));
     pushCheck(results, 'calendarCss', 'calendar CSS 复用通用返回图标，不覆盖 SVG 填充', !/\.phone-nav-back\s+svg\s*\{[^}]*\bfill\s*:/.test(contents.calendarCss));
-    pushCheck(results, 'calendarScene', 'calendar scene 禁止原生年份 select 弹层', !has(contents.calendarScene, '<select') && !has(contents.calendarScene, 'HTMLSelectElement') && has(contents.calendarScene, 'function renderYearPicker') && has(contents.calendarScene, 'YEAR_PICKER_RANGE'));
-    pushCheck(results, 'calendarScene', 'calendar scene 自定义年份 picker 交互齐全', has(contents.calendarScene, 'toggle-year-picker') && has(contents.calendarScene, 'data-calendar-year') && has(contents.calendarScene, 'setYearPickerOpen(page, false)') && has(contents.calendarScene, 'renderYearOptions(container, year)'));
-    pushCheck(results, 'calendarCss', 'calendar CSS 使用自定义年份 picker 并支持滚动', has(contents.calendarCss, '.phone-theater-calendar-year-picker') && has(contents.calendarCss, '.phone-theater-calendar-year-toggle') && has(contents.calendarCss, '.phone-theater-calendar-year-panel') && has(contents.calendarCss, 'overflow-y: auto') && has(contents.calendarCss, 'overscroll-behavior: contain') && has(contents.calendarCss, '.phone-theater-calendar-year-option.is-selected'));
-    pushCheck(results, 'calendarCss', 'calendar CSS 不再依赖原生年份 select 样式', !has(contents.calendarCss, '.phone-theater-calendar-month-select select') && !has(contents.calendarCss, 'select option'));
+    pushCheck(results, 'calendarScene', 'calendar scene 移除整月网格与月份年份选择入口', !hasAny(contents.calendarScene, ['buildMonthGrid', 'renderYearPicker', 'YEAR_PICKER_RANGE', 'toggle-year-picker', 'prev-month', 'next-month', '<select']));
+    pushCheck(results, 'calendarScene', 'calendar scene 日期选择使用 aria-pressed 并保留当前场景选择', has(contents.calendarScene, 'aria-pressed') && has(contents.calendarScene, 'calendarSelectedDateKey') && has(contents.calendarScene, 'data-calendar-date-key'));
+    pushCheck(results, 'calendarScene', 'calendar scene 缺失日期禁用且不伪造固定日期锚点', has(contents.calendarScene, 'disabled') && !has(contents.calendarScene, 'FALLBACK_ANCHOR'));
+    pushCheck(results, 'calendarCss', 'calendar CSS 复用字体缩放且移除旧月历装饰', has(contents.calendarCss, '--yuzi-phone-font-family') && has(contents.calendarCss, '--yuzi-phone-readable-text-scale') && !hasAny(contents.calendarCss, ['.phone-theater-calendar-grid', '.phone-theater-calendar-year-picker', '.phone-theater-calendar-dot', '.phone-theater-calendar-day.is-outside-month']));
     pushCheck(results, 'diaryScene', 'diary scene 使用行首 PS/PPS 解析规则', has(contents.diaryScene, 'const POSTSCRIPT_PATTERN = /^\\s*(PS|PPS)\\s*[：:]/i;'));
     pushCheck(results, 'diaryScene', 'diary scene 使用 token 化解析隐秘念头', has(contents.diaryScene, 'function parseDiaryInlineTokens') && has(contents.diaryScene, 'const closeIndex = text.indexOf(SECRET_MARKER') && has(contents.diaryScene, 'tokens.push({') && has(contents.diaryScene, "type: 'secret'") && has(contents.diaryScene, 'text.slice(openIndex + SECRET_MARKER.length, closeIndex)'));
     pushCheck(results, 'diaryScene', 'diary scene 未闭合隐秘念头按普通文本处理', has(contents.diaryScene, 'if (closeIndex < 0)') && has(contents.diaryScene, "tokens.push({ type: 'text', text: text.slice(cursor) })"));

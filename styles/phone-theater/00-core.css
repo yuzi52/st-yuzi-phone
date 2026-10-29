@@ -44,8 +44,7 @@
     position: relative;
 }
 
-.phone-app-page.phone-theater-page .phone-theater-delete-toggle,
-.phone-app-page.phone-theater-page .phone-theater-edit-toggle {
+.phone-app-page.phone-theater-page .phone-theater-delete-toggle {
     padding: 4px var(--yuzi-phone-nav-inline-action-padding-inline);
     border: 1px solid rgba(0, 0, 0, 0.08);
     border-radius: 999px;
@@ -62,16 +61,8 @@
     border-color: rgba(177, 58, 50, 0.22);
 }
 
-.phone-app-page.phone-theater-page .phone-theater-edit-toggle {
-    color: #0a6f55;
-    background: rgba(236, 253, 245, 0.92);
-    border-color: rgba(10, 111, 85, 0.16);
-}
-
 .phone-app-page.phone-theater-page .phone-theater-edit-wrapper.is-open .phone-theater-edit-toggle {
-    color: #084c3d;
-    border-color: rgba(10, 111, 85, 0.32);
-    box-shadow: 0 4px 12px rgba(10, 111, 85, 0.12);
+    background: var(--yuzi-phone-nav-control-hover-background);
 }
 
 .phone-app-page.phone-theater-page .phone-theater-edit-menu {

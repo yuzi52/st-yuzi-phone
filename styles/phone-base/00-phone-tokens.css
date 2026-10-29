@@ -55,6 +55,29 @@
     --yuzi-theater-shop-line-height: 1.5;
     --yuzi-theater-shop-tracking: .1em;
     --yuzi-theater-shop-tint: 10%;
+    /* 小日历：七日窄栏与事件阅读区，尺寸随实际页面容器收缩。 */
+    --yuzi-theater-calendar-gutter: clamp(10px, 4.5cqi, 18px);
+    --yuzi-theater-calendar-rail-width: clamp(58px, 20cqi, 76px);
+    --yuzi-theater-calendar-column-gap: clamp(9px, 3.5cqi, 14px);
+    --yuzi-theater-calendar-section-gap: 18px;
+    --yuzi-theater-calendar-rail-gap: 5px;
+    --yuzi-theater-calendar-day-gap: 2px;
+    --yuzi-theater-calendar-day-height: 79px;
+    --yuzi-theater-calendar-day-padding: 9px 4px;
+    --yuzi-theater-calendar-day-radius: clamp(15px, 5cqi, 19px);
+    --yuzi-theater-calendar-card-padding-inline: clamp(13px, 5.5cqi, 21px);
+    --yuzi-theater-calendar-card-padding-block: 23px;
+    --yuzi-theater-calendar-card-radius: calc(var(--yuzi-phone-radius-xl) * 2);
+    --yuzi-theater-calendar-tag-gap: 6px;
+    --yuzi-theater-calendar-tag-padding: 4px 8px;
+    --yuzi-theater-calendar-icon-size: 16px;
+    --yuzi-theater-calendar-body-size: 14px;
+    --yuzi-theater-calendar-caption-size: 11px;
+    --yuzi-theater-calendar-date-size: 17px;
+    --yuzi-theater-calendar-title-size: clamp(22px, 6.8cqi, 25px);
+    --yuzi-theater-calendar-line-height: 1.6;
+    --yuzi-theater-calendar-title-line-height: 1.45;
+    --yuzi-theater-calendar-content-line-height: 1.95;
     --yuzi-phone-color-black: #000000;
     --yuzi-phone-color-white: #ffffff;
 

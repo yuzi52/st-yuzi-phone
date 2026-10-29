@@ -1,5 +1,21 @@
 # 小手机 UI 变量
 
+## 小日历
+
+小日历继续由内置 `calendar` scene 展示「小日历表」的今天至 6 天后窗口，使用 `.phone-theater-calendar-columns` 左窄右宽分栏：左侧 `.phone-theater-calendar-days` 中的日期按钮显示关系、日期、天气图标及休假提示，右侧 `.phone-theater-calendar-detail` 显示事件标题、天气／状态／节日标签与完整正文。页面只使用表内日期，不引入时分、温度或现实日期；缺失日期的入口禁用，不生成占位事件。选中以 `aria-pressed` 和柔和底色表示，不使用装饰描边。
+
+白天沿用奶油抹茶，夜间使用暖可可与燕麦文字，随小手机全局主题切换。颜色集中在 `00-theme-modes.css` 的 `--yuzi-theater-calendar-bg/card/wash/text/body-text/muted/accent/soft/weather-text/weather-bg/selected/selected-text`；尺寸与间距使用 `00-phone-tokens.css` 的 `--yuzi-theater-calendar-*`，圆角、字体、可读文本缩放与标题栏热区复用公共 token。左右分栏随容器宽度收窄，正文自然换行并使用页面主滚动区，不截断长内容或另建详情滚动框。
+
+| 类名 | 用途 |
+| --- | --- |
+| `.phone-theater-calendar-page` / `.phone-theater-calendar-header` / `.phone-theater-calendar-columns` | 七日窗口标题与左右分栏骨架 |
+| `.phone-theater-calendar-days` / `.phone-theater-calendar-day` | 七日选择；缺失项禁用，选中态以 `aria-pressed` 标记 |
+| `.phone-theater-calendar-day-relation` / `.phone-theater-calendar-day-date` / `.phone-theater-calendar-day-meta` / `.phone-theater-calendar-weather-icon` | 日期关系、日期和天气／休假摘要 |
+| `.phone-theater-calendar-detail-relation` / `.phone-theater-calendar-event` / `.phone-theater-calendar-content` | 右侧所选日、事件标题和完整正文 |
+| `.phone-theater-calendar-badges` / `.phone-theater-calendar-weather` / `.phone-theater-calendar-status` / `.phone-theater-calendar-festival` | 天气、状态与节日标签；放假状态加 `.is-rest` |
+
+右上角编辑复用 `PHONE_ICONS.edit` 与 `.phone-nav-icon-button` 的小铅笔，通过现有表格编辑桥进入原始七日表。日期选择保存在当前场景的 `calendarSelectedDateKey`，数据更新后仍在窗口内的选择继续保留；没有有效选择时优先今天，否则选择首个有效日期。底部挂载复用同一场景，日期选择可用，宿主导航与编辑限制仍由底部容器管理；状态栏与 Home Indicator 由手机外壳统一提供。
+
 ## 系统商店
 
 系统商店表的内置页面使用 `.yuzi-theater-shop`，沿用原型的浅色奶油抹茶、深色黑粉、双列货架、任务卡和背包标签。颜色在 `00-phone-tokens.css` 的 `--yuzi-theater-shop-light-*` / `--yuzi-theater-shop-dark-*` 登记，间距、卡片、字号、品级底色浓度使用 `--yuzi-theater-shop-*` 语义 token；圆角复用 `--yuzi-phone-radius-*`，字体与可读缩放跟随手机主设置。

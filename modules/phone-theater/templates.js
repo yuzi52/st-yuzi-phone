@@ -1,5 +1,6 @@
 import { t } from '../i18n/index.js';
 import { escapeHtml, escapeHtmlAttr } from '../utils/dom-escape.js';
+import { PHONE_ICONS } from '../phone-home/icons.js';
 import {
     buildPhoneBackButton,
     buildPhoneNavBar,
@@ -60,7 +61,11 @@ function renderNavActions(uiState = {}) {
     const canEdit = !!uiState.canEdit;
     const canDelete = !!uiState.canDelete;
     const editMenuOpen = !!uiState.editMenuOpen;
-    const editButtonLabel = editableTables.filter(entry => entry?.available).length > 1 && editMenuOpen ? t("收起") : t("编辑");
+    const availableEditableTables = editableTables.filter(entry => entry?.available);
+    const hasEditMenu = availableEditableTables.length > 1;
+    const editButtonLabel = hasEditMenu
+        ? (editMenuOpen ? t("收起编辑表格菜单") : t("选择要编辑的表格"))
+        : (availableEditableTables[0]?.label || t("编辑当前表"));
 
     if (!canEdit && !canDelete) return '<div class="phone-theater-nav-actions" aria-hidden="true"></div>';
 
@@ -68,7 +73,7 @@ function renderNavActions(uiState = {}) {
         <div class="phone-nav-inline-actions phone-theater-nav-actions">
             ${canEdit ? `
                 <div class="phone-theater-edit-wrapper ${editMenuOpen ? 'is-open' : ''}">
-                    <button type="button" class="phone-theater-edit-toggle" data-action="toggle-theater-edit-menu" aria-expanded="${editMenuOpen ? 'true' : 'false'}">${editButtonLabel}</button>
+                    <button type="button" class="phone-nav-icon-button phone-theater-edit-toggle" data-action="toggle-theater-edit-menu" aria-label="${escapeHtmlAttr(editButtonLabel)}" title="${escapeHtmlAttr(editButtonLabel)}"${hasEditMenu ? ` aria-haspopup="menu" aria-expanded="${editMenuOpen ? 'true' : 'false'}"` : ''}>${PHONE_ICONS.edit}</button>
                     ${editMenuOpen ? renderEditMenu(editableTables) : ''}
                 </div>
             ` : ''}
@@ -79,7 +84,7 @@ function renderNavActions(uiState = {}) {
 
 function renderNav(title, uiState = {}) {
     return buildPhoneNavBar({
-        className: `phone-theater-nav ${uiState.canEdit || uiState.canDelete ? 'has-inline-actions' : ''}`,
+        className: `phone-theater-nav ${uiState.canDelete ? 'has-inline-actions' : ''}`,
         leadingHtml: buildPhoneBackButton(),
         centerHtml: renderTitleNavigation(title, uiState.tableNavigation),
         trailingHtml: renderNavActions(uiState),

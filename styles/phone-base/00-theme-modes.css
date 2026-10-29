@@ -53,6 +53,18 @@ html[data-yuzi-phone-theme='light'],
     --yuzi-body-preview-background: #EAF0F7;
     --yuzi-body-avatar-background: #DCE6F2;
     --yuzi-body-avatar-foreground: #597491;
+    --yuzi-theater-calendar-bg: var(--yuzi-theater-shop-light-bg);
+    --yuzi-theater-calendar-card: var(--yuzi-theater-shop-light-card);
+    --yuzi-theater-calendar-wash: var(--yuzi-theater-shop-light-wash);
+    --yuzi-theater-calendar-text: var(--yuzi-theater-shop-light-ink);
+    --yuzi-theater-calendar-body-text: #686052;
+    --yuzi-theater-calendar-muted: #766e5f;
+    --yuzi-theater-calendar-accent: #52744e;
+    --yuzi-theater-calendar-soft: var(--yuzi-theater-shop-light-soft);
+    --yuzi-theater-calendar-weather-text: #916025;
+    --yuzi-theater-calendar-weather-bg: #f5e9cf;
+    --yuzi-theater-calendar-selected: #5b7753;
+    --yuzi-theater-calendar-selected-text: var(--yuzi-theater-shop-light-card);
 
 }
 
@@ -104,6 +116,18 @@ html[data-yuzi-phone-theme='dark'],
     --yuzi-body-preview-background: #1D2028;
     --yuzi-body-avatar-background: #424F63;
     --yuzi-body-avatar-foreground: #C1D2EA;
+    --yuzi-theater-calendar-bg: #26231f;
+    --yuzi-theater-calendar-card: #312d27;
+    --yuzi-theater-calendar-wash: #3a342c;
+    --yuzi-theater-calendar-text: #f4ebdc;
+    --yuzi-theater-calendar-body-text: #cbbfaf;
+    --yuzi-theater-calendar-muted: #bcb09e;
+    --yuzi-theater-calendar-accent: #c5d4af;
+    --yuzi-theater-calendar-soft: #3e4938;
+    --yuzi-theater-calendar-weather-text: #e4bd78;
+    --yuzi-theater-calendar-weather-bg: #494032;
+    --yuzi-theater-calendar-selected: #c1cfa7;
+    --yuzi-theater-calendar-selected-text: #272e22;
 
 }
 

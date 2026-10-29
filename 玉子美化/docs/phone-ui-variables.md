@@ -4,6 +4,14 @@
 
 视觉来源：Figma `02_设计画板` 的 `主界面`（`195:3524`），内屏基准为 `402 x 874`。
 
+## 小日历视觉参照
+
+宿主内置小日历使用今天至 6 天后的七日窗口，左侧为紧凑日期选择，右侧突出事件标题、天气／休假／节日标签和完整正文。日期是辅助导航，不展示没有来源的时分或温度。白天为奶油抹茶，夜间为暖可可与燕麦文字；选中项使用柔和底色，无装饰描边，正文随窄屏自然换行。
+
+宿主骨架为 `.phone-theater-calendar-page`、`.phone-theater-calendar-header` 与 `.phone-theater-calendar-columns`，左侧为 `.phone-theater-calendar-days` 中的 `.phone-theater-calendar-day`，右侧为 `.phone-theater-calendar-detail`；日期按钮以 `aria-pressed` 标记选中，缺失项禁用。颜色语义为 `--yuzi-theater-calendar-bg/card/wash/text/body-text/muted/accent/soft/weather-text/weather-bg/selected/selected-text`，尺寸使用同前缀 token；字体、文字缩放、圆角与导航热区沿用手机公共规范。右上角铅笔沿用公共编辑图标，通过宿主既有编辑动作进入表格。
+
+这些类名和 token 供作者理解视觉语义，独立页面仍在自己的项目内定义作用域样式，不导入手机源码。此次内置展示调整不改变作者 actions、字段、包格式或纯模拟接口；`references/pages/calendar/` 保留为独立的月历式学习参考。
+
 ## 正文人物头像与情绪
 
 正文对话气泡的“头像与姓名”展开区提供默认关闭的情绪开关，固定为开心、生气、难过、紧张、平静、害羞、嫌弃、心动；关闭头像模块时情绪停用。姓名与标签使用 `.yuzi-body-speaker`、`.yuzi-body-emotion`，标签复用公共 `.phone-ios-badge`，窄屏可换行。配色通过 `--yuzi-body-emotion-color` 与深浅主题正文字色混合；`--yuzi-body-emotion-ink-mix/fill-mix` 分别为 `62%`、`14%`。缺少或未知情绪隐藏标签，缺图使用人物默认头像。

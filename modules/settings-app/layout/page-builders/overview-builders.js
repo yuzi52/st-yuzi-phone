@@ -45,6 +45,7 @@ export function buildSettingsHomePageHtml({
     `;
     return buildSettingsPageFrame({
         title: t("设置"),
+        rightActionHtml: '<span class="phone-ios-badge is-muted">2.4.0</span>',
         bodyClass: 'phone-app-body phone-settings-scroll phone-settings-home-scroll',
         bodyHtml,
     });
