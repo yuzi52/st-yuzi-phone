@@ -7,7 +7,7 @@ import { showToast } from '../ui/toast.js';
 import { pickImageFiles } from '../services/media-upload/raw-picker.js';
 import { bodyDialogueService as service } from '../../body-dialogue/runtime.js';
 import { bodyDialogueDefaultPrompts, BODY_DIALOGUE_NUMBERS, composeBodyDialoguePrompt, normalizeBodyDialogueLanguage } from '../../body-dialogue/config.js';
-import { createDialogueView } from '../../body-dialogue/renderer.js';
+import { createDialogueImages, createDialogueView } from '../../body-dialogue/renderer.js';
 import { readDialogueLibrary, copyDialogueAsset, randomDialogueAppearance } from '../../body-dialogue/resources.js';
 import { bodyDialogueRepository } from '../../body-dialogue/repository.js';
 import { BODY_DIALOGUE_PACK_BYTES, readBodyDialoguePeoplePack } from '../../body-dialogue/people-pack.js';
@@ -29,6 +29,7 @@ const selects = {
 export function createBodyDialoguePage({ container, state, render, pageRuntime }) {
     let config = service.readConfig(), drafts = { ...config.prompts }, people = [], scope = service.getScope();
     let disposed = false, busy = false, loadVersion = 0, groupedCleanup = () => {}, previewViews = [], previewFrame = null;
+    let peopleImages = createDialogueImages();
     let sheet = null, personDraft = null, personCard = '', personVersion = 0;
     let cancelPackPick = () => {};
     let confirmation = null;
@@ -82,11 +83,22 @@ export function createBodyDialoguePage({ container, state, render, pageRuntime }
         container.querySelectorAll('[data-body-save]').forEach(button => { button.disabled = busy || drafts[button.dataset.bodySave] === config.prompts[button.dataset.bodySave]; });
     }
     function updatePeople() {
+        peopleImages.dispose();
+        const images = peopleImages = createDialogueImages();
         const panel = q('#yuzi-body-panel-people');
         if (!panel) return;
         panel.innerHTML = (people.map(person => `<button type="button" class="phone-ios-row is-tappable" data-body-person="${attr(person.id)}"><span class="yuzi-body-person-initial">${esc(Array.from(person.name)[0])}</span><span class="phone-ios-row-label">${esc(person.name)}</span>${chevron}</button>`).join('')
             || `<p class="phone-ios-row-empty">${scope.card ? '尚未创建人物' : '请先打开一张角色卡'}</p>`) + (scope.card
                 ? action('new-person', '新建人物') + action('import-people', '导入人物配置') + action('export-people', '导出全部人物配置') : '');
+        panel.querySelectorAll('.yuzi-body-person-initial').forEach((avatar, index) => {
+            void images.load(people[index].avatar).then(url => {
+                if (disposed || !container.contains(avatar) || !url) return;
+                const image = document.createElement('img');
+                image.className = 'phone-ios-thumb'; image.alt = '';
+                image.onload = () => { if (!disposed && container.contains(avatar)) avatar.replaceWith(image); };
+                image.src = url;
+            }).catch(() => { /* Keep the initial when the stored avatar cannot be read. */ });
+        });
         q('[data-body-scope]').textContent = (scope.name || '未选择角色卡') + (scope.card ? ' · 同一卡不同聊天共用' : '');
         updateInjection();
     }
@@ -472,6 +484,6 @@ export function createBodyDialoguePage({ container, state, render, pageRuntime }
                 updateStatus();
             }));
         },
-        dispose() { groupedCleanup(); disposed = true; moduleSettings.dispose(); personVersion++; cancelPackPick(); closeSheet(); closeConfirmation(); cancelAnimationFrame(previewFrame); previewViews.splice(0).forEach(view => view.dispose()); },
+        dispose() { groupedCleanup(); disposed = true; peopleImages.dispose(); moduleSettings.dispose(); personVersion++; cancelPackPick(); closeSheet(); closeConfirmation(); cancelAnimationFrame(previewFrame); previewViews.splice(0).forEach(view => view.dispose()); },
     };
 }

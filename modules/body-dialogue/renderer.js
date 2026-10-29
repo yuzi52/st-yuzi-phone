@@ -15,8 +15,8 @@ const element = (tag, className, text) => {
     return node;
 };
 
-// Images live for one rendered floor (or one standalone preview), never in a global cache.
-function createDialogueImages() {
+// Images live for one rendered floor, preview or settings list, never in a global cache.
+export function createDialogueImages() {
     const pending = new Map(), urls = new Set();
     let alive = true;
     return {

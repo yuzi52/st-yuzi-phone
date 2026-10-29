@@ -39,6 +39,7 @@
 | `.yuzi-body-speaker` / `.yuzi-body-emotion` / `--yuzi-body-emotion-color` | 姓名与右侧情绪标签共同行；标签复用 `.phone-ios-badge` 的字号、圆角与内边距，情绪配色由固定词表提供，窄屏可换行 |
 | `--yuzi-body-emotion-ink-mix/fill-mix` | 情绪色与主题正文字色的混合比例 `62%`、底色浓度 `14%`，在 `00-phone-tokens.css` 登记，深浅模式共用 |
 | `.yuzi-body-emotion-grid` / `.yuzi-body-emotion-slot` | 情绪头像复用公共网格的默认四列、`.phone-ios-icon-cell` 与自定义圆点；点击头像上传或替换，公共小按钮直接清空并只更新当前格子 |
+| `.yuzi-body-person-initial` / `.phone-ios-thumb` | 人物管理图片直接复用“默认头像”预览的公共缩略图尺寸、圆角方形与居中覆盖显示；加载成功才替换占位节点，未设置或加载失败保留原圆形姓名首字。保存后随列表刷新，重绘、切卡与离页释放图片资源 |
 | `.yuzi-body-dialogue.is-editorial` / `.yuzi-body-quote` | 非气泡排版、名字首字装饰与末尾／成对引号 |
 | `.yuzi-body-original` | 双语上方的整句原文；共用对白颜色与字体，字号为正文的 `0.55em`、透明度 `0.65`，可自然换行；气泡与非气泡共用，不做逐字注音 |
 | `.yuzi-body-lines` / `.yuzi-body-bubble.is-paired-bilingual` | 双语原文与译文共用内容区；成对引号模式以左右引号包住上下两行，播放按钮留在右侧；气泡与末尾引号保持原排版 |
