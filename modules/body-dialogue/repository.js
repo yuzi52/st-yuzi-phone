@@ -1,4 +1,4 @@
-import { normalizeBodyDialogueLanguage } from './config.js';
+import { normalizeBodyDialogueColor, normalizeBodyDialogueLanguage } from './config.js';
 import { BODY_DIALOGUE_EMOTIONS } from './emotions.js';
 
 let database;
@@ -57,7 +57,8 @@ function personName(draft) {
 
 function writePerson(store, card, draft, old) {
     const id = old?.id || globalThis.crypto?.randomUUID?.() || `person-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
-    const person = { id, card, name: personName(draft), language: normalizeBodyDialogueLanguage(draft.language), voice: draft.voice || null };
+    const person = { id, card, name: personName(draft), language: normalizeBodyDialogueLanguage(draft.language),
+        textColor: normalizeBodyDialogueColor(draft.textColor), voice: draft.voice || null };
     const writeImage = (slot, asset, previous) => {
         const id = `${person.id}:${slot}`;
         if (asset?.blob instanceof Blob) {

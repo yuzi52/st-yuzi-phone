@@ -100,6 +100,10 @@ export const BODY_DIALOGUE_NUMBERS = Object.freeze({
     quoteSize: ['引号大小', 12, 64, 1, 'px', 28],
 });
 
+export function normalizeBodyDialogueColor(value) {
+    return typeof value === 'string' && /^#[\da-f]{6}$/i.test(value) ? value : '';
+}
+
 export function normalizeBodyDialogue(value = {}) {
     const source = value && typeof value === 'object' ? value : {};
     const config = {
@@ -122,7 +126,7 @@ export function normalizeBodyDialogue(value = {}) {
             ? Math.round(Math.max(min, Math.min(max, Math.round(number / step) * step)) * 100) / 100 : fallback;
     }
     for (const key of ['nameColor', 'textColor', 'bubbleColor', 'quoteColor']) {
-        config[key] = /^#[\da-f]{6}$/i.test(source[key] || '') ? source[key] : '';
+        config[key] = normalizeBodyDialogueColor(source[key]);
     }
     return config;
 }

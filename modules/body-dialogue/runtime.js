@@ -161,7 +161,7 @@ function applySettings() {
     } else if (structural || keys.includes('layers') || keys.includes('preGenerate') || (speechChanged && next.preGenerate)) schedule();
     else if (keys.some(key => (key in BODY_DIALOGUE_NUMBERS && key !== 'layers')
         || ['align', 'avatarShape', 'quote', 'nameColor', 'textColor', 'bubbleColor', 'quoteColor'].includes(key))) {
-        for (const entry of retained.values()) entry.updateStyle(next);
+        for (const entry of retained.values()) entry.updateStyle(next, people);
     }
     if (!structural && (keys.includes('reroll') || speechChanged)) refreshVoiceControls();
     if (next.enabled && next.voice && (!previous.enabled || !previous.voice)) void checkVoiceConfiguration().finally(schedule);
@@ -225,7 +225,7 @@ async function refresh() {
                 || entry.fingerprint !== fingerprints.get(index) || entry.version !== version
                 || entry.userName !== scope.userName || dirtyRoots.has(entry.root) || !entry.isIntact()) {
                 entry.dispose(); retained.delete(index); voice?.stop();
-            } else entry.updateStyle(config);
+            } else entry.updateStyle(config, people);
         }
         if (!config.enabled) return;
         for (const { index } of floors) {
@@ -300,13 +300,17 @@ async function peopleChanged(card, changes) {
         !== composeBodyDialoguePrompt(config, person ? [person] : []));
     if (promptChanged) projectionVersion++;
     if (changes.some(({ previous, person, mediaChanged }) => mediaChanged || JSON.stringify(previous) !== JSON.stringify(person))) {
-        loadedCard = null;
         const visualKeys = ['id', 'name', 'avatar', 'emotionAvatars', 'frame', 'bubble', 'voice'];
-        if (changes.some(({ previous, person, mediaChanged }) => mediaChanged
-            || visualKeys.some(key => JSON.stringify(previous?.[key]) !== JSON.stringify(person?.[key])))) {
-            configVersion++; voice?.stop();
+        const rebuild = changes.some(({ previous, person, mediaChanged }) => mediaChanged
+            || visualKeys.some(key => JSON.stringify(previous?.[key]) !== JSON.stringify(person?.[key])));
+        if (!rebuild && loadedCard === card) {
+            for (const { person } of changes) people.set(person.name, person);
+            for (const entry of retained.values()) entry.updateStyle(config, people);
+        } else {
+            loadedCard = null;
+            if (rebuild) { configVersion++; voice?.stop(); }
+            schedule();
         }
-        schedule();
     }
     publish();
     if (promptChanged) await syncProjection();

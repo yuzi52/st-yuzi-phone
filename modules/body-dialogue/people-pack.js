@@ -1,7 +1,7 @@
 import { fileToDataUrl, loadImage } from '../settings-app/services/media-upload/core.js';
 import { normalizeAvatarFrameTransform } from '../qq-v2/resources/avatar-frame-transform.js';
 import { normalizeBubbleStyle } from '../qq-v2/resources/appearance-contract.js';
-import { normalizeBodyDialogueLanguage } from './config.js';
+import { normalizeBodyDialogueColor, normalizeBodyDialogueLanguage } from './config.js';
 import { BODY_DIALOGUE_EMOTIONS } from './emotions.js';
 
 const FORMAT = 'yuzi-phone-body-dialogue-people';
@@ -18,6 +18,8 @@ function personFields(source) {
     if (!isObject(source)) throw new Error('人物配置必须是对象');
     const name = text(source.name, '姓名');
     if (!name || /[|「」\r\n]/u.test(name)) throw new Error('姓名不能为空，也不能包含对白格式分隔符');
+    const textColor = normalizeBodyDialogueColor(source.textColor);
+    if (source.textColor != null && source.textColor !== '' && !textColor) throw new Error(`${name}的对白文字色必须为 #RRGGBB 格式`);
     let voice = null;
     if (source.voice != null) {
         if (!isObject(source.voice)) throw new Error(`${name}的音色配置无效`);
@@ -25,7 +27,7 @@ function personFields(source) {
         if (!voiceId) throw new Error(`${name}的音色 ID 不能为空`);
         voice = { voiceId, name: text(source.voice.name, '音色名字') || voiceId };
     }
-    return { name, language: normalizeBodyDialogueLanguage(text(source.language ?? '', '语言')), voice };
+    return { name, language: normalizeBodyDialogueLanguage(text(source.language ?? '', '语言')), textColor, voice };
 }
 
 function decoration(source, slot) {

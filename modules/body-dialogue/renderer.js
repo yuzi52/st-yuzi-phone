@@ -39,7 +39,8 @@ export function createDialogueView({ dialogue, config, person, userName = '', on
     const node = element('span', `yuzi-body-dialogue${config.bubble ? '' : ' is-editorial'}${dialogue.name && dialogue.name === userName && config.align === 'right' ? ' is-self' : ''}`);
     node.setAttribute('data-yuzi-body-dialogue', '');
     let applied = {};
-    const updateStyle = next => {
+    const updateStyle = (next, textColor = person?.textColor) => {
+        next = { ...next, textColor: textColor || next.textColor };
         for (const [key, [property, unit]] of Object.entries(numericStyles)) {
             if (applied[key] !== next[key]) node.style.setProperty(`--yuzi-body-${property}`, `${next[key]}${unit}`);
         }
@@ -113,7 +114,8 @@ export function createDialogueView({ dialogue, config, person, userName = '', on
     updateStyle(config);
     if (config.bubble) void load(person?.bubble, url => {
         decorateQQBubble(bubble, url, person.bubble.bubble);
-        // Keep the artwork's vertical padding; horizontal padding follows live body settings.
+        // Body settings own text color and horizontal padding; keep the artwork's vertical padding.
+        bubble.style.color = 'var(--yuzi-body-text-color, var(--yuzi-body-default-text))';
         bubble.style.paddingInline = 'var(--yuzi-body-padding-inline, 12px)';
     });
     let playButton = null, rerollButton = null;
@@ -235,7 +237,7 @@ export function renderDialogueFloor(root, { config, people, userName, onPlay, mo
                     emptyContainers.add(parent);
                 }
             }
-            replacements.push({ ...view, slots });
+            replacements.push({ ...view, slots, name: dialogue.name });
         }
         // Text replacements run backwards; speech follows the visible reading order.
         voiceItems.push(...runVoiceItems.reverse());
@@ -277,7 +279,7 @@ export function renderDialogueFloor(root, { config, people, userName, onPlay, mo
     return {
         voiceItems,
         isIntact: () => replacements.every(view => view.slots.every(slot => root.contains(slot.node))),
-        updateStyle: next => replacements.forEach(view => view.updateStyle(next)),
+        updateStyle: (next, nextPeople = people) => replacements.forEach(view => view.updateStyle(next, nextPeople.get(view.name)?.textColor || '')),
         dispose() {
             images.dispose();
             restoreViews(replacements);

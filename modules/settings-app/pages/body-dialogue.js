@@ -6,7 +6,7 @@ import { showConfirmDialog } from '../ui/confirm-dialog.js';
 import { showToast } from '../ui/toast.js';
 import { pickImageFiles } from '../services/media-upload/raw-picker.js';
 import { bodyDialogueService as service } from '../../body-dialogue/runtime.js';
-import { bodyDialogueDefaultPrompts, BODY_DIALOGUE_NUMBERS, composeBodyDialoguePrompt, normalizeBodyDialogueLanguage } from '../../body-dialogue/config.js';
+import { bodyDialogueDefaultPrompts, BODY_DIALOGUE_NUMBERS, composeBodyDialoguePrompt, normalizeBodyDialogueColor, normalizeBodyDialogueLanguage } from '../../body-dialogue/config.js';
 import { createDialogueImages, createDialogueView } from '../../body-dialogue/renderer.js';
 import { readDialogueLibrary, copyDialogueAsset, randomDialogueAppearance } from '../../body-dialogue/resources.js';
 import { bodyDialogueRepository } from '../../body-dialogue/repository.js';
@@ -286,27 +286,52 @@ export function createBodyDialoguePage({ container, state, render, pageRuntime }
                 busy = true;
                 const controls = [...overlay.querySelectorAll('button, input')];
                 controls.forEach(control => { control.disabled = true; });
-                void service.savePerson(personCard, draft).then(async () => {
-                    if (alive && validPerson(token)) { closeSheet(); await loadPeople(); toast('人物已保存'); }
-                }).catch(handleError).finally(() => { busy = false; controls.forEach(control => { control.disabled = false; }); });
+                void service.savePerson(personCard, draft).then(async saved => {
+                    if (!alive || !validPerson(token)) return;
+                    closeSheet();
+                    const index = people.findIndex(person => person.id === saved.id), previous = people[index];
+                    if (previous && previous.name === saved.name && previous.avatar?.mediaId === saved.avatar?.mediaId
+                        && !(draft.avatar?.blob instanceof Blob)) {
+                        people[index] = saved; updateInjection();
+                    } else await loadPeople();
+                    toast('人物已保存');
+                }).catch(handleError).finally(() => { busy = false; controls.forEach(control => { control.disabled = false; }); if (alive) updatePersonColor(); });
                 return false;
             },
             bodyHtml: `<section class="phone-ios-group"><label class="phone-ios-row is-block"><span class="phone-ios-field-label">姓名</span><input class="phone-ios-field" data-person-name value="${attr(draft.name)}" placeholder="填写正文中的姓名" autocomplete="off"></label></section>
                 ${section('形象与声音', slots.map(([key, label]) => `<button type="button" class="phone-ios-row is-tappable" data-person-slot="${key}"><span class="phone-ios-row-label">${label}</span><span class="phone-ios-row-value" data-person-slot-value="${key}">${key === 'emotions' ? `${BODY_DIALOGUE_EMOTIONS.filter(({ id }) => draft.emotionAvatars[id]).length} / ${BODY_DIALOGUE_EMOTIONS.length}` : key === 'voice' ? esc(draft.voice?.name || '未设置') : draft[key] ? `<img class="phone-ios-thumb" alt="${label}" data-person-thumb="${key}">` : '未设置'}${chevron}</span></button>`).join('')
-                    + `<label class="phone-ios-row"><span class="phone-ios-row-label">语言</span><input class="phone-ios-inline-input" type="text" data-person-language aria-label="语言" value="${attr(normalizeBodyDialogueLanguage(draft.language))}" placeholder="默认" autocomplete="off"></label>`)}
-                <p class="phone-ios-group-footer">头像上传保留原图；仓库素材选取后独立保存。</p>
+                    + `<label class="phone-ios-row"><span class="phone-ios-row-label">语言</span><input class="phone-ios-inline-input" type="text" data-person-language aria-label="语言" value="${attr(normalizeBodyDialogueLanguage(draft.language))}" placeholder="默认" autocomplete="off"></label>
+                    <div class="phone-ios-row"><span class="phone-ios-row-label">对白文字色</span><div class="phone-ios-row-actions">
+                        <input class="yuzi-body-color" type="color" data-person-color aria-label="人物对白文字色">
+                        <button type="button" class="phone-ios-mini-btn" data-body-action="reset-person-color">恢复默认</button>
+                    </div></div>`)}
+                <p class="phone-ios-group-footer">头像上传保留原图；仓库素材选取后独立保存。对白文字色默认跟随美化参数，单独设置后固定。</p>
                 ${draft.id ? `<section class="phone-ios-group">${action('delete-person', '删除人物', true)}</section>` : ''}` });
         if (!sheet) return;
         const name = sheet.overlay.querySelector('[data-person-name]');
         sheet.bind(name, 'input', () => { draft.name = name.value; });
         const language = sheet.overlay.querySelector('[data-person-language]');
         sheet.bind(language, 'input', () => { draft.language = language.value; });
+        const color = sheet.overlay.querySelector('[data-person-color]');
+        const resetColor = sheet.overlay.querySelector('[data-body-action="reset-person-color"]');
+        const updatePersonColor = () => {
+            const custom = normalizeBodyDialogueColor(draft.textColor);
+            color.value = custom || service.readConfig().textColor || getComputedStyle(container).getPropertyValue('--yuzi-body-default-text').trim();
+            resetColor.disabled = !custom;
+            resetColor.textContent = custom ? '恢复默认' : '跟随默认';
+        };
+        updatePersonColor();
+        sheet.bind(color, 'input', () => {
+            if (busy || !alive || !validPerson(token)) return;
+            draft.textColor = color.value; updatePersonColor();
+        });
         sheet.bind(sheet.overlay, 'click', event => {
             if (busy) return;
             const slot = event.target.closest('[data-person-slot]')?.dataset.personSlot;
             if (slot === 'emotions') { showEmotionAvatars(); return; }
             if (slot) { void selectAsset(slot).catch(handleError); return; }
             const actionId = event.target.closest('[data-body-action]')?.dataset.bodyAction;
+            if (actionId === 'reset-person-color' && validPerson(token)) { draft.textColor = ''; updatePersonColor(); return; }
             if (actionId === 'delete-person') {
                 if (!validPerson(token)) return;
                 closeSheet(); closeConfirmation();
