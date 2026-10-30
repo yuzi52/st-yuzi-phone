@@ -1,4 +1,5 @@
 import { t } from '../../../i18n/index.js';
+import { createRuntimeScope } from '../../../runtime-manager.js';
 import { clampNumber } from './core.js';
 
 function imageFileRecord(file) {
@@ -13,8 +14,10 @@ function imageFileRecord(file) {
 export function pickImageFiles(callback, options = {}) {
     const maxSizeMB = clampNumber(options.maxSizeMB, 1, 64, 8);
     const onError = typeof options.onError === 'function' ? options.onError : null;
-    const runtime = options.runtime || options.pageRuntime || null;
-    const isDisposed = () => !!runtime?.isDisposed?.();
+    const pageRuntime = options.runtime || options.pageRuntime || null;
+    const owner = pageRuntime?.getCurrentRuntime ? pageRuntime.getCurrentRuntime() : pageRuntime;
+    if (pageRuntime && (!owner || owner.isDisposed?.())) return;
+    const runtime = createRuntimeScope('image-file-picker');
 
     const input = document.createElement('input');
     input.type = 'file';
@@ -23,60 +26,33 @@ export function pickImageFiles(callback, options = {}) {
     input.style.display = 'none';
     document.body.appendChild(input);
 
-    let cleaned = false;
-    const cleanupAfterPickerCloses = () => {
-        setTimeout(() => {
-            if (!input.files?.length) cleanup();
+    const unregister = owner?.registerCleanup?.(runtime.dispose);
+    runtime.registerCleanup(() => { unregister?.(); input.remove(); });
+    runtime.addEventListener(input, 'cancel', runtime.dispose, { once: true });
+    runtime.addEventListener(window, 'focus', () => {
+        runtime.setTimeout(() => {
+            if (!input.files?.length) runtime.dispose();
         }, 300);
-    };
-    const cleanup = () => {
-        if (cleaned) return;
-        cleaned = true;
-        window.removeEventListener('focus', cleanupAfterPickerCloses);
+    }, { once: true });
+    runtime.addEventListener(input, 'change', async () => {
         try {
-            input.remove();
-        } catch {}
-    };
-    const addListener = runtime?.addEventListener
-        ? (...args) => runtime.addEventListener(...args)
-        : (target, type, handler, listenerOptions) => {
-            target.addEventListener(type, handler, listenerOptions);
-            return () => target.removeEventListener(type, handler, listenerOptions);
-    };
-    runtime?.registerCleanup?.(cleanup);
-    window.addEventListener('focus', cleanupAfterPickerCloses, { once: true });
-
-    addListener(input, 'change', async () => {
-        const files = [...(input.files || [])];
-        if (files.length === 0) {
-            cleanup();
-            return;
-        }
-
-        const invalidFile = files.find((file) => !String(file.type || '').startsWith('image/'));
-        if (invalidFile) {
-            onError?.(t`${invalidFile.name || t("所选文件")}不是图片文件`);
-            cleanup();
-            return;
-        }
-
-        const maxBytes = Math.max(1, maxSizeMB) * 1024 * 1024;
-        const oversizedFile = files.find((file) => Number(file.size) > maxBytes);
-        if (oversizedFile) {
-            onError?.(t`${oversizedFile.name || t("所选图片")}超过 ${maxSizeMB}MB`);
-            cleanup();
-            return;
-        }
-
-        try {
-            if (isDisposed()) return;
-            await Promise.resolve(callback(Object.freeze(files.map(imageFileRecord))));
+            if (runtime.isDisposed()) return;
+            const files = [...(input.files || [])];
+            if (!files.length) return;
+            const invalidFile = files.find(file => !String(file.type || '').startsWith('image/'));
+            if (invalidFile) throw new Error(t`${invalidFile.name || t("所选文件")}不是图片文件`);
+            const maxBytes = Math.max(1, maxSizeMB) * 1024 * 1024;
+            const oversizedFile = files.find(file => Number(file.size) > maxBytes);
+            if (oversizedFile) throw new Error(t`${oversizedFile.name || t("所选图片")}超过 ${maxSizeMB}MB`);
+            await callback(Object.freeze(files.map(imageFileRecord)));
         } catch (error) {
-            onError?.(error?.message || t("图片处理失败"));
+            if (!runtime.isDisposed()) onError?.(error?.message || t("图片处理失败"));
         } finally {
-            cleanup();
+            runtime.dispose();
         }
-    });
+    }, { once: true });
 
-    input.click();
+    try { input.click(); }
+    catch (error) { runtime.dispose(); throw error; }
+    return runtime.dispose;
 }

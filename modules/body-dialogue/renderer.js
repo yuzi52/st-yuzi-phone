@@ -9,6 +9,8 @@ const numericStyles = { fontSize: ['font-size', 'px'], nameSize: ['name-size', '
     width: ['width', '%'], spacing: ['spacing', 'px'], avatarSize: ['avatar-size', 'px'], radius: ['radius', 'px'],
     paddingInline: ['padding-inline', 'px'], quoteSize: ['quote-size', 'px'] };
 const colorStyles = { nameColor: 'name-color', textColor: 'text-color', bubbleColor: 'bubble-color', quoteColor: 'quote-color' };
+const sameBubble = (left, right) => left?.mediaId === right?.mediaId && left?.blob === right?.blob
+    && JSON.stringify(left?.bubble) === JSON.stringify(right?.bubble);
 const element = (tag, className, text) => {
     const node = document.createElement(tag); node.className = className;
     if (text !== undefined) node.textContent = text;
@@ -26,9 +28,24 @@ export function createDialogueImages() {
             if (!pending.has(key)) pending.set(key, (async () => {
                 const media = asset.blob instanceof Blob ? asset : await repository.getMedia(asset.mediaId);
                 if (!alive || !(media?.blob instanceof Blob)) return '';
-                const url = URL.createObjectURL(media.blob); urls.add(url); return url;
+                const url = URL.createObjectURL(media.blob); urls.add(url);
+                try {
+                    const image = new Image(); image.src = url;
+                    await image.decode();
+                    return alive ? url : '';
+                } catch (error) {
+                    if (urls.delete(url)) URL.revokeObjectURL(url);
+                    throw error;
+                }
             })());
             return pending.get(key);
+        },
+        pruneBubbleBackgrounds(current) {
+            for (const [key, loaded] of pending) {
+                if (typeof key !== 'string' || !key.startsWith('bubble-background:') || key === current?.mediaId) continue;
+                pending.delete(key);
+                void loaded.then(url => { if (urls.delete(url)) URL.revokeObjectURL(url); }, () => {});
+            }
         },
         dispose() { alive = false; pending.clear(); urls.forEach(url => URL.revokeObjectURL(url)); urls.clear(); },
     };
@@ -38,7 +55,7 @@ export function createDialogueView({ dialogue, config, person, userName = '', on
     const emotion = config.avatar && config.emotion ? getBodyDialogueEmotion(dialogue.emotion) : null;
     const node = element('span', `yuzi-body-dialogue${config.bubble ? '' : ' is-editorial'}${dialogue.name && dialogue.name === userName && config.align === 'right' ? ' is-self' : ''}`);
     node.setAttribute('data-yuzi-body-dialogue', '');
-    let applied = {};
+    let applied = {}, bubbleUpdate = Promise.resolve();
     const updateStyle = (next, textColor = person?.textColor) => {
         next = { ...next, textColor: textColor || next.textColor };
         for (const [key, [property, unit]] of Object.entries(numericStyles)) {
@@ -58,7 +75,14 @@ export function createDialogueView({ dialogue, config, person, userName = '', on
             closingQuote.classList.toggle('is-pair', paired);
             bubble.classList.toggle('is-paired-bilingual', paired && Boolean(dialogue.originalText));
         }
+        if (config.bubble && (!Object.hasOwn(applied, 'bubbleBackground') || !sameBubble(applied.bubbleBackground, next.bubbleBackground))) {
+            const update = bubbleUpdate = updateBubble(next.bubbleBackground);
+            if (!sharedImages) void update.then(() => {
+                if (alive && update === bubbleUpdate) images.pruneBubbleBackgrounds(next.bubbleBackground);
+            });
+        }
         applied = next;
+        return bubbleUpdate;
     };
     let alive = true;
     const images = sharedImages || createDialogueImages();
@@ -101,6 +125,28 @@ export function createDialogueView({ dialogue, config, person, userName = '', on
         stack.append(speaker);
     }
     const bubble = element('span', 'yuzi-body-bubble'); stack.append(bubble);
+    let bubbleVersion = 0, displayedBubble = null;
+    async function updateBubble(background) {
+        const version = ++bubbleVersion;
+        for (const asset of [person?.bubble, background].filter(Boolean)) {
+            if (!alive || version !== bubbleVersion) return;
+            if (sameBubble(displayedBubble, asset)) return;
+            try {
+                const url = await images.load(asset);
+                if (!alive || version !== bubbleVersion) return;
+                if (!url) continue;
+                bubble.removeAttribute('style');
+                decorateQQBubble(bubble, url, asset.bubble);
+                // Body settings own text color and horizontal padding; keep the artwork's vertical padding.
+                bubble.style.color = 'var(--yuzi-body-text-color, var(--yuzi-body-default-text))';
+                bubble.style.paddingInline = 'var(--yuzi-body-padding-inline, 12px)';
+                displayedBubble = asset;
+                return;
+            } catch { /* Try the common artwork, then the existing solid color. */ }
+        }
+        if (!alive || version !== bubbleVersion) return;
+        bubble.removeAttribute('style'); bubble.removeAttribute('data-qq-bubble'); displayedBubble = null;
+    }
     const openingQuote = config.bubble ? null : element('span', 'yuzi-body-quote is-pair', '「');
     const closingQuote = config.bubble ? null : element('span', 'yuzi-body-quote');
     const lines = dialogue.originalText ? element('span', 'yuzi-body-lines') : null;
@@ -112,12 +158,6 @@ export function createDialogueView({ dialogue, config, person, userName = '', on
     (lines || bubble).append(element('span', 'yuzi-body-text', parseQQVoiceText(dialogue.text).displayText));
     if (closingQuote) bubble.append(closingQuote);
     updateStyle(config);
-    if (config.bubble) void load(person?.bubble, url => {
-        decorateQQBubble(bubble, url, person.bubble.bubble);
-        // Body settings own text color and horizontal padding; keep the artwork's vertical padding.
-        bubble.style.color = 'var(--yuzi-body-text-color, var(--yuzi-body-default-text))';
-        bubble.style.paddingInline = 'var(--yuzi-body-padding-inline, 12px)';
-    });
     let playButton = null, rerollButton = null;
     if (config.voice && dialogue.name) {
         const play = element('button', 'yuzi-body-play', '▷'); play.type = 'button';
@@ -189,6 +229,7 @@ function textRuns(root, bilingual) {
 /** Reversible, display-only replacements. No writes to chat messages or message metadata. */
 export function renderDialogueFloor(root, { config, people, userName, onPlay, modules = [], mutateProse = update => update() }) {
     const images = createDialogueImages();
+    let background = config.bubbleBackground, backgroundVersion = 0;
     const replacements = [], voiceItems = [], emptyContainers = new Set();
     for (const nodes of textRuns(root, config.bilingual)) {
         const runVoiceItems = [];
@@ -279,7 +320,16 @@ export function renderDialogueFloor(root, { config, people, userName, onPlay, mo
     return {
         voiceItems,
         isIntact: () => replacements.every(view => view.slots.every(slot => root.contains(slot.node))),
-        updateStyle: (next, nextPeople = people) => replacements.forEach(view => view.updateStyle(next, nextPeople.get(view.name)?.textColor || '')),
+        updateStyle(next, nextPeople = people) {
+            const updates = replacements.map(view => view.updateStyle(next, nextPeople.get(view.name)?.textColor || ''));
+            if (!sameBubble(background, next.bubbleBackground)) {
+                background = next.bubbleBackground;
+                const version = ++backgroundVersion;
+                void Promise.all(updates).then(() => {
+                    if (version === backgroundVersion) images.pruneBubbleBackgrounds(background);
+                });
+            }
+        },
         dispose() {
             images.dispose();
             restoreViews(replacements);

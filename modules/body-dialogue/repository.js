@@ -1,5 +1,6 @@
 import { normalizeBodyDialogueColor, normalizeBodyDialogueLanguage } from './config.js';
 import { BODY_DIALOGUE_EMOTIONS } from './emotions.js';
+import { normalizeBubbleStyle } from '../qq-v2/resources/appearance-contract.js';
 
 let database;
 function openDatabase() {
@@ -113,6 +114,19 @@ export const bodyDialogueRepository = {
         });
     },
     getMedia(id) { return transaction(['media'], 'readonly', store => result(store('media').get(id))); },
+    async saveBubbleBackground(asset) {
+        if (!(asset?.blob instanceof Blob) || !asset.blob.type.startsWith('image/')) throw new Error('请选择图片文件');
+        if (asset.blob.size > 8 * 1024 * 1024) throw new Error('气泡图片不能超过 8MB');
+        const bubble = normalizeBubbleStyle(asset.bubble);
+        const mediaId = `bubble-background:${globalThis.crypto?.randomUUID?.() || `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`}`;
+        // Global artwork has no card index; deleting a character cannot delete it.
+        await transaction(['media'], 'readwrite', store => result(store('media').put({ id: mediaId, blob: asset.blob })));
+        return { mediaId, ...(bubble ? { bubble } : {}) };
+    },
+    deleteBubbleBackground(asset) {
+        if (!asset?.mediaId?.startsWith('bubble-background:')) return Promise.resolve();
+        return transaction(['media'], 'readwrite', store => result(store('media').delete(asset.mediaId)));
+    },
     hasAudio(id) { return transaction(['audio'], 'readonly', store => result(store('audio').count(id))).then(count => count > 0); },
     async savePerson(card, draft, canSave = () => true) {
         if (!card) throw new Error('请先打开一张角色卡');

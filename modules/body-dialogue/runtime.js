@@ -1,4 +1,4 @@
-import { getPhoneSettings, savePhoneSetting, subscribePhoneSettingsUpdates } from '../settings.js';
+import { getPhoneSettings, savePhoneSetting, flushPhoneSettingsSave, waitForPhoneSettingsSave, subscribePhoneSettingsUpdates } from '../settings.js';
 import { getFreshSillyTavernContext } from '../integration/context-bridge.js';
 import { onEvent, EventTypes } from '../integration/event-bridge.js';
 import { showNotification } from '../integration/toast-bridge.js';
@@ -36,22 +36,23 @@ let loadedCard = null, people = new Map(), retained = new Map(), activeChat = ''
 let refreshPending = null, refreshRequested = false, refreshRevision = 0;
 let floorDigests = new Map(), audioWindowKey = '', dirtyRoots = new WeakSet();
 let settingsSnapshot = null, settingsPending = Promise.resolve(), projectionVersion = 0;
+let bubbleWrites = Promise.resolve();
 let moduleEntries = normalizeBodyModuleLibrary(), moduleLoad = null, modulesLoaded = false;
 let moduleWrites = Promise.resolve(), preparedModules = null, moduleRevision = 0;
 const moduleErrors = new Map();
 const moduleViewKey = entries => JSON.stringify(entries.filter(entry => entry.enabled).map(entry => [entry.id, entry.controls.map(control => [control.id, control.value])]));
 const moduleSettingsSnapshot = () => moduleEntries.map(({ id, name, description, enabled, prompt, controls }) => structuredClone({ id, name, description, enabled, prompt, controls }));
-const publish = () => { for (const listener of changes) listener(); };
+const publish = (reason = '') => { for (const listener of changes) listener(reason); };
 function reportModuleError(id, error) {
     const message = error?.message || '模块运行失败';
     if (moduleErrors.get(id) === message) return;
-    moduleErrors.set(id, message); console.warn('[玉子手机] 正文美化模块', id, error); publish();
+    moduleErrors.set(id, message); console.warn('[玉子手机] 正文美化模块', id, error); publish('module-errors');
 }
 function loadModules() {
     if (modulesLoaded) return Promise.resolve(moduleEntries);
     if (!moduleLoad) moduleLoad = repository.getMeta(BODY_MODULE_KEY).then(saved => {
         moduleEntries = normalizeBodyModuleLibrary(saved); modulesLoaded = true;
-        moduleErrors.delete('library'); publish(); return moduleEntries;
+        moduleErrors.delete('library'); publish('modules'); return moduleEntries;
     }).finally(() => { moduleLoad = null; });
     return moduleLoad;
 }
@@ -70,7 +71,7 @@ function saveModules(update) {
             moduleRevision++; preparedModules = null; moduleErrors.clear();
             configVersion++; refreshRevision++; schedule();
         }
-        publish();
+        publish('modules');
         if (previousPrompt !== bodyModulePrompt(next)) { projectionVersion++; await syncProjection(); }
         return next;
     });
@@ -148,7 +149,8 @@ function refreshVoiceControls() {
 function applySettings() {
     const next = readEffectiveConfig(), previous = settingsSnapshot || next;
     settingsSnapshot = next;
-    const keys = Object.keys(next).filter(key => key !== 'prompts' && previous[key] !== next[key]);
+    const keys = Object.keys(next).filter(key => key !== 'prompts' && (key === 'bubbleBackground'
+        ? JSON.stringify(previous[key]) !== JSON.stringify(next[key]) : previous[key] !== next[key]));
     const structural = keys.some(key => ['enabled', 'avatar', 'emotion', 'voice', 'bubble', 'bilingual'].includes(key));
     const speechChanged = keys.includes('prosody') || (keys.includes('readOriginal') && next.bilingual);
     if (structural) { configVersion++; voice?.stop(); }
@@ -161,7 +163,7 @@ function applySettings() {
         }
     } else if (structural || keys.includes('layers') || keys.includes('preGenerate') || (speechChanged && next.preGenerate)) schedule();
     else if (keys.some(key => (key in BODY_DIALOGUE_NUMBERS && key !== 'layers')
-        || ['align', 'avatarShape', 'quote', 'nameColor', 'textColor', 'bubbleColor', 'quoteColor'].includes(key))) {
+        || ['align', 'avatarShape', 'quote', 'nameColor', 'textColor', 'bubbleColor', 'bubbleBackground', 'quoteColor'].includes(key))) {
         for (const entry of retained.values()) entry.updateStyle(next, people);
     }
     if (!structural && (keys.includes('reroll') || speechChanged)) refreshVoiceControls();
@@ -359,9 +361,26 @@ export const bodyDialogueService = {
     },
     subscribe(listener) { changes.add(listener); const off = projection.subscribe(listener); return () => { changes.delete(listener); off(); }; },
     async saveConfig(next) {
-        if (!savePhoneSetting('bodyDialogue', normalizeBodyDialogue(next))) throw new Error('正文气泡设置保存失败');
+        if (!savePhoneSetting('bodyDialogue', normalizeBodyDialogue({ ...next, bubbleBackground: readBodyDialogueConfig().bubbleBackground }))) throw new Error('正文气泡设置保存失败');
         // savePhoneSetting publishes synchronously; its subscriber owns all side effects.
         return settingsPending;
+    },
+    saveBubbleBackground(asset) {
+        const task = bubbleWrites.then(async () => {
+            const next = asset ? await repository.saveBubbleBackground(asset) : null;
+            const current = readBodyDialogueConfig();
+            if (!savePhoneSetting('bodyDialogue', { ...current, bubbleBackground: next })
+                || !flushPhoneSettingsSave() || !await waitForPhoneSettingsSave()) {
+                savePhoneSetting('bodyDialogue', { ...readBodyDialogueConfig(), bubbleBackground: current.bubbleBackground });
+                flushPhoneSettingsSave();
+                await repository.deleteBubbleBackground(next).catch(error => console.warn('[玉子手机] 清理未保存气泡背景失败', error));
+                throw new Error('通用气泡背景保存失败');
+            }
+            await repository.deleteBubbleBackground(current.bubbleBackground).catch(error => console.warn('[玉子手机] 清理旧气泡背景失败', error));
+            return next;
+        });
+        bubbleWrites = task.catch(() => {});
+        return task;
     },
     sync: syncProjection,
     async listPeople() { const { card } = getBodyDialogueScope(); return card ? repository.listPeople(card) : []; },

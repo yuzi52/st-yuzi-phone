@@ -140,11 +140,8 @@ async function exportImage(repository, scopeId, assetId, expectedKind, label) {
 }
 
 async function exportVoice(person, listVoiceEntries) {
-    const voice = resolveQQProfileVoice(person, await listVoiceEntries());
-    if (voice) return voice;
-    const voiceId = asText(person.voiceId, 256);
-    if (!voiceId) return null;
-    return normalizeQQContactVoice({ voiceId, name: voiceId });
+    return resolveQQProfileVoice(person, await listVoiceEntries())
+        || normalizeQQContactVoice({ voiceId: person.voiceId });
 }
 
 async function exportContact(repository, scopeId, conversation, listVoiceEntries) {

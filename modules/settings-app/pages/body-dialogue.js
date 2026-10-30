@@ -1,7 +1,7 @@
 import { escapeHtml as esc, escapeHtmlAttr as attr } from '../../utils/dom-escape.js';
 import { buildSettingsPageFrame } from '../layout/primitives.js';
 import { bindSettingsGroupedControls } from '../ui/settings-controls.js';
-import { showSettingsSheet } from '../ui/settings-layer.js';
+import { showSettingsSheet, showSettingsActionSheet } from '../ui/settings-layer.js';
 import { showConfirmDialog } from '../ui/confirm-dialog.js';
 import { showToast } from '../ui/toast.js';
 import { pickImageFiles } from '../services/media-upload/raw-picker.js';
@@ -31,11 +31,13 @@ export function createBodyDialoguePage({ container, state, render, pageRuntime }
     let config = service.readConfig(), drafts = { ...config.prompts }, people = [], scope = service.getScope();
     let disposed = false, busy = false, loadVersion = 0, groupedCleanup = () => {}, previewViews = [], previewFrame = null;
     let peopleImages = createDialogueImages();
+    let backgroundImages = createDialogueImages(), backgroundValue = null, backgroundMediaId = '', backgroundVersion = 0;
     let sheet = null, personDraft = null, personCard = '', personVersion = 0;
     let cancelPackPick = () => {};
     let confirmation = null;
     const expanded = new Set();
     let hiddenSelects = '';
+    let styleRows = {}, activeStyleRows = [];
     const q = selector => container.querySelector(selector);
     const toast = (message, error = false) => { if (!disposed) showToast(container, message, error, pageRuntime); };
     const validPerson = token => !disposed && token === personVersion && service.getScope().card === personCard;
@@ -60,9 +62,9 @@ export function createBodyDialoguePage({ container, state, render, pageRuntime }
         const [label, min, max, step, unit] = BODY_DIALOGUE_NUMBERS[key], id = `yuzi-body-${key}`;
         return `<div class="phone-ios-row"><span class="phone-ios-row-label">${label}</span>
             <div class="phone-ios-stepper" data-settings-stepper="${id}" data-settings-repeat data-step="${step}" data-unit="${unit}">
-                <button type="button" class="phone-ios-stepper-btn" data-direction="-1" aria-label="减少${label}">−</button>
+                <button type="button" class="phone-ios-stepper-btn" data-direction="-1" aria-label="减少${label}" ${config[key] <= min ? 'disabled' : ''}>−</button>
                 <button type="button" class="phone-ios-stepper-value is-editable" data-body-number="${key}" aria-label="设置${label}">${config[key]}${unit}</button>
-                <button type="button" class="phone-ios-stepper-btn" data-direction="1" aria-label="增加${label}">+</button></div>
+                <button type="button" class="phone-ios-stepper-btn" data-direction="1" aria-label="增加${label}" ${config[key] >= max ? 'disabled' : ''}>+</button></div>
             <input id="${id}" type="number" data-body-setting="${key}" min="${min}" max="${max}" step="${step}" value="${config[key]}" hidden></div>`;
     };
     const selectRow = key => {
@@ -126,7 +128,21 @@ export function createBodyDialoguePage({ container, state, render, pageRuntime }
             if (!disposed) previewViews.forEach(view => view.updateStyle(next));
         });
     }
+    function updateBubbleBackground() {
+        const value = q('[data-body-background-value]'), asset = config.bubbleBackground;
+        if (value === backgroundValue && (asset?.mediaId || '') === backgroundMediaId) return;
+        backgroundImages.dispose();
+        const images = backgroundImages = createDialogueImages();
+        backgroundValue = value; backgroundMediaId = asset?.mediaId || '';
+        if (!value) return;
+        value.innerHTML = `${asset ? '<img class="phone-ios-thumb" alt="通用气泡背景">' : '未设置'}${chevron}`;
+        const image = value.querySelector('img');
+        if (image) void images.load(asset).then(url => {
+            if (!disposed && value.contains(image) && url) image.src = url;
+        }).catch(handleError);
+    }
     function updateControls() {
+        updateStyleRows();
         container.querySelectorAll('[data-body-setting]').forEach(input => {
             const value = config[input.dataset.bodySetting];
             if (input.type === 'checkbox') input.checked = value;
@@ -141,7 +157,15 @@ export function createBodyDialoguePage({ container, state, render, pageRuntime }
         originalSwitch.disabled = !config.bilingual;
         originalSwitch.closest('.phone-ios-row').classList.toggle('is-disabled', !config.bilingual);
         updateInjection();
-        updateDrafts(); updateStatus();
+        updateDrafts(); updateStatus(); updateBubbleBackground();
+    }
+    function updateStyleRows() {
+        const rows = styleRows[config.bubble ? 'bubble' : 'quote'];
+        if (rows === activeStyleRows) return;
+        // Direct row siblings keep the shared separators and last-row rules intact.
+        activeStyleRows.forEach(row => row.remove());
+        q('#yuzi-body-panel-style').append(...rows);
+        activeStyleRows = rows;
     }
     function paint() {
         if (disposed) return;
@@ -151,8 +175,17 @@ export function createBodyDialoguePage({ container, state, render, pageRuntime }
         const style = `<label class="phone-ios-row"><span class="phone-ios-row-label">气泡样式</span>${switchControl('bubble', config.bubble, '气泡样式')}</label>
             ${selectRow('align')}${numberRow('nameSize')}${colorRow('nameColor', '姓名强调色', '#aa526c')}
             ${numberRow('fontSize')}${numberRow('lineHeight')}${colorRow('textColor', '对白文字色', '#253047')}
-            ${numberRow('width')}${numberRow('spacing')}${numberRow('avatarSize')}${selectRow('avatarShape')}
-            ${config.bubble ? colorRow('bubbleColor', '通用气泡底色', '#ffffff') + numberRow('radius') + numberRow('paddingInline') : selectRow('quote') + numberRow('quoteSize') + colorRow('quoteColor', '引号颜色', '#aa526c')}`;
+            ${numberRow('width')}${numberRow('spacing')}${numberRow('avatarSize')}${selectRow('avatarShape')}`;
+        styleRows = Object.fromEntries([
+            ['bubble', colorRow('bubbleColor', '通用气泡底色', '#ffffff')
+                + `<button type="button" class="phone-ios-row is-tappable" data-body-action="bubble-background"><span class="phone-ios-row-label">通用气泡背景</span><span class="phone-ios-row-value" data-body-background-value></span></button>`
+                + numberRow('radius') + numberRow('paddingInline')],
+            ['quote', selectRow('quote') + numberRow('quoteSize') + colorRow('quoteColor', '引号颜色', '#aa526c')],
+        ].map(([mode, html]) => {
+            const template = document.createElement('template'); template.innerHTML = html;
+            return [mode, [...template.content.children]];
+        }));
+        activeStyleRows = [];
         container.innerHTML = buildSettingsPageFrame({ title: '正文对话气泡', bodyClass: 'phone-app-body phone-settings-scroll phone-ios-grouped-page yuzi-body-settings', bodyHtml: `
             <section class="phone-ios-group"><label class="phone-ios-row"><span class="phone-ios-row-label">启用正文对话气泡</span>${switchControl('enabled', config.enabled, '启用正文对话气泡')}</label>${numberRow('layers')}</section>
             <p class="phone-ios-group-footer">角色卡主世界书 · D0 · 顺序 999 · 蓝灯</p>
@@ -175,8 +208,8 @@ export function createBodyDialoguePage({ container, state, render, pageRuntime }
             ${section('实际注入内容 · 只读', '<pre class="yuzi-body-injection"></pre>')}
             <p class="phone-ios-group-footer" data-body-status role="status"></p>
             <section class="phone-ios-group">${action('sync', '重新同步世界书')}</section>${hiddenSelects}` });
-        moduleSettings.mount(q('[data-body-module-list]'));
-        paintPreview(); updatePeople();
+        updateStyleRows(); moduleSettings.mount(q('[data-body-module-list]'));
+        paintPreview(); updatePeople(); updateBubbleBackground();
         groupedCleanup = bindSettingsGroupedControls(container, pageRuntime, () => !busy && !disposed);
         q('.phone-settings-scroll').scrollTop = scrollTop;
         updateStatus();
@@ -202,12 +235,9 @@ export function createBodyDialoguePage({ container, state, render, pageRuntime }
             config = service.readConfig(); busy = false;
             for (const key of Object.keys(drafts)) if (drafts[key] === previous.prompts[key]) drafts[key] = config.prompts[key];
             if (!disposed) {
-                if (previous.bubble !== config.bubble) paint();
-                else {
-                    updateControls();
-                    if (['avatar', 'emotion', 'voice', 'bilingual'].some(key => previous[key] !== config[key])) paintPreview();
-                    else updatePreview();
-                }
+                updateControls();
+                if (['bubble', 'avatar', 'emotion', 'voice', 'bilingual'].some(key => previous[key] !== config[key])) paintPreview();
+                else updatePreview();
             }
         }
     }
@@ -424,12 +454,28 @@ export function createBodyDialoguePage({ container, state, render, pageRuntime }
             });
             return;
         }
-        const kind = { avatar: 'avatar', frame: 'avatar-frame', bubble: 'bubble' }[slot];
-        const assets = library.assets.filter(asset => asset.library === kind);
+        showImageLibrary({
+            assets: library.assets.filter(asset => asset.library === { avatar: 'avatar', frame: 'avatar-frame', bubble: 'bubble' }[slot]),
+            headerHtml: action('unset', '不使用此素材') + (slot === 'avatar' ? action('upload', '上传头像') : ''),
+            isCurrent: () => validPerson(token), onReturn: showPerson,
+            onSelect: asset => { personDraft[slot] = asset; showPerson(); },
+            onAction: (actionId, isCurrent) => {
+                if (actionId === 'unset') { personDraft[slot] = null; showPerson(); }
+                if (actionId === 'upload') {
+                    pickImageFiles(([selected]) => {
+                        if (isCurrent()) { personDraft.avatar = { blob: selected.file }; showPerson(); }
+                    }, { runtime: pageRuntime, multiple: false, maxSizeMB: 8, onError: message => { if (isCurrent()) toast(message, true); } });
+                }
+            },
+        });
+    }
+    function showImageLibrary({ assets, headerHtml = '', isCurrent, onReturn, onSelect, onAction }) {
+        closeSheet();
         const urls = []; let alive = true, active = 0; const pending = []; let observer;
         const release = () => { alive = false; observer?.disconnect(); urls.splice(0).forEach(url => URL.revokeObjectURL(url)); };
-        sheet = showSettingsSheet({ title: '图片资料', runtime: pageRuntime, onClose: release, doneText: '返回', onDone: () => { showPerson(); return false; },
-            bodyHtml: `<section class="phone-ios-group">${action('unset', '不使用此素材')}${slot === 'avatar' ? action('upload', '上传头像') : ''}</section>
+        const current = () => alive && isCurrent();
+        sheet = showSettingsSheet({ title: '图片资料', runtime: pageRuntime, onClose: release, doneText: '返回', onDone: onReturn ? () => { onReturn(); return false; } : null,
+            bodyHtml: `${headerHtml ? `<section class="phone-ios-group">${headerHtml}</section>` : ''}
                 <section class="phone-ios-group"><div class="phone-ios-icon-grid yuzi-body-library">${assets.map((_asset, index) => `<button type="button" class="phone-ios-icon-cell" data-body-asset-index="${index}" aria-label="选择素材 ${index + 1}"><img class="phone-ios-thumb" alt="素材 ${index + 1}"></button>`).join('')}</div>${assets.length ? '' : '<p class="phone-ios-row-empty">仓库暂无素材</p>'}</section>` });
         if (!sheet) return;
         const run = () => {
@@ -448,19 +494,46 @@ export function createBodyDialoguePage({ container, state, render, pageRuntime }
         }, { root: sheet.overlay.querySelector('.phone-ios-sheet-body'), rootMargin: '100px' });
         buttons.forEach(button => observer.observe(button));
         sheet.bind(sheet.overlay, 'click', event => {
-            const button = event.target.closest('button'); if (!button || busy) return;
+            const button = event.target.closest('button'); if (!button || busy || !current()) return;
             const index = button.dataset.bodyAssetIndex, actionId = button.dataset.bodyAction;
             if (index !== undefined) {
                 busy = true;
-                void copyDialogueAsset(assets[Number(index)]).then(asset => { if (alive && validPerson(token)) { personDraft[slot] = asset; showPerson(); } }).catch(handleError).finally(() => { busy = false; });
+                void copyDialogueAsset(assets[Number(index)]).then(asset => { if (current()) return onSelect(asset); }).catch(handleError).finally(() => { busy = false; });
             }
-            if (actionId === 'unset') { personDraft[slot] = null; showPerson(); }
-            if (actionId === 'upload') {
-                pickImageFiles(([selected]) => {
-                    if (alive && validPerson(token)) { personDraft.avatar = { blob: selected.file }; showPerson(); }
-                }, { runtime: pageRuntime, multiple: false, maxSizeMB: 8, onError: message => { if (alive && validPerson(token)) toast(message, true); } });
-            }
+            if (actionId) onAction?.(actionId, current);
         });
+    }
+    async function saveBubbleBackground(asset) {
+        if (disposed) return;
+        busy = true; updateDrafts();
+        try {
+            await service.saveBubbleBackground(asset);
+            if (disposed) return;
+            config = service.readConfig();
+            closeSheet(); updateControls(); updatePreview();
+        } catch (error) { handleError(error); }
+        finally { busy = false; if (!disposed) updateDrafts(); }
+    }
+    function showBubbleBackgroundMenu() {
+        closeSheet();
+        const token = ++backgroundVersion, current = () => !disposed && token === backgroundVersion;
+        const choose = async () => {
+            busy = true;
+            try {
+                const library = await readDialogueLibrary({ voices: false });
+                if (!current()) return;
+                showImageLibrary({ assets: library.assets.filter(asset => asset.library === 'bubble'), isCurrent: current,
+                    onSelect: saveBubbleBackground });
+            } finally { busy = false; }
+        };
+        const close = showSettingsActionSheet({ title: '通用气泡背景', runtime: pageRuntime, actions: [
+            { label: '从图片资料选择', onSelect: () => void choose().catch(handleError) },
+            { label: '从本地上传', onSelect: () => pickImageFiles(([selected]) => {
+                if (current() && !busy) return saveBubbleBackground({ blob: selected.file });
+            }, { runtime: pageRuntime, multiple: false, maxSizeMB: 8, onError: message => { if (current()) toast(message, true); } }) },
+            config.bubbleBackground && { label: '清除图片', danger: true, onSelect: () => { if (current() && !busy) void saveBubbleBackground(null); } },
+        ] });
+        if (close) sheet = { close };
     }
     const click = event => {
         const button = event.target.closest('button'); if (!button || !container.contains(button)) return;
@@ -472,6 +545,7 @@ export function createBodyDialoguePage({ container, state, render, pageRuntime }
         if (button.dataset.bodyRestore) { drafts[button.dataset.bodyRestore] = bodyDialogueDefaultPrompts(config)[button.dataset.bodyRestore]; updateDrafts(); return; }
         if (button.dataset.bodySave) { const key = button.dataset.bodySave; void save({ ...config, prompts: { ...config.prompts, [key]: drafts[key] } }, key); return; }
         if (busy) return;
+        if (button.dataset.bodyAction === 'bubble-background') showBubbleBackgroundMenu();
         if (button.dataset.bodyNumber) {
             const key = button.dataset.bodyNumber, [title, min, max, step] = BODY_DIALOGUE_NUMBERS[key];
             sheet = showSettingsSheet({ title, runtime: pageRuntime, className: 'phone-settings-page', doneText: '保存', bodyHtml: `<section class="phone-ios-group"><label class="phone-ios-row is-block"><span class="phone-ios-field-label">${title}</span><input class="phone-ios-field" type="number" min="${min}" max="${max}" step="${step}" value="${config[key]}" required></label></section>`,
@@ -502,14 +576,19 @@ export function createBodyDialoguePage({ container, state, render, pageRuntime }
             });
             pageRuntime.registerCleanup(service.subscribe(() => {
                 if (disposed) return;
+                const background = service.readConfig().bubbleBackground;
+                if (JSON.stringify(background) !== JSON.stringify(config.bubbleBackground)) {
+                    config = { ...config, bubbleBackground: background };
+                    updateBubbleBackground(); updatePreview();
+                }
                 const current = service.getScope();
                 if (current.card !== scope.card) {
-                    personVersion++; cancelPackPick(); closeSheet(); closeConfirmation(); scope = current; people = []; updatePeople(); paintPreview();
+                    personVersion++; backgroundVersion++; cancelPackPick(); closeSheet(); closeConfirmation(); scope = current; people = []; updatePeople(); paintPreview();
                     void loadPeople().catch(handleError);
                 } else if (current.userName !== scope.userName) { scope = current; paintPreview(); }
                 updateStatus();
             }));
         },
-        dispose() { groupedCleanup(); disposed = true; peopleImages.dispose(); moduleSettings.dispose(); personVersion++; cancelPackPick(); closeSheet(); closeConfirmation(); cancelAnimationFrame(previewFrame); previewViews.splice(0).forEach(view => view.dispose()); },
+        dispose() { groupedCleanup(); disposed = true; peopleImages.dispose(); backgroundImages.dispose(); moduleSettings.dispose(); personVersion++; backgroundVersion++; cancelPackPick(); closeSheet(); closeConfirmation(); cancelAnimationFrame(previewFrame); previewViews.splice(0).forEach(view => view.dispose()); styleRows = {}; activeStyleRows = []; },
     };
 }

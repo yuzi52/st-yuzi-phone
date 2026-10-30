@@ -47,38 +47,49 @@ export function createBodyModuleSettings({ container, pageRuntime, onChange }) {
         update();
         if (scroll) scroll.scrollTop = top;
     }
-    function update() {
+    function updateErrors() {
         if (!root || disposed) return;
         const errors = service.getModuleErrors();
         root.querySelectorAll('[data-module-error]').forEach(node => {
             node.textContent = (errors[node.dataset.moduleError] || '').slice(0, 180); node.hidden = !node.textContent;
         });
+    }
+    function updateEditor(node) {
+        const id = node.dataset.moduleEditor, control = node.dataset.moduleControl;
+        const entry = entries.find(item => item.id === id), draft = drafts.get(key(id, control));
+        const dirty = draft !== findPrompt(entry, control).value;
+        const input = node.querySelector('textarea'); if (input.value !== draft) input.value = draft;
+        node.querySelector('[data-module-dirty]').hidden = !dirty;
+        node.querySelector('[data-module-save]').disabled = busy || !dirty;
+        node.querySelector('[data-module-restore]').disabled = busy;
+    }
+    function update() {
+        if (!root || disposed) return;
+        updateErrors();
         root.querySelectorAll('[data-module-toggle]').forEach(input => {
             const entry = entries.find(item => item.id === input.dataset.moduleToggle);
             const control = input.dataset.moduleControl;
             input.checked = control ? entry.controls.find(item => item.id === control).value : entry.enabled;
             input.disabled = busy;
         });
-        root.querySelectorAll('[data-module-editor]').forEach(node => {
-            const id = node.dataset.moduleEditor, control = node.dataset.moduleControl;
-            const entry = entries.find(item => item.id === id), draft = drafts.get(key(id, control));
-            const dirty = draft !== findPrompt(entry, control).value;
-            const input = node.querySelector('textarea'); if (input.value !== draft) input.value = draft;
-            node.querySelector('[data-module-dirty]').hidden = !dirty;
-            node.querySelector('[data-module-save]').disabled = busy || !dirty;
-            node.querySelector('[data-module-restore]').disabled = busy;
-        });
+        root.querySelectorAll('[data-module-editor]').forEach(updateEditor);
         root.querySelectorAll('[data-module-import], [data-module-export], [data-module-delete]').forEach(button => { button.disabled = busy; });
     }
     function sync() {
         const next = service.getModules(), changed = next.map(entry => entry.id).join('|') !== entries.map(entry => entry.id).join('|');
+        const liveDrafts = new Set(), liveExpanded = new Set();
         for (const entry of next) {
+            liveExpanded.add(entry.id);
+            entry.controls.filter(item => item.prompt).forEach(control => liveExpanded.add(`${entry.id}--${control.id}`));
             const previous = entries.find(item => item.id === entry.id);
             for (const control of ['', ...entry.controls.filter(item => item.prompt).map(item => item.id)]) {
                 const draftKey = key(entry.id, control);
+                liveDrafts.add(draftKey);
                 if (!drafts.has(draftKey) || drafts.get(draftKey) === (previous && findPrompt(previous, control)?.value)) drafts.set(draftKey, findPrompt(entry, control).value);
             }
         }
+        for (const draftKey of drafts.keys()) if (!liveDrafts.has(draftKey)) drafts.delete(draftKey);
+        for (const id of expanded) if (!liveExpanded.has(id)) expanded.delete(id);
         entries = next;
         if (changed) render(); else update();
         onChange();
@@ -88,7 +99,7 @@ export function createBodyModuleSettings({ container, pageRuntime, onChange }) {
         busy = true; update();
         try { await operation(); }
         catch (failure) { error(failure); }
-        finally { busy = false; if (!disposed) sync(); }
+        finally { busy = false; if (!disposed) update(); }
     }
     function click(event) {
         const button = event.target.closest('button'); if (!button || !root.contains(button)) return;
@@ -103,7 +114,7 @@ export function createBodyModuleSettings({ container, pageRuntime, onChange }) {
         if (promptNode) {
             const id = promptNode.dataset.moduleEditor, controlId = promptNode.dataset.moduleControl;
             const entry = entries.find(item => item.id === id);
-            if (button.hasAttribute('data-module-restore')) { drafts.set(key(id, controlId), findPrompt(entry, controlId).default); update(); }
+            if (button.hasAttribute('data-module-restore')) { drafts.set(key(id, controlId), findPrompt(entry, controlId).default); updateEditor(promptNode); }
             if (button.hasAttribute('data-module-save')) void run(() => service.saveModule(id, controlId
                 ? { controlId, controlPrompt: drafts.get(key(id, controlId)) } : { prompt: drafts.get(key(id)) }));
         }
@@ -126,14 +137,21 @@ export function createBodyModuleSettings({ container, pageRuntime, onChange }) {
                 () => { void run(() => service.deleteModule(id)); }, '删除', '取消', pageRuntime);
         }
     }
-    const unsubscribe = service.subscribe(() => { if (!disposed) sync(); });
-    void service.loadModules().then(() => { if (!disposed) sync(); }).catch(error);
+    const unsubscribe = service.subscribe(reason => {
+        if (disposed) return;
+        if (reason === 'modules') sync();
+        else if (reason === 'module-errors') updateErrors();
+    });
+    void service.loadModules().catch(error);
     return {
         mount(element) {
             events?.abort(); root = element; events = new AbortController(); render();
             root.addEventListener('click', click, { signal: events.signal });
             root.addEventListener('input', event => {
-                if (event.target.dataset.modulePrompt) { drafts.set(key(event.target.dataset.modulePrompt, event.target.dataset.moduleControl), event.target.value); update(); }
+                if (event.target.dataset.modulePrompt) {
+                    drafts.set(key(event.target.dataset.modulePrompt, event.target.dataset.moduleControl), event.target.value);
+                    updateEditor(event.target.closest('[data-module-editor]'));
+                }
             }, { signal: events.signal });
             root.addEventListener('change', event => {
                 const id = event.target.dataset.moduleToggle, controlId = event.target.dataset.moduleControl;

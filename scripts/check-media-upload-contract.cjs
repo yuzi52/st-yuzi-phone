@@ -88,15 +88,18 @@ async function main() {
     check(results, 'rawPicker', '原图选择器按 FileList 顺序返回原始 File', has(contents.rawPicker, 'const files = [...(input.files || [])];')
         && has(contents.rawPicker, 'file,')
         && has(contents.rawPicker, 'files.map(imageFileRecord)'));
-    check(results, 'rawPicker', '原图选择器在回调前整批校验图片类型和单文件大小', has(contents.rawPicker, 'files.find((file) => !String(file.type || \'\').startsWith(\'image/\'))')
-        && has(contents.rawPicker, 'files.find((file) => Number(file.size) > maxBytes)')
+    check(results, 'rawPicker', '原图选择器在回调前整批校验图片类型和单文件大小', has(contents.rawPicker, 'files.find(file => !String(file.type || \'\').startsWith(\'image/\'))')
+        && has(contents.rawPicker, 'files.find(file => Number(file.size) > maxBytes)')
         && contents.rawPicker.indexOf('const invalidFile =') < contents.rawPicker.indexOf('callback(Object.freeze(')
         && contents.rawPicker.indexOf('const oversizedFile =') < contents.rawPicker.indexOf('callback(Object.freeze('));
     check(results, 'rawPicker', '原图选择器不经过 Data URL、裁剪或压缩', !has(contents.rawPicker, 'fileToDataUrl')
         && !has(contents.rawPicker, 'openImageCropDialog')
         && !has(contents.rawPicker, 'compressDataUrl'));
-    check(results, 'rawPicker', '文件选择取消或页面销毁时清理临时 input', has(contents.rawPicker, "window.addEventListener('focus', cleanupAfterPickerCloses")
-        && has(contents.rawPicker, 'runtime?.registerCleanup?.(cleanup);'));
+    check(results, 'rawPicker', '单次选图完成、取消或离页时释放监听器与父页面登记', has(contents.rawPicker, "createRuntimeScope('image-file-picker')")
+        && has(contents.rawPicker, "runtime.addEventListener(input, 'cancel', runtime.dispose")
+        && has(contents.rawPicker, "runtime.addEventListener(window, 'focus'")
+        && has(contents.rawPicker, 'owner?.registerCleanup?.(runtime.dispose)')
+        && has(contents.rawPicker, 'unregister?.(); input.remove();'));
     check(results, 'imageCropCss', '裁剪 overlay 限制在小手机壳内', has(contents.imageCropCss, 'position: absolute;') && has(contents.imageCropCss, 'min-height: 100%;') && !has(contents.imageCropCss, 'min-height: 100dvh;'));
     check(results, 'imageCropCss', '裁剪按钮区支持 secondary 分组', has(contents.imageCropCss, '.phone-image-crop-actions-secondary'));
     check(results, 'imageCropCss', '裁剪按钮区保持 sticky 操作区', has(contents.imageCropCss, 'position: sticky;') && has(contents.imageCropCss, 'bottom: 0;'));

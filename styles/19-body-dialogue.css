@@ -25,6 +25,7 @@
 .yuzi-body-dialogue.is-self { flex-direction: row-reverse; }
 .yuzi-body-avatar {
     display: grid;
+    grid-template: minmax(0, 1fr) / minmax(0, 1fr);
     place-items: center;
     flex-shrink: 0;
     width: var(--yuzi-body-avatar-size, 38px);

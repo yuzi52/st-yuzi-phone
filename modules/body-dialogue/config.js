@@ -1,6 +1,7 @@
 import { QQ_VOICE_TAG_GUIDE } from '../qq-v2/voice/emotion-tags.js';
 import { normalizeQQVoiceSpeechControls } from '../qq-v2/voice/speech-controls.js';
 import { BODY_DIALOGUE_EMOTIONS } from './emotions.js';
+import { normalizeBubbleStyle } from '../qq-v2/resources/appearance-contract.js';
 
 const BILINGUAL_RULE = '人物对白先输出自然连贯的日语原文，再翻译成中文，中文采用动漫汉化组翻译风格。';
 const TONE_RULE = `请结合剧情、人物情绪和说话习惯，主动使用以下声音标记，让对白像真人说话一样自然生动。
@@ -104,6 +105,14 @@ export function normalizeBodyDialogueColor(value) {
     return typeof value === 'string' && /^#[\da-f]{6}$/i.test(value) ? value : '';
 }
 
+function normalizeBubbleBackground(value) {
+    if (typeof value?.mediaId !== 'string' || !value.mediaId.startsWith('bubble-background:') || value.mediaId.length > 256) return null;
+    try {
+        const bubble = normalizeBubbleStyle(value.bubble);
+        return { mediaId: value.mediaId, ...(bubble ? { bubble } : {}) };
+    } catch { return null; }
+}
+
 export function normalizeBodyDialogue(value = {}) {
     const source = value && typeof value === 'object' ? value : {};
     const config = {
@@ -115,6 +124,7 @@ export function normalizeBodyDialogue(value = {}) {
         reroll: source.reroll === true,
         align: source.align === 'right' ? 'right' : 'left',
         avatarShape: ['round', 'rounded', 'square'].includes(source.avatarShape) ? source.avatarShape : 'round',
+        bubbleBackground: normalizeBubbleBackground(source.bubbleBackground),
         quote: source.quote === 'pair' ? 'pair' : 'tail',
     };
     config.prompts = Object.fromEntries(Object.entries(bodyDialogueDefaultPrompts(config)).map(([key, text]) => [
