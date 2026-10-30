@@ -15,6 +15,7 @@ import { pickJsonPackFile } from '../../qq-v2/ui/json-pack-actions.js';
 import { downloadTextFile } from '../services/media-upload/download.js';
 import { createBodyModuleSettings } from './body-modules.js';
 import { BODY_DIALOGUE_EMOTIONS } from '../../body-dialogue/emotions.js';
+import { normalizeQQContactVoice } from '../../qq-v2/voice/contact-voice.js';
 
 const chevron = '<span class="phone-ios-row-chevron" aria-hidden="true">›</span>';
 const switchControl = (key, checked, label, disabled = false) => `<span class="phone-ios-switch"><input type="checkbox" role="switch" data-body-setting="${key}" aria-label="${attr(label)}" ${checked ? 'checked' : ''} ${disabled ? 'disabled' : ''}><span class="phone-ios-switch-track" aria-hidden="true"></span></span>`;
@@ -419,7 +420,7 @@ export function createBodyDialoguePage({ container, state, render, pageRuntime }
                 const button = event.target.closest('[data-body-voice-index]');
                 if (!button || !validPerson(token)) return;
                 const selected = entries[Number(button.dataset.bodyVoiceIndex)];
-                personDraft.voice = selected ? { name: selected.name, voiceId: selected.voiceId } : null; showPerson();
+                personDraft.voice = normalizeQQContactVoice(selected); showPerson();
             });
             return;
         }

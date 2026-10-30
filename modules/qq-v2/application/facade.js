@@ -1,6 +1,7 @@
 import { normalizeQQV2TagName, normalizeQQV2TagNames } from '../domain/story-context-tags.js';
 import { normalizeAvatarFrameTransform } from '../resources/avatar-frame-transform.js';
 import { normalizeQQContactVoice } from '../voice/contact-voice.js';
+import { normalizeQQVoiceVolume } from '../voice/speech-controls.js';
 
 function asText(value, maxLength = 1024) {
     return String(value ?? '').trim().slice(0, maxLength);
@@ -113,6 +114,7 @@ function cloneVoiceEntry(entry) {
         entryId: asText(source.entryId, 256),
         name: asText(source.name, 120),
         voiceId: asText(source.voiceId, 256),
+        volume: normalizeQQVoiceVolume(source.volume),
         category: asText(source.category, 8),
         note: asText(source.note, 120),
     });

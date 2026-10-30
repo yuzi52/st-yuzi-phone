@@ -3,6 +3,7 @@ import { normalizeAvatarFrameTransform } from '../qq-v2/resources/avatar-frame-t
 import { normalizeBubbleStyle } from '../qq-v2/resources/appearance-contract.js';
 import { normalizeBodyDialogueColor, normalizeBodyDialogueLanguage } from './config.js';
 import { BODY_DIALOGUE_EMOTIONS } from './emotions.js';
+import { normalizeQQContactVoice } from '../qq-v2/voice/contact-voice.js';
 
 const FORMAT = 'yuzi-phone-body-dialogue-people';
 const IMAGE_BYTES = 8 * 1024 * 1024;
@@ -25,7 +26,7 @@ function personFields(source) {
         if (!isObject(source.voice)) throw new Error(`${name}的音色配置无效`);
         const voiceId = text(source.voice.voiceId, '音色 ID');
         if (!voiceId) throw new Error(`${name}的音色 ID 不能为空`);
-        voice = { voiceId, name: text(source.voice.name, '音色名字') || voiceId };
+        voice = normalizeQQContactVoice({ voiceId, name: text(source.voice.name, '音色名字') || voiceId, volume: source.voice.volume });
     }
     return { name, language: normalizeBodyDialogueLanguage(text(source.language ?? '', '语言')), textColor, voice };
 }

@@ -90,6 +90,7 @@ function importVoice(raw, label) {
     return normalizeQQContactVoice({
         voiceId: requireTextField(raw.voiceId, `${label}.voiceId`, 256, { required: true }),
         name: requireTextField(raw.name ?? '', `${label}.name`, 256),
+        volume: raw.volume,
     });
 }
 
@@ -139,11 +140,11 @@ async function exportImage(repository, scopeId, assetId, expectedKind, label) {
 }
 
 async function exportVoice(person, listVoiceEntries) {
-    const ownVoice = normalizeQQContactVoice(person.voice);
-    if (ownVoice) return ownVoice;
+    const voice = resolveQQProfileVoice(person, await listVoiceEntries());
+    if (voice) return voice;
     const voiceId = asText(person.voiceId, 256);
     if (!voiceId) return null;
-    return resolveQQProfileVoice(person, await listVoiceEntries()) || { voiceId, name: voiceId };
+    return normalizeQQContactVoice({ voiceId, name: voiceId });
 }
 
 async function exportContact(repository, scopeId, conversation, listVoiceEntries) {

@@ -8,8 +8,9 @@ import { bodyDialogueRepository as repository } from './repository.js';
 import { createBodyDialogueProjection } from './worldbook.js';
 import { renderDialogueFloor, isDialogueProseMutation } from './renderer.js';
 import { createBodyDialogueVoice, dialogueDigest } from './voice.js';
-import { closeDialogueResources, readDialogueVoiceConnection } from './resources.js';
+import { closeDialogueResources, readDialogueVoiceConnection, readDialogueLibrary } from './resources.js';
 import { exportBodyDialoguePeoplePack } from './people-pack.js';
+import { resolveQQProfileVoice } from '../qq-v2/voice/contact-voice.js';
 import { BODY_MODULE_KEY, BODY_TIME_ID, BODY_MODULE_BYTES, normalizeBodyModuleLibrary, readBodyModulePack,
     exportBodyModulePack, bodyModulePrompt, prepareBodyModules } from './beautify-modules.js';
 
@@ -284,9 +285,11 @@ async function bindQQUpdates() {
     qqCleanup(); qqCleanup = () => {};
     const token = generation;
     const unsubscribe = await getQQV2Facade()?.subscribe(event => {
-        if (event?.reason !== 'voice-settings-changed' || !effectiveConfig().enabled || !effectiveConfig().voice) return;
+        if (!['voice-settings-changed', 'voice-library-changed'].includes(event?.reason)
+            || !effectiveConfig().enabled || !effectiveConfig().voice) return;
         voice?.stop(true);
-        void checkVoiceConfiguration().finally(schedule);
+        // Library edits change future requests without starting a synthesis on every +/- click.
+        if (event.reason === 'voice-settings-changed') void checkVoiceConfiguration().finally(schedule);
         refreshVoiceControls();
     });
     if (!running || token !== generation) unsubscribe?.();
@@ -367,7 +370,10 @@ export const bodyDialogueService = {
         if (!card || getBodyDialogueScope().card !== card) throw new Error('请先打开目标角色卡');
         const records = await repository.readPeopleWithMedia(card);
         if (!records.length) throw new Error('当前角色卡还没有可导出的人物');
-        const pack = await exportBodyDialoguePeoplePack(records);
+        const { voices } = await readDialogueLibrary({ images: false });
+        const pack = await exportBodyDialoguePeoplePack(records.map(record => ({
+            ...record, voice: resolveQQProfileVoice(record, voices),
+        })));
         if (token !== generation || getBodyDialogueScope().card !== card) throw new Error('角色卡已切换，请重新导出');
         return pack;
     },

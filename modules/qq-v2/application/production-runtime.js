@@ -1044,7 +1044,9 @@ export function createQQV2ProductionRuntime(options = {}) {
             await writeVoiceApiKey(apiKey);
             result.apiKeyImported = true;
         }
-        await notifySubscribers(currentScopeId(), result.settings || result.apiKeyImported ? { reason: 'voice-settings-changed' } : {});
+        await notifySubscribers(currentScopeId(), {
+            reason: result.settings || result.apiKeyImported ? 'voice-settings-changed' : 'voice-library-changed',
+        });
         return result;
     };
 
@@ -2733,8 +2735,7 @@ export function createQQV2ProductionRuntime(options = {}) {
                 const scope = savedScope;
                 const person = isSelf ? null : await repository.getPerson(normalizedScopeId, message.senderId);
                 const profile = isSelf ? scope?.selfProfile : person;
-                const voice = resolveQQProfileVoice(profile)
-                    || resolveQQProfileVoice(profile, await resources.listVoiceEntries());
+                const voice = resolveQQProfileVoice(profile, await resources.listVoiceEntries());
                 const voiceId = voice?.voiceId;
                 if (!voiceId) {
                     throw voiceSynthesisError(
@@ -2755,6 +2756,7 @@ export function createQQV2ProductionRuntime(options = {}) {
                 const synthesized = await synthesizeVoiceAudio({
                     text: prepared.text,
                     voiceId,
+                    volume: voice.volume,
                     apiKey,
                     baseUrl: settings.baseUrl,
                     model: settings.model,
@@ -2899,6 +2901,7 @@ export function createQQV2ProductionRuntime(options = {}) {
                 if (!apiKey) throw voiceSynthesisError(t("尚未保存语音 API Key"), 'voice_api_key_missing');
                 const resolvedVoiceId = asText(voiceId, 256);
                 if (!resolvedVoiceId) throw voiceSynthesisError(t("请先填写音色 ID"), 'voice_id_missing');
+                const voice = resolveQQProfileVoice({ voice: { voiceId: resolvedVoiceId } }, await resources.listVoiceEntries());
                 if (!objectUrlApi) {
                     const error = new Error(t("QQ 语音渲染地址在当前运行环境不可用"));
                     error.code = 'voice_render_unavailable';
@@ -2909,6 +2912,7 @@ export function createQQV2ProductionRuntime(options = {}) {
                 const synthesized = await synthesizeVoiceAudio({
                     text: prepared.text,
                     voiceId: resolvedVoiceId,
+                    volume: voice.volume,
                     apiKey,
                     baseUrl: settings.baseUrl,
                     model: settings.model,
@@ -2984,7 +2988,7 @@ export function createQQV2ProductionRuntime(options = {}) {
                 await resources.saveVoiceEntry(previous);
                 throw error;
             }
-            await notifySubscribers(currentScopeId());
+            await notifySubscribers(currentScopeId(), { reason: 'voice-library-changed' });
             return saved;
         },
         async deleteVoiceEntry({ entryId } = {}) {
@@ -2997,7 +3001,7 @@ export function createQQV2ProductionRuntime(options = {}) {
                 await resources.mergeVoiceEntries([previous]);
                 throw error;
             }
-            await notifySubscribers(currentScopeId());
+            await notifySubscribers(currentScopeId(), { reason: 'voice-library-changed' });
             return deleted;
         },
         /** 只读预览 FISH 侧能导入什么，绝不把 API Key 交给 UI。 */

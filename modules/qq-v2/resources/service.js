@@ -741,7 +741,7 @@ export function createQQV2ResourceService(options = {}) {
             const duplicate = library.entries.findIndex((item) => item.voiceId === entry.voiceId && item.entryId !== requestedId);
             if (duplicate !== -1) {
                 if (requestedId) throw resourceError('voice_entry_duplicate', '仓库中已有这个音色 ID');
-                library.entries[duplicate] = { ...library.entries[duplicate], name: entry.name, category: entry.category, note: entry.note };
+                library.entries[duplicate] = { ...library.entries[duplicate], name: entry.name, category: entry.category, note: entry.note, volume: entry.volume };
                 await storage.set(QQ_VOICE_LIBRARY_STORAGE_KEY, library);
                 return Object.freeze({ ...library.entries[duplicate] });
             }

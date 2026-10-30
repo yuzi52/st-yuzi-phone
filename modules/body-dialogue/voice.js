@@ -5,8 +5,9 @@ import { qqFailureLog } from '../qq-v2/request/failure-log.js';
 import { getQQV2RuntimeStatus } from '../qq-v2/runtime/default-runtime.js';
 import { showNotification } from '../integration/toast-bridge.js';
 import { bodyDialogueRepository as repository } from './repository.js';
-import { readDialogueVoiceConnection } from './resources.js';
+import { readDialogueVoiceConnection, readDialogueLibrary } from './resources.js';
 import { normalizeQQVoiceSpeechControls } from '../qq-v2/voice/speech-controls.js';
+import { resolveQQProfileVoice } from '../qq-v2/voice/contact-voice.js';
 
 const CONNECTION_ERRORS = new Set(['voice_connection_unavailable', 'voice_preset_required', 'voice_api_key_missing',
     'voice_endpoint_invalid', 'voice_endpoint_missing', 'voice_proxy_disabled', 'voice_model_invalid',
@@ -28,11 +29,12 @@ export async function dialogueDigest(value) {
     return `${value.length}:${(first >>> 0).toString(16)}:${(second >>> 0).toString(16)}`;
 }
 
-async function audioIdentity({ chat, floor, fingerprint, dialogue, speechText = dialogue.text, speechControls, person }, signature) {
+async function audioIdentity({ chat, floor, fingerprint, dialogue, speechText = dialogue.text, speechControls, person }, signature, voices) {
     const controls = speechControls ? normalizeQQVoiceSpeechControls(speechControls) : null;
+    const volume = resolveQQProfileVoice(person, voices)?.volume || 0;
     const id = 'audio:' + await dialogueDigest(JSON.stringify([chat, floor, fingerprint, dialogue.start, speechText, person.voice.voiceId, signature,
-        ...(controls ? [controls] : [])]));
-    return { id, controls };
+        ...(controls ? [controls] : []), ...(volume ? [{ volume }] : [])]));
+    return { id, controls, volume };
 }
 
 export function createBodyDialogueVoice() {
@@ -45,8 +47,10 @@ export function createBodyDialogueVoice() {
     let failureScope = '', connectionBlocked = false;
     const scopeOf = args => JSON.stringify([args.chat, args.floor, args.fingerprint]);
     const prepareConnection = async () => {
-        const connection = await readDialogueVoiceConnection();
-        return { connection, signature: await dialogueDigest(JSON.stringify(connection.settings)) };
+        const [connection, { voices }] = await Promise.all([
+            readDialogueVoiceConnection(), readDialogueLibrary({ images: false }),
+        ]);
+        return { connection, voices, signature: await dialogueDigest(JSON.stringify(connection.settings)) };
     };
     const update = button => {
         if (!button?.isConnected) return;
@@ -113,9 +117,9 @@ export function createBodyDialogueVoice() {
             try {
                 request.connection = owner?.connection || prepareConnection();
                 if (owner) owner.connection = request.connection;
-                const { connection, signature } = await request.connection;
+                const { connection, signature, voices } = await request.connection;
                 if (!valid()) return;
-                const { id, controls } = await audioIdentity(args, signature);
+                const { id, controls, volume } = await audioIdentity(args, signature, voices);
                 if (!valid()) return;
                 request.id = id;
                 if (owner && failed.has(id)) return;
@@ -127,7 +131,7 @@ export function createBodyDialogueVoice() {
                     const text = prepareQQVoiceText(speechText).text;
                     attempt.apiKey = connection.apiKey; attempt.model = connection.settings.model; attempt.stage = 'request';
                     media = await synthesizeQQVoice({ ...connection.settings, apiKey: connection.apiKey, voiceId: person.voice.voiceId,
-                        text, speechControls: controls, signal: request.controller.signal });
+                        text, volume, speechControls: controls, signal: request.controller.signal });
                     if (!valid()) return;
                     await repository.putAudio({ id, card, chat, floor, fingerprint, personId: person.id, voiceId: person.voice.voiceId, signature }, media.blob);
                     if (!valid()) { await repository.pruneAudio(chat, entry => entry.id !== id); return; }
@@ -165,9 +169,9 @@ export function createBodyDialogueVoice() {
                 const outdated = () => rerollStates.get(button) !== state || state.checked || token !== generation;
                 connection ||= prepareConnection();
                 void (async () => {
-                    const { signature } = await connection;
+                    const { signature, voices } = await connection;
                     if (outdated()) return;
-                    const { id } = await audioIdentity(args, signature);
+                    const { id } = await audioIdentity(args, signature, voices);
                     if (outdated()) return;
                     const cached = await repository.hasAudio(id);
                     if (rerollStates.get(button) !== state || state.checked || token !== generation || !isCurrent() || !button.isConnected) return;

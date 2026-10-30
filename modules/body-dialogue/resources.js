@@ -3,6 +3,7 @@ import { createQQV2ResourceService } from '../qq-v2/resources/service.js';
 import { getQQV2Facade } from '../qq-v2/runtime/default-runtime.js';
 import { normalizeAvatarFrameTransform } from '../qq-v2/resources/avatar-frame-transform.js';
 import { normalizeBubbleStyle } from '../qq-v2/resources/appearance-contract.js';
+import { normalizeQQContactVoice } from '../qq-v2/voice/contact-voice.js';
 
 // Read-only adapter. No QQ person, scope, media or resource is ever written here.
 let source;
@@ -48,7 +49,7 @@ export async function randomDialogueAppearance() {
         copyDialogueAsset(byId.get(outfit?.bubble) || pick('bubble')),
     ]);
     const voice = choose(library.voices);
-    return { avatar, frame, bubble, voice: voice ? { voiceId: voice.voiceId, name: voice.name } : null };
+    return { avatar, frame, bubble, voice: normalizeQQContactVoice(voice) };
 }
 
 export async function readDialogueVoiceConnection() {

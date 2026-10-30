@@ -4,6 +4,7 @@ import { getQQV2Facade } from '../../qq-v2/runtime/default-runtime.js';
 import { createVoicePlaybackController } from '../../qq-v2/voice/playback.js';
 import { QQ_VOICE_CATEGORIES, QQ_VOICE_PACK_TYPE, QQ_VOICE_PACK_VERSION } from '../../qq-v2/voice/library.js';
 import { normalizeQQVoiceSettings } from '../../qq-v2/voice/settings.js';
+import { QQ_VOICE_VOLUME, normalizeQQVoiceVolume } from '../../qq-v2/voice/speech-controls.js';
 import { buildSettingsPageFrame } from '../layout/primitives.js';
 import { showSettingsSheet, showSettingsActionSheet, showSettingsOptionSheet } from '../ui/settings-layer.js';
 import { bindSettingsGroupedControls } from '../ui/settings-controls.js';
@@ -25,6 +26,16 @@ const selection = (name, label, value, hidden = false) => `<button type="button"
 const createDraft = (preset = {}) => ({
     ...normalizeQQVoiceSettings(preset), presetId: preset.presetId || '', name: preset.name || '', apiKey: '',
 });
+const volumeControl = value => `<div class="phone-ios-row">
+    <span class="phone-ios-row-label">${t("音量")}</span>
+    <div class="phone-ios-stepper" data-settings-stepper="tts-entry-volume" data-step="${QQ_VOICE_VOLUME.step}" data-unit=" dB">
+        <button type="button" class="phone-ios-stepper-btn" data-direction="-1" aria-label="${t("降低音量")}">−</button>
+        <span class="phone-ios-stepper-value" aria-live="polite">${normalizeQQVoiceVolume(value)} dB</span>
+        <button type="button" class="phone-ios-stepper-btn" data-direction="1" aria-label="${t("提高音量")}">+</button>
+    </div>
+    <input id="tts-entry-volume" name="volume" type="number" min="${QQ_VOICE_VOLUME.min}" max="${QQ_VOICE_VOLUME.max}"
+        step="${QQ_VOICE_VOLUME.step}" value="${normalizeQQVoiceVolume(value)}" hidden>
+</div>`;
 
 /** 设置页只持有编辑状态；连接、密钥、仓库仍由 QQ 的公开接口管理。 */
 export function createTtsPage({ container, state, render: renderSettings, pageRuntime }) {
@@ -69,6 +80,32 @@ export function createTtsPage({ container, state, render: renderSettings, pageRu
         });
         container.querySelector('[data-tts-connection]')?.setAttribute('aria-busy', String(busy));
     };
+    const syncPreviewVoice = () => {
+        const entry = entries.find(item => item.voiceId === previewDraft.voiceId.trim());
+        const selector = container.querySelector('[data-tts-action="select-preview-voice"] .phone-ios-row-value-text');
+        if (selector) selector.textContent = entry?.name || t("请选择");
+        const volume = container.querySelector('[data-tts-preview-volume]');
+        if (volume) volume.textContent = entry
+            ? t`音量 ${entry.volume} dB · 跟随音色仓库`
+            : previewDraft.voiceId.trim() ? t("仓库外音色 · 音量 0 dB") : t("选择仓库音色，或手动输入音色 ID。");
+    };
+    const pickPreviewVoice = () => showSettingsOptionSheet({
+        title: t("选择试听音色"), runtime: pageRuntime, className: 'phone-settings-page',
+        groups: [{ options: entries.map(entry => ({
+            value: entry.voiceId, label: entry.name, sub: t`音量 ${entry.volume} dB`,
+            selected: entry.voiceId === previewDraft.voiceId.trim(),
+        })) }],
+        footer: entries.length ? '' : t("仓库暂无音色，可手动输入音色 ID"),
+        onSelect: voiceId => {
+            if (disposed || busy) return;
+            capture();
+            previewDraft.voiceId = voiceId;
+            container.querySelector('[data-tts-preview]').elements.voiceId.value = voiceId;
+            playback.stop();
+            container.querySelector('[data-tts-preview-status]').textContent = '';
+            syncPreviewVoice();
+        },
+    });
     const syncConnectionControls = () => {
         const form = container.querySelector('[data-tts-connection]');
         for (const name of ['name', 'baseUrl', 'model', 'apiKey']) {
@@ -105,6 +142,12 @@ export function createTtsPage({ container, state, render: renderSettings, pageRu
             if (Array.isArray(result.presets)) {
                 applyPresets(result);
                 syncConnectionControls();
+            } else if (result.entry) {
+                const saved = result.entry;
+                entries = entries.some(entry => entry.entryId === saved.entryId)
+                    ? entries.map(entry => entry.entryId === saved.entryId ? saved : entry)
+                    : [...entries, saved];
+                render();
             } else {
                 await load();
             }
@@ -200,35 +243,48 @@ export function createTtsPage({ container, state, render: renderSettings, pageRu
             `<option value="${value}" ${value === (entry.category || '') ? 'selected' : ''}>${esc(t(QQ_VOICE_CATEGORIES[value] || "未分类"))}</option>`).join('');
         const categoryButtons = ['', ...Object.keys(QQ_VOICE_CATEGORIES)].map(value =>
             `<button type="button" class="phone-ios-seg-item" data-value="${value}">${esc(t(QQ_VOICE_CATEGORIES[value] || "未分类"))}</button>`).join('');
-        let unbind = () => {};
+        let unbind = () => {}, alive = true;
         const sheet = showSettingsSheet({
             title: entry.entryId ? t("编辑音色") : t("新增音色"), runtime: pageRuntime,
             className: 'phone-settings-page',
-            onClose: () => unbind(),
+            doneText: t("保存"),
+            onDone: overlay => { overlay.querySelector('form').requestSubmit(); return false; },
+            onClose: () => { alive = false; unbind(); },
             bodyHtml: `<form data-tts-entry-editor><div class="phone-ios-group">
                 ${field('name', t("名称"), entry.name || '', 'text', true)}
                 ${field('voiceId', t("音色 ID"), entry.voiceId || '', 'text', true)}
+                ${volumeControl(entry.volume)}
                 <div class="phone-ios-row is-block"><span class="phone-ios-field-label">${t("分类")}</span>
                     <select id="tts-entry-category" name="category" hidden>${categories}</select>
                     <div class="phone-ios-seg" data-settings-seg="tts-entry-category" role="group" aria-label="${t("分类")}">${categoryButtons}</div></div>
                 ${field('note', t("备注"), entry.note || '')}
-                <div class="phone-ios-row"><button type="submit" class="phone-ios-mini-btn">${t("保存")}</button></div>
             </div></form>`,
         });
         if (!sheet) return;
-        unbind = bindSettingsGroupedControls(sheet.overlay, null, () => !disposed);
+        unbind = bindSettingsGroupedControls(sheet.overlay, null, () => alive && !disposed && !busy);
         sheet.bind(sheet.overlay.querySelector('form'), 'submit', event => {
             event.preventDefault();
             const form = event.currentTarget;
-            if (!form.reportValidity() || busy) return;
+            if (!alive || disposed || busy || !form.reportValidity()) return;
+            const controls = [...sheet.overlay.querySelectorAll('button, input, select')];
+            controls.forEach(control => { control.disabled = true; });
             void run(async () => {
                 const result = checked(await facade.intent.saveVoiceEntry({ entry: {
                     ...(entry.entryId ? { entryId: entry.entryId } : {}),
                     name: form.elements.name.value, voiceId: form.elements.voiceId.value,
                     category: form.elements.category.value, note: form.elements.note.value,
+                    volume: normalizeQQVoiceVolume(Number(form.elements.volume.value)),
                 } }));
-                sheet.close();
+                if (!disposed) {
+                    if (previewDraft.voiceId.trim() === entry.voiceId) previewDraft.voiceId = result.entry.voiceId;
+                    if (previewDraft.voiceId.trim() === result.entry.voiceId) playback.stop();
+                    sheet.close();
+                }
                 return result;
+            }).finally(() => {
+                if (!alive || disposed) return;
+                controls.forEach(control => { control.disabled = false; });
+                form.elements.volume.dispatchEvent(new Event('input', { bubbles: true }));
             });
         });
     };
@@ -266,7 +322,6 @@ export function createTtsPage({ container, state, render: renderSettings, pageRu
         if (busy || disposed) return;
         capture();
         const status = container.querySelector('[data-tts-preview-status]');
-        const button = container.querySelector('[data-tts-action="preview"]');
         if (!previewDraft.voiceId.trim() || !previewDraft.text.trim()) {
             status.textContent = t("请填写音色 ID 和试听文字");
             return;
@@ -282,7 +337,7 @@ export function createTtsPage({ container, state, render: renderSettings, pageRu
             return;
         }
         busy = true;
-        button.disabled = true;
+        syncBusyControls();
         status.textContent = t("试听中…");
         playback.stop();
         try {
@@ -295,7 +350,7 @@ export function createTtsPage({ container, state, render: renderSettings, pageRu
             if (!disposed) status.textContent = t("试听失败");
         } finally {
             busy = false;
-            if (!disposed) button.disabled = false;
+            syncBusyControls();
         }
     };
     const renderPage = () => {
@@ -330,7 +385,9 @@ export function createTtsPage({ container, state, render: renderSettings, pageRu
                     + (entries.length ? '' : `<p class="phone-ios-group-footer">${t("仓库暂无音色")}</p>`) + action('add', t("新增音色")))
                 + section(t("导入与导出"), action('import', t("导入音色仓库")) + action('export', t("导出音色仓库")))
                 + section(t("试听"), `<form data-tts-preview>
+                    ${selection('select-preview-voice', t("从音色仓库选择"), '')}
                     ${field('voiceId', t("音色 ID"), previewDraft.voiceId)}
+                    <p class="phone-ios-group-footer" data-tts-preview-volume></p>
                     ${field('text', t("试听文字"), previewDraft.text)}
                     <div class="phone-ios-row"><button type="submit" class="phone-ios-mini-btn" data-tts-action="preview">${t("试听")}</button></div>
                     <p class="phone-ios-group-footer" data-tts-preview-status role="status" aria-live="polite"></p>
@@ -348,7 +405,7 @@ export function createTtsPage({ container, state, render: renderSettings, pageRu
         container.querySelector('[data-tts-preview]')?.addEventListener('submit', event => {
             event.preventDefault(); void preview();
         });
-        syncBusyControls();
+        syncPreviewVoice(); syncBusyControls();
     };
     const renderWithScroll = createScrollPreserver(container, state, undefined, pageRuntime)
         .createRerenderWithScroll('ttsScrollTop', renderPage);
@@ -363,6 +420,7 @@ export function createTtsPage({ container, state, render: renderSettings, pageRu
         if (!value || value === 'preview' || busy) return;
         capture();
         if (value === 'select-preset') pickPreset();
+        else if (value === 'select-preview-voice') pickPreviewVoice();
         else if (value === 'new-preset') { draft = createDraft(); resetModels(); render(); }
         else if (value === 'delete-preset') deletePreset();
         else if (value === 'select-model') pickModel();
@@ -378,6 +436,12 @@ export function createTtsPage({ container, state, render: renderSettings, pageRu
         mount() {
             pageRuntime.addEventListener(container, 'click', onClick);
             renderPage();
+            pageRuntime.addEventListener(container, 'input', event => {
+                if (event.target.name === 'voiceId' && event.target.closest('[data-tts-preview]')) {
+                    capture(); playback.stop(); syncPreviewVoice();
+                    container.querySelector('[data-tts-preview-status]').textContent = '';
+                }
+            });
             void load().catch(() => toast(t("读取 TTS 设置失败"), true));
         },
         dispose() { disposed = true; modelController?.abort(); playback.stop(); draft = null; },

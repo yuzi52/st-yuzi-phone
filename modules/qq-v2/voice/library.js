@@ -3,6 +3,8 @@
  * 解析器同时认识 QQ 自己的配置包和 FISH 对话音声导出的音色库 / 音声预设，
  * 这样从 FISH 迁过来的用户不需要手抄音色 ID。
  */
+import { normalizeQQVoiceVolume } from './speech-controls.js';
+
 export const QQ_VOICE_LIBRARY_STORAGE_KEY = 'qq-v2.resources.voice-library';
 export const QQ_VOICE_PACK_TYPE = 'yuzi_qq_voice_pack';
 export const QQ_VOICE_PACK_VERSION = 1;
@@ -29,7 +31,7 @@ function createId() {
         : `voice-entry-${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`;
 }
 
-/** 一条音色库记录：名称 + 音色 ID，分类与备注可选。 */
+/** 一条音色库记录：名称、音色 ID 和音量，分类与备注可选。 */
 export function normalizeQQVoiceEntry(value) {
     const source = asObject(value);
     const voiceId = asText(source.voiceId ?? source.id, 256);
@@ -42,6 +44,7 @@ export function normalizeQQVoiceEntry(value) {
         entryId: asText(source.entryId, 256) || createId(),
         name: name || voiceId,
         voiceId,
+        volume: normalizeQQVoiceVolume(source.volume),
         category,
         note: asText(source.note ?? source.sub, 120),
     };
@@ -61,7 +64,7 @@ export function normalizeQQVoiceLibrary(value) {
     return { entries };
 }
 
-/** 合并导入：同音色 ID 覆盖名称/分类，其余追加。 */
+/** 合并导入：同音色 ID 更新名称、分类、备注与音量，其余追加。 */
 export function mergeQQVoiceLibrary(current, incoming) {
     const base = normalizeQQVoiceLibrary(current);
     const entries = base.entries.map((entry) => ({ ...entry }));
@@ -79,6 +82,7 @@ export function mergeQQVoiceLibrary(current, incoming) {
         existing.name = entry.name;
         existing.category = entry.category;
         existing.note = entry.note;
+        existing.volume = entry.volume;
         updated += 1;
     });
     return { entries, added, updated };
