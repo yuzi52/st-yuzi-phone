@@ -1,7 +1,7 @@
 import { t } from '../i18n/index.js';
 import { escapeHtmlAttr } from '../utils/dom-escape.js';
 import { formatTableCountBadge, getHomeDockApps, getSheetRowCount, normalizeHiddenTableApps } from './home-data.js';
-import { getIconForSheet, getTextIcon } from './icons.js';
+import { getIconForSheet, getQQAppIcon, getTextIcon } from './icons.js';
 import { formatQQHomeUnreadBadge, normalizeQQHomeUnreadTotal } from './qq-unread.js';
 import { VARIABLE_MANAGER_APP, getVariableManagerIcon } from '../variable-manager/index.js';
 import { QQ_APP } from '../qq-v2/app-definition.js';
@@ -72,13 +72,7 @@ export function buildHomeScreenViewModel(rawData, phoneSettings, options = {}) {
 
     if (!hiddenTableApps[QQ_APP.id]) {
         const qqCustomIcon = phoneSettings?.appIcons?.[QQ_APP.id] || '';
-        const qqIconHtml = qqCustomIcon
-            ? `<img src="${escapeHtmlAttr(qqCustomIcon)}" class="phone-app-icon-img" alt="${escapeHtmlAttr(QQ_APP.name)}">`
-            : `<div class="phone-app-icon-svg">${getTextIcon(
-                'Q',
-                'var(--yuzi-phone-home-qq-icon-start)',
-                'var(--yuzi-phone-home-qq-icon-end)',
-            )}</div>`;
+        const qqIconHtml = getQQAppIcon(qqCustomIcon);
         apps.push({
             key: QQ_APP.id,
             name: QQ_APP.name,

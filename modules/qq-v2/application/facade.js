@@ -1861,6 +1861,25 @@ export function createQQV2Facade(options = {}) {
                     return failed(error);
                 }
             },
+            async triggerProactive(input = {}) {
+                if (!canReadContext()) return unavailable('getSnapshot');
+                if (typeof runtime.triggerProactive !== 'function') return unavailable('triggerProactive');
+                const conversationId = asText(input.conversationId, 256);
+                if (!conversationId) return Object.freeze({ ok: false, status: 'invalid', reason: 'conversation-required' });
+                try {
+                    const snapshot = asObject(await readContextSnapshot());
+                    const context = cloneContext(snapshot.context);
+                    if (!context.scopeId) return unavailable('currentScope');
+                    const result = asObject(await runtime.triggerProactive({ scopeId: context.scopeId, conversationId }));
+                    return Object.freeze({
+                        ok: true,
+                        status: 'accepted',
+                        result: Object.freeze({ queued: result.queued === true, skipped: asText(result.skipped, 128) }),
+                    });
+                } catch (error) {
+                    return failed(error);
+                }
+            },
             async configureProactive(input = {}) {
                 if (typeof runtime.getSnapshot !== 'function') return unavailable('getSnapshot');
                 if (typeof runtime.configureProactive !== 'function') return unavailable('configureProactive');

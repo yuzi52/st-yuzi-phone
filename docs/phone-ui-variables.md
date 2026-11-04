@@ -148,6 +148,8 @@ QQ 消息、联系人和图片包锚定菜单共用透明菜单行；菜单高�
 
 字体统一使用运行时设置变量 `--yuzi-phone-font-family`；应用文字需同时考虑 `--yuzi-phone-readable-text-scale`。
 
+内置页面的标题、标签、表单控件，以及壳内临时层 `.yuzi-phone-temporary-layer-host`、QQ 公共弹窗 `.yuzi-qq-overlay` 和锚定菜单 `.yuzi-qq-anchored-menu-layer`，统一跟随所选手机字体，避免继承宿主主题的标题或按钮字体。SVG、图标字体、代码等宽区域与 `.phone-content-preset-root` 作者画布保留各自字体；作者继续通过公开的字体桥接变量选择是否跟随手机。
+
 状态栏的蜂窝、Wi-Fi 和电池图标分别使用项目内的 `assets/phone-status-signal.svg`、`assets/phone-status-wifi.svg` 和 `assets/phone-status-battery.svg`（Figma `195:3510`）；不得改回临时 URL 或手绘替代品。三个白色 SVG 通过 `--yuzi-phone-status-icon-filter` 切换黑白：非首页跟随全局主题，首页跟随 `homeAppLabelColorMode`，并与时间保持同色。
 
 ## 全局应用标题栏契约
@@ -176,7 +178,7 @@ Home Indicator 仍由外壳持有唯一可点击按钮，背景透明，与新�
 
 结构与维护规则：
 
-1. `.phone-nav-bar` 固定使用 `.phone-nav-leading`、`.phone-nav-center`、`.phone-nav-trailing` 三槽结构；左右槽等宽，中槽为 `minmax(0, 1fr)`。某侧没有动作时仍保留空槽，不能靠绝对定位或不对称 padding 假装标题居中。Theater 编辑/删除等短操作组合使用 `.has-inline-actions` 与 `.phone-nav-inline-actions` 留在第一行 trailing 槽；只有 Generic 批量删除这类确需整行的宽操作才使用 `.has-secondary-actions` 与 `.phone-nav-secondary-actions`。
+1. `.phone-nav-bar` 固定使用 `.phone-nav-leading`、`.phone-nav-center`、`.phone-nav-trailing` 三槽结构；居中标题的左右槽等宽，中槽为 `minmax(0, 1fr)`。某侧没有动作时仍保留空槽，不能靠绝对定位或不对称 padding 假装标题居中。Theater 编辑/删除等短操作组合使用 `.has-inline-actions` 与 `.phone-nav-inline-actions` 留在第一行 trailing 槽；只有 Generic 批量删除这类确需整行的宽操作才使用 `.has-secondary-actions` 与 `.phone-nav-secondary-actions`。 QQ 左对齐聊天页保留原左槽宽度，右槽按按钮内容占宽。
 2. 返回、上一项和下一项都是 icon-only button。按钮内部只放共享 SVG，禁止显示“返回”文字或字符箭头；可访问名称必须通过 `aria-label` 提供。返回图标使用 Figma chevron 路径 `M16 19L8 12L16 5`，不得在页面内复制或替换 glyph。装饰性 `svg` / `img` 必须使用 `pointer-events: none`，由完整的 `32px` button 热区承接点击。
 3. `.phone-nav-title-switcher` 按内容宽度紧凑居中，上一项与下一项按钮紧贴标题；其最大宽度不得超过中槽。`.phone-nav-title` 必须保持 `min-width: 0`、`overflow: hidden`、`text-overflow: ellipsis` 与 `white-space: nowrap`；标题过长时只省略文字，不得挤走左右按钮。
 4. `.phone-screen` 是名为 `yuzi-phone-screen` 的 inline-size container。标题栏及其页面操作区必须根据手机容器使用 `cqi` 或 `@container yuzi-phone-screen` 响应，禁止用浏览器 viewport 的 `@media (max-width: ...)` 判断手机标题栏宽度。
@@ -249,6 +251,23 @@ App 页面存在固定底栏时，在底栏根节点声明 `data-phone-bottom-ba
 常规网格铺满手机可用宽度，各列随屏幕横向均匀展开，行高由内容决定。手机内屏不超过 `340px` 时，以内部变量 `--yuzi-phone-home-grid-effective-columns` 切换三列，并按应用槽和间距限宽居中，原列数设置不回写；`--yuzi-phone-home-grid-compact-padding-inline/gap/row-gap` 分别为 `12px/10px/16px`。名称行高消费 `--yuzi-phone-home-app-label-line-height`（`1.35`），窄屏最多 `--yuzi-phone-home-app-label-compact-lines`（`2`）行，仍跟随可读缩放。
 
 外壳以 `yuzi-phone-shell` 容器查询为状态栏预留居中的灵动岛列，正常间隔使用 `--yuzi-phone-status-island-gap`（`8px`）。不超过 `340px` 时使用 `--yuzi-phone-dynamic-island-compact-width`、`--yuzi-phone-status-compact-font-size/icon-height/inline-padding/level-gap/island-gap` 同步收紧岛宽、字体、设备图标和间距；继续使用原有本地状态图标，顶部安全高度不变。两个 `340px` 容器查询阈值是 CSS 条件，不能通过自定义变量配置。
+
+## QQ 主动请求灵动岛
+
+`.yuzi-phone-notch.is-proactive` 是外壳统一的主动请求状态，只显示 `.yuzi-phone-proactive-icon` 和 `.yuzi-phone-proactive-dots` 三点动画。图标复用桌面 QQ 图标与用户自定义图片；不显示状态文字或取消按钮，原有拖拽把手继续可用。
+
+手掌与正文轮数触发共用请求生命周期，执行开始显示，结束、失败或取消收回；普通回复、陪聊不显示。首页、QQ、设置等页面共用这一节点，关闭手机不另弹外部通知，执行未结束时重新打开恢复当前状态。它属于外壳状态提示，不通过 QQ 通知浮窗皮肤或作者 action 控制。
+
+| token | 默认值 |
+| --- | --- |
+| `--yuzi-phone-proactive-height` | `30px`；岛宽与圆角沿用现有灵动岛 token |
+| `--yuzi-phone-proactive-icon-size` / `--yuzi-phone-proactive-icon-radius` | `20px` / `6px`；窄壳图标不超过岛宽的三分之一 |
+| `--yuzi-phone-proactive-padding-inline` | `8px` |
+| `--yuzi-phone-proactive-dot-size` / `--yuzi-phone-proactive-dot-gap` | `3px` / `2px` |
+| `--yuzi-phone-proactive-dot-duration` / `--yuzi-phone-proactive-dot-delay` | `1350ms` / `140ms` |
+| `--yuzi-phone-proactive-dot-opacity` | `0.3`；脉冲峰值为 `1`，减少动态效果时停用动画 |
+
+QQ 聊天页的 `.yuzi-qq-chat-proactive-button` 位于三横杠菜单左侧，使用本地空心描边 SVG，复用 `.phone-nav-icon-button` 与 `.phone-nav-inline-actions` 的热区、间距和配色。已有 `.is-left-aligned` 聊天标题保留原左槽宽度，右槽按按钮内容占宽；不使用会同时扩宽左右槽的 `.has-inline-actions`，姓名和在线状态保持原位，长标题继续省略。私聊与群聊分别触发当前选中的主动预设；陪聊保留图标但不执行动作。
 
 ## Dock
 

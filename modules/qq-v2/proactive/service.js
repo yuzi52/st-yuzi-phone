@@ -541,7 +541,7 @@ export function createQQV2ProactiveService(options = {}) {
             if (!isUsableScopeSession(scopeSession)) {
                 return Object.freeze({ triggered: false, queued: false, skipped: 'scope-session-inactive' });
             }
-            if (runtimeSettings?.proactive?.enabled !== true) {
+            if (input.manual !== true && runtimeSettings?.proactive?.enabled !== true) {
                 return Object.freeze({ triggered: false, queued: false, skipped: 'disabled' });
             }
             const requestedKind = ['private', 'group'].includes(input.kind) ? input.kind : '';

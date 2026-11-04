@@ -122,6 +122,9 @@ export function createQQV2RuntimeEntry(options = {}) {
         subscribeProactiveMessages(listener) {
             return runtime?.subscribeProactiveMessages?.(listener) || (() => {});
         },
+        subscribeProactiveActivity(listener) {
+            return runtime?.subscribeProactiveActivity?.(listener) || (() => {});
+        },
         destroy() {
             const activeRuntime = runtime;
             runtime = null;
@@ -145,3 +148,4 @@ export const subscribeQQV2ProactiveMessages = listener => (
     defaultRuntimeEntry.subscribeProactiveMessages(listener)
 );
 export const destroyQQV2Runtime = () => defaultRuntimeEntry.destroy();
+export const subscribeQQV2ProactiveActivity = listener => defaultRuntimeEntry.subscribeProactiveActivity(listener);

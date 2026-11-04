@@ -166,6 +166,15 @@
     --yuzi-phone-dynamic-island-width: 78px;
     --yuzi-phone-dynamic-island-height: 24px;
     --yuzi-phone-dynamic-island-radius: var(--yuzi-phone-radius-pill);
+    --yuzi-phone-proactive-height: 30px;
+    --yuzi-phone-proactive-icon-size: 20px;
+    --yuzi-phone-proactive-icon-radius: 6px;
+    --yuzi-phone-proactive-padding-inline: 8px;
+    --yuzi-phone-proactive-dot-size: 3px;
+    --yuzi-phone-proactive-dot-gap: 2px;
+    --yuzi-phone-proactive-dot-duration: 1350ms;
+    --yuzi-phone-proactive-dot-delay: 140ms;
+    --yuzi-phone-proactive-dot-opacity: 0.3;
     --yuzi-phone-status-safe-height: 62px;
     --yuzi-phone-status-visual-height: 54px;
     --yuzi-phone-status-font-size: 17px;

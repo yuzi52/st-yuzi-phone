@@ -57,6 +57,61 @@
     z-index: 3;
 }
 
+#yuzi-phone-standalone .yuzi-phone-notch.is-proactive {
+    --yuzi-phone-dynamic-island-height: var(--yuzi-phone-proactive-height);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding-inline: var(--yuzi-phone-proactive-padding-inline);
+    box-sizing: border-box;
+    color: var(--yuzi-phone-color-white);
+}
+
+#yuzi-phone-standalone .yuzi-phone-notch > * {
+    display: none;
+    pointer-events: none;
+}
+
+#yuzi-phone-standalone .yuzi-phone-notch.is-proactive .yuzi-phone-proactive-icon {
+    display: block;
+    flex: none;
+    inline-size: min(var(--yuzi-phone-proactive-icon-size), calc(var(--yuzi-phone-dynamic-island-width) / 3));
+    block-size: min(var(--yuzi-phone-proactive-icon-size), calc(var(--yuzi-phone-dynamic-island-width) / 3));
+    border-radius: var(--yuzi-phone-proactive-icon-radius);
+    overflow: hidden;
+    container-type: inline-size;
+}
+
+#yuzi-phone-standalone .yuzi-phone-notch.is-proactive .yuzi-phone-proactive-dots {
+    display: flex;
+    gap: var(--yuzi-phone-proactive-dot-gap);
+}
+
+#yuzi-phone-standalone .yuzi-phone-proactive-dots > span {
+    inline-size: var(--yuzi-phone-proactive-dot-size);
+    block-size: var(--yuzi-phone-proactive-dot-size);
+    border-radius: var(--yuzi-phone-radius-pill);
+    background: currentColor;
+    animation: yuzi-phone-proactive-dot var(--yuzi-phone-proactive-dot-duration) ease-in-out infinite;
+}
+
+#yuzi-phone-standalone .yuzi-phone-proactive-dots > span:nth-child(2) {
+    animation-delay: var(--yuzi-phone-proactive-dot-delay);
+}
+
+#yuzi-phone-standalone .yuzi-phone-proactive-dots > span:nth-child(3) {
+    animation-delay: calc(var(--yuzi-phone-proactive-dot-delay) * 2);
+}
+
+@keyframes yuzi-phone-proactive-dot {
+    0%, 80%, 100% { opacity: var(--yuzi-phone-proactive-dot-opacity); }
+    40% { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    #yuzi-phone-standalone .yuzi-phone-proactive-dots > span { animation: none; }
+}
+
 #yuzi-phone-standalone .yuzi-phone-status-bar {
     position: absolute;
     top: calc(var(--yuzi-phone-frame-screen-inset, 8px) - var(--yuzi-phone-frame-border-width, 6px));

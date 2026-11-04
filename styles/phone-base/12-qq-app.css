@@ -3589,6 +3589,10 @@
     background: transparent;
 }
 
+.yuzi-qq-chat-proactive-button {
+    --yuzi-phone-nav-icon-size: 1em;
+}
+
 .yuzi-qq-header.phone-nav-bar .phone-nav-title,
 .yuzi-qq-chat-header.phone-nav-bar .phone-nav-title {
     color: var(--yuzi-qq-text);
@@ -4077,7 +4081,8 @@
     padding-block-start: 0;
 }
 
-.yuzi-qq-profile-editor-list {
+.yuzi-qq-profile-editor-list,
+.yuzi-qq-conversation-settings-form.yuzi-qq-profile-editor-list {
     display: flex;
     flex-direction: column;
     inline-size: 100%;
@@ -4220,6 +4225,10 @@
     min-block-size: var(--yuzi-qq-secondary-header-height);
     block-size: var(--yuzi-qq-secondary-header-height);
     background: var(--yuzi-qq-chat-header-surface);
+}
+
+.yuzi-qq-chat-header.is-left-aligned {
+    grid-template-columns: var(--yuzi-phone-nav-side-slot-width) minmax(0, 1fr) max-content;
 }
 
 .yuzi-qq-chat-header.is-left-aligned .phone-nav-center {

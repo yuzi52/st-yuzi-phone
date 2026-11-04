@@ -2105,5 +2105,10 @@ export default {
     "QQ / TTS 日志": "QQ / TTS logs",
     "语音保存失败": "Could not save the voice audio",
     "本次语音没有完成，具体原因见技术详情。": "The voice request did not complete. See technical details.",
-    "检查 TTS 地址、密钥、模型和音色 ID 后，再点原语音条或重新试听。": "Check the TTS URL, key, model and voice ID, then tap the voice message or preview again."
+    "检查 TTS 地址、密钥、模型和音色 ID 后，再点原语音条或重新试听。": "Check the TTS URL, key, model and voice ID, then tap the voice message or preview again.",
+    "触发主动消息": "Trigger proactive messages",
+    "正在处理，请稍后": "Processing. Please wait.",
+    "暂时无法触发主动消息": "Could not start proactive messages",
+    "QQ 主动请求进行中": "QQ proactive request in progress",
+    "主动消息生成失败，请查看日志": "Proactive generation failed. Check the logs."
 };

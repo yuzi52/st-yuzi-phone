@@ -25,6 +25,15 @@ function buildAppIcon(content, colorA, colorB) {
     return `<div class="phone-dock-text-icon" style="--yuzi-phone-dock-text-icon-start:${escapeHtmlAttr(colorA)};--yuzi-phone-dock-text-icon-end:${escapeHtmlAttr(colorB)};">${content}</div>`;
 }
 
+export function getQQAppIcon(customIcon = '') {
+    if (customIcon) return `<img src="${escapeHtmlAttr(customIcon)}" class="phone-app-icon-img" alt="QQ">`;
+    return `<div class="phone-app-icon-svg">${getTextIcon(
+        'Q',
+        'var(--yuzi-phone-home-qq-icon-start)',
+        'var(--yuzi-phone-home-qq-icon-end)',
+    )}</div>`;
+}
+
 function buildDockIcon(name, shapes) {
     return buildAppIcon(
         `<svg viewBox="0 0 48 48" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${shapes}</svg>`,

@@ -176,6 +176,15 @@ export function createQQV2RequestService(options = {}) {
     const onProactiveError = typeof options.onProactiveError === 'function'
         ? options.onProactiveError
         : async () => {};
+    const proactiveActivitySubscribers = new Set();
+    let proactiveActive = false;
+    const publishProactiveActivity = (next, error = null) => {
+        if (proactiveActive === next && !error) return;
+        proactiveActive = next;
+        for (const listener of proactiveActivitySubscribers) {
+            try { listener(next, error); } catch { /* Observers cannot change request arbitration. */ }
+        }
+    };
     const queued = new Map();
     const states = new Map();
     const modelStates = new Map();
@@ -466,6 +475,7 @@ export function createQQV2RequestService(options = {}) {
 
     const runEntry = async (entry) => {
         active = entry;
+        const onProactiveAbort = () => publishProactiveActivity(false);
         entry.diagnostic = failureLog?.begin({
             scopeId: entry.scopeId,
             source: entry.kind === 'proactive' ? 'QQ · 主动消息' : 'QQ · 回复',
@@ -477,6 +487,8 @@ export function createQQV2RequestService(options = {}) {
                 return;
             }
             if (entry.kind === 'proactive') {
+                entry.controller.signal.addEventListener('abort', onProactiveAbort, { once: true });
+                publishProactiveActivity(true);
                 await executeProactive(entry);
             } else {
                 await executeManual(entry);
@@ -486,6 +498,7 @@ export function createQQV2RequestService(options = {}) {
                 try { failureLog?.record(entry.diagnostic, error); } catch { /* Best-effort diagnostics. */ }
             }
             if (entry.kind === 'proactive' && !entry.controller.signal.aborted) {
+                if (isCurrentEntry(entry)) publishProactiveActivity(false, error);
                 try {
                     await onProactiveError(error, Object.freeze({
                         scopeId: entry.scopeId,
@@ -515,6 +528,10 @@ export function createQQV2RequestService(options = {}) {
                 });
             }
         } finally {
+            if (entry.kind === 'proactive') {
+                entry.controller.signal.removeEventListener('abort', onProactiveAbort);
+                publishProactiveActivity(false);
+            }
             delete entry.diagnostic;
             releaseScopeSession(entry);
             if (active === entry) active = null;
@@ -830,6 +847,12 @@ export function createQQV2RequestService(options = {}) {
         },
         enqueueProactive,
         cancelProactive,
+        subscribeProactiveActivity(listener) {
+            if (typeof listener !== 'function') return () => {};
+            proactiveActivitySubscribers.add(listener);
+            try { listener(proactiveActive); } catch { /* Best-effort UI observer. */ }
+            return () => proactiveActivitySubscribers.delete(listener);
+        },
         getQueueState,
         cancelScope,
         reconcileConversation,

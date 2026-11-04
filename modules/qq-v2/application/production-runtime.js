@@ -1874,6 +1874,9 @@ export function createQQV2ProductionRuntime(options = {}) {
             proactiveMessageSubscribers.add(listener);
             return () => proactiveMessageSubscribers.delete(listener);
         },
+        subscribeProactiveActivity(listener) {
+            return requestService.subscribeProactiveActivity?.(listener) || (() => {});
+        },
         getStatus: () => lifecycle.getStatus(),
         getReadContext,
         getSnapshot,
@@ -2373,6 +2376,28 @@ export function createQQV2ProductionRuntime(options = {}) {
             const result = await proactiveService.getState(normalizedScopeId, { scopeSession });
             await notifySubscribers(normalizedScopeId);
             return result;
+        },
+        async triggerProactive({ scopeId, conversationId }) {
+            const scopeSession = captureReadyScopeSession(scopeId);
+            const queue = requestService.getQueueState?.();
+            if (queue?.active || queue?.queued?.length) {
+                return Object.freeze({ queued: false, skipped: 'request-pending' });
+            }
+            const normalizedScopeId = await ensureScope(scopeId, null, { scopeSession });
+            const conversation = await repository.getConversation(normalizedScopeId, conversationId);
+            if (!scopeSessionIsCurrent(scopeSession)) {
+                return Object.freeze({ queued: false, skipped: 'scope-session-inactive' });
+            }
+            if (!conversation) throw new Error(t("会话不存在"));
+            if (conversation.assistantCharacterId) {
+                return Object.freeze({ queued: false, skipped: 'assistant-unsupported' });
+            }
+            return proactiveService.enqueueProactiveCycle({
+                scopeId: normalizedScopeId,
+                scopeSession,
+                kind: conversation.kind,
+                manual: true,
+            });
         },
         async updateGlobalSettings({ scopeId, settings = {}, userName = getUserName(), storyTime = getStoryTime() }) {
             const scopeSession = captureReadyScopeSession(scopeId);

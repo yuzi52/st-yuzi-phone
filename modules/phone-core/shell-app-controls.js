@@ -1,5 +1,6 @@
 import { t } from '../i18n/index.js';
 import { registerPhoneTemporaryLayerHost } from './shell-temporary-layer-host.js';
+import { bindPhoneProactiveIsland } from './proactive-island.js';
 
 const BOTTOM_BAR_SELECTOR = '[data-phone-bottom-bar]';
 const HOME_REGION_BACKGROUND_PROPERTY = '--yuzi-phone-home-region-background';
@@ -97,6 +98,7 @@ export function bindPhoneShellAppControls(root, {
     const screen = root?.querySelector?.('.yuzi-phone-screen') || null;
     const temporaryLayerHost = root?.querySelector?.('[data-yuzi-phone-temporary-layer-host]') || null;
     const unregisterTemporaryLayerHost = registerPhoneTemporaryLayerHost(temporaryLayerHost);
+    const disposeProactiveIsland = bindPhoneProactiveIsland(root);
     const view = root?.ownerDocument?.defaultView || globalThis.window;
 
     const refresh = () => {
@@ -173,6 +175,7 @@ export function bindPhoneShellAppControls(root, {
     return {
         refresh,
         dispose() {
+            disposeProactiveIsland();
             indicator?.removeEventListener?.('click', onIndicatorClick);
             observer?.disconnect?.();
             if (refreshFrameId !== null) {

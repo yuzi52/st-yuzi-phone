@@ -217,34 +217,40 @@ function buildBuiltinFontFaceCss(font) {
 
 function buildScopedFontOverrideCss(activeFont) {
     const cssFamily = activeFont?.cssFamily ? String(activeFont.cssFamily) : getBuiltinFontById(DEFAULT_FONT_ID).family;
+    const phoneRoot = `#${FONT_CONTAINER_ID}[data-yuzi-phone-font-id]`;
+    const nativeLayers = `${phoneRoot} :is(.yuzi-phone-temporary-layer-host, .yuzi-qq-overlay, .yuzi-qq-anchored-menu-layer)`;
+    const preserveFont = ':not(:is(svg, svg *, .fa, .fas, .far, .fal, .fab, .fa-solid, .fa-regular, .fa-brands, .monospace, .monospace *, .phone-monospace, .phone-monospace *, code, code *, pre, pre *, kbd, kbd *, samp, samp *, .phone-content-preset-root, .phone-content-preset-root *))';
     const selector = [
+        nativeLayers,
+        `${nativeLayers} *${preserveFont}`,
+        `${phoneRoot} .phone-page :where(h1, h2, h3, h4, h5, h6, label, button, input, textarea, select, option)${preserveFont}`,
         ':is(.yuzi-bottom-root, .yuzi-bottom-dock, .yuzi-bottom-dialog, .yuzi-bottom-options)',
         ':is(.yuzi-bottom-root, .yuzi-bottom-dock, .yuzi-bottom-dialog, .yuzi-bottom-options) *:not(svg):not(svg *):not(.fa):not(.fas):not(.far):not(.fal):not(.fab):not(.fa-solid):not(.fa-regular):not(.fa-brands):not(.monospace):not(.phone-monospace):not(code):not(pre):not(kbd):not(samp)',
         '.yuzi-phone-fullscreen-overlay-layer',
         '.yuzi-phone-fullscreen-overlay-layer *:not(svg):not(svg *):not(.fa):not(.fas):not(.far):not(.fal):not(.fab):not(.fa-solid):not(.fa-regular):not(.fa-brands):not(code):not(pre):not(kbd):not(samp)',
-        `#${FONT_CONTAINER_ID}[data-yuzi-phone-font-id]`,
-        `#${FONT_CONTAINER_ID}[data-yuzi-phone-font-id] .yuzi-phone-shell`,
-        `#${FONT_CONTAINER_ID}[data-yuzi-phone-font-id] .phone-page`,
-        `#${FONT_CONTAINER_ID}[data-yuzi-phone-font-id] .yuzi-phone-theater-builtin`,
-        `#${FONT_CONTAINER_ID}[data-yuzi-phone-font-id] .yuzi-phone-theater-builtin *:not(svg):not(svg *):not(.fa):not(.fas):not(.far):not(.fal):not(.fab):not(.fa-solid):not(.fa-regular):not(.fa-brands):not(.monospace):not(.phone-monospace):not(code):not(pre):not(kbd):not(samp)`,
-        `#${FONT_CONTAINER_ID}[data-yuzi-phone-font-id] .yuzi-qq-app`,
-        `#${FONT_CONTAINER_ID}[data-yuzi-phone-font-id] .yuzi-qq-app *:not(svg):not(svg *):not(.fa):not(.fas):not(.far):not(.fal):not(.fab):not(.fa-solid):not(.fa-regular):not(.fa-brands):not(.monospace):not(.phone-monospace):not(code):not(pre):not(kbd):not(samp):not(input):not(textarea):not(select)`,
-        `#${FONT_CONTAINER_ID}[data-yuzi-phone-font-id] .phone-app-page`,
-        `#${FONT_CONTAINER_ID}[data-yuzi-phone-font-id] .phone-settings-page`,
-        `#${FONT_CONTAINER_ID}[data-yuzi-phone-font-id] .phone-home`,
-        `#${FONT_CONTAINER_ID}[data-yuzi-phone-font-id] .phone-home *:not(svg):not(svg *):not(.fa):not(.fas):not(.far):not(.fal):not(.fab):not(.fa-solid):not(.fa-regular):not(.fa-brands):not(.monospace):not(.phone-monospace):not(code):not(pre):not(kbd):not(samp):not(input):not(textarea):not(select)`,
-        `#${FONT_CONTAINER_ID}[data-yuzi-phone-font-id] .phone-settings-page *:not(svg):not(svg *):not(.fa):not(.fas):not(.far):not(.fal):not(.fab):not(.fa-solid):not(.fa-regular):not(.fa-brands):not(.monospace):not(.phone-monospace):not(code):not(pre):not(kbd):not(samp):not(input):not(textarea):not(select)`,
-        `#${FONT_CONTAINER_ID}[data-yuzi-phone-font-id] .phone-table-page *:not(svg):not(svg *):not(.fa):not(.fas):not(.far):not(.fal):not(.fab):not(.fa-solid):not(.fa-regular):not(.fa-brands):not(.monospace):not(.phone-monospace):not(code):not(pre):not(kbd):not(samp):not(input):not(textarea):not(select)`,
-        `#${FONT_CONTAINER_ID}[data-yuzi-phone-font-id] .phone-generic-template-scope *:not(svg):not(svg *):not(.fa):not(.fas):not(.far):not(.fal):not(.fab):not(.fa-solid):not(.fa-regular):not(.fa-brands):not(.monospace):not(.phone-monospace):not(code):not(pre):not(kbd):not(samp):not(input):not(textarea):not(select)`,
+        phoneRoot,
+        `${phoneRoot} .yuzi-phone-shell`,
+        `${phoneRoot} .phone-page`,
+        `${phoneRoot} .yuzi-phone-theater-builtin`,
+        `${phoneRoot} .yuzi-phone-theater-builtin *:not(svg):not(svg *):not(.fa):not(.fas):not(.far):not(.fal):not(.fab):not(.fa-solid):not(.fa-regular):not(.fa-brands):not(.monospace):not(.phone-monospace):not(code):not(pre):not(kbd):not(samp)`,
+        `${phoneRoot} .yuzi-qq-app`,
+        `${phoneRoot} .yuzi-qq-app *:not(svg):not(svg *):not(.fa):not(.fas):not(.far):not(.fal):not(.fab):not(.fa-solid):not(.fa-regular):not(.fa-brands):not(.monospace):not(.phone-monospace):not(code):not(pre):not(kbd):not(samp):not(input):not(textarea):not(select)`,
+        `${phoneRoot} .phone-app-page`,
+        `${phoneRoot} .phone-settings-page`,
+        `${phoneRoot} .phone-home`,
+        `${phoneRoot} .phone-home *:not(svg):not(svg *):not(.fa):not(.fas):not(.far):not(.fal):not(.fab):not(.fa-solid):not(.fa-regular):not(.fa-brands):not(.monospace):not(.phone-monospace):not(code):not(pre):not(kbd):not(samp):not(input):not(textarea):not(select)`,
+        `${phoneRoot} .phone-settings-page *:not(svg):not(svg *):not(.fa):not(.fas):not(.far):not(.fal):not(.fab):not(.fa-solid):not(.fa-regular):not(.fa-brands):not(.monospace):not(.phone-monospace):not(code):not(pre):not(kbd):not(samp):not(input):not(textarea):not(select)`,
+        `${phoneRoot} .phone-table-page *:not(svg):not(svg *):not(.fa):not(.fas):not(.far):not(.fal):not(.fab):not(.fa-solid):not(.fa-regular):not(.fa-brands):not(.monospace):not(.phone-monospace):not(code):not(pre):not(kbd):not(samp):not(input):not(textarea):not(select)`,
+        `${phoneRoot} .phone-generic-template-scope *:not(svg):not(svg *):not(.fa):not(.fas):not(.far):not(.fal):not(.fab):not(.fa-solid):not(.fa-regular):not(.fa-brands):not(.monospace):not(.phone-monospace):not(code):not(pre):not(kbd):not(samp):not(input):not(textarea):not(select)`,
     ].join(',\n');
 
     return `${selector} { font-family: ${cssFamily} !important; }\n`
-        + `#${FONT_CONTAINER_ID}[data-yuzi-phone-font-id] .phone-dock-text-icon,\n`
-        + `#${FONT_CONTAINER_ID}[data-yuzi-phone-font-id] .phone-app-label,\n`
-        + `#${FONT_CONTAINER_ID}[data-yuzi-phone-font-id] .yuzi-phone-status-time,\n`
-        + `#${FONT_CONTAINER_ID}[data-yuzi-phone-font-id] .phone-settings-font-preview,\n`
-        + `#${FONT_CONTAINER_ID}[data-yuzi-phone-font-id] .phone-settings-font-preview * { font-family: ${cssFamily} !important; }\n`
-        + `#${FONT_CONTAINER_ID}[data-yuzi-phone-font-id] .yuzi-qq-app :where(button, input, textarea, select) { font-family: ${cssFamily} !important; }`;
+        + `${phoneRoot} .phone-dock-text-icon,\n`
+        + `${phoneRoot} .phone-app-label,\n`
+        + `${phoneRoot} .yuzi-phone-status-time,\n`
+        + `${phoneRoot} .phone-settings-font-preview,\n`
+        + `${phoneRoot} .phone-settings-font-preview * { font-family: ${cssFamily} !important; }\n`
+        + `${phoneRoot} .yuzi-qq-app :where(button, input, textarea, select) { font-family: ${cssFamily} !important; }`;
 }
 
 function getStyleElement() {

@@ -1101,6 +1101,7 @@ export function createQQApp({
     const settleReady = (result) => { resolveReady?.(result); resolveReady = null; };
     let overlay = null;
     let overlayCleanup = null;
+    let proactiveTriggerPending = false;
     let restoreOverlayFocus = null;
     let tab = 'messages';
     let page = null;
@@ -1846,11 +1847,17 @@ export function createQQApp({
         copy.append(heading, status);
         center.append(copy);
         const actions = createElement('div', `phone-nav-trailing yuzi-qq-chat-header-actions yuzi-qq-${chatKind}-chat-header-actions`);
+        const proactive = createButton('', 'phone-nav-icon-button yuzi-qq-icon-button yuzi-qq-chat-proactive-button', {
+            'aria-label': t("触发主动消息"), title: t("触发主动消息"),
+            'data-qq-proactive': conversation.assistantCharacterId ? '' : conversation.conversationId,
+        });
+        actions.classList.add('phone-nav-inline-actions');
+        proactive.append(createQQFigmaIconElement('hand'));
         const detail = createButton('', 'phone-nav-icon-button yuzi-qq-icon-button yuzi-qq-chat-overflow-button', {
             'aria-label': t("会话详情"), title: t("会话详情"), 'data-qq-conversation-detail': conversation.conversationId,
         });
         detail.append(createIcon('bars'));
-        actions.append(detail);
+        actions.append(proactive, detail);
         header.append(leading, center, actions);
         return header;
     };
@@ -6115,6 +6122,28 @@ export function createQQApp({
             const conversation = page?.type === 'conversation-settings' ? await getConversation(page.conversationId) : null;
             if (conversation?.assistantCharacterId) return assistantUI.leave(conversation.assistantCharacterId, back);
             return back();
+        }
+        if (target.dataset.qqProactive) {
+            if (proactiveTriggerPending) {
+                shell.showToast?.(t("正在处理，请稍后"));
+                return;
+            }
+            proactiveTriggerPending = true;
+            try {
+                const result = await facade.intent.triggerProactive({ conversationId: target.dataset.qqProactive });
+                if (disposed) return;
+                if (!result?.ok) throw new Error(result?.error?.message || t("暂时无法触发主动消息"));
+                if (['request-pending', 'manual-pending', 'proactive-pending'].includes(result.result.skipped)) {
+                    shell.showToast?.(t("正在处理，请稍后"));
+                } else if (!result.result.queued && result.result.skipped !== 'assistant-unsupported') {
+                    shell.showToast?.(t("暂时无法触发主动消息"), true);
+                }
+            } catch {
+                if (!disposed) shell.showToast?.(t("暂时无法触发主动消息"), true);
+            } finally {
+                proactiveTriggerPending = false;
+            }
+            return;
         }
         if (target.dataset.qqAddAssistant) return assistantUI.choose();
         if (target.dataset.qqAddContact) return openAddContact(target);
