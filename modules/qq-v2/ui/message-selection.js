@@ -129,9 +129,9 @@ export async function updateSelectedMessagesInjection({
     });
 }
 
-export function shouldShowUnansweredIndicator(messages, index) {
+export function shouldShowUnansweredIndicator(messages, index, readMessageId) {
     const list = Array.isArray(messages) ? messages : [];
     const message = list[index];
-    if (message?.senderType !== 'self') return false;
+    if (message?.senderType !== 'self' || !readMessageId || message.messageId !== readMessageId) return false;
     return !list.slice(index + 1).some((item) => item?.senderType && item.senderType !== 'system');
 }

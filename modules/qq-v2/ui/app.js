@@ -1470,8 +1470,6 @@ export function createQQApp({
                 onClose();
             });
             card.append(close);
-        } else {
-            card.append(createIcon('arrow-turn-up', 'yuzi-qq-quote-card-icon'));
         }
         return card;
     };
@@ -2844,9 +2842,6 @@ export function createQQApp({
             }
             stack.append(identity);
         }
-        if (groupChat && message.quote) {
-            stack.append(renderQuoteCard(message.quote, { className: 'yuzi-qq-message-quote' }));
-        }
         let body;
         if (message.type === 'voice') {
             const summarized = summarizeQQVoiceMessage(message.content, message.voice);
@@ -2989,6 +2984,12 @@ export function createQQApp({
             body = createElement('span', 'yuzi-qq-message-bubble yuzi-qq-private-message-bubble');
             body.textContent = parseQQVoiceText(message.content).displayText;
         }
+        if (groupChat && message.quote) {
+            const bubble = createElement('div', 'yuzi-qq-message-bubble yuzi-qq-quoted-message');
+            body.classList.add('yuzi-qq-quoted-message-content');
+            bubble.append(renderQuoteCard(message.quote, { className: 'yuzi-qq-message-quote' }), body);
+            body = bubble;
+        }
         if (message.type === 'text' || message.type === 'voice') {
             applyPersonalBubble(body, sender.bubbleAssetId, sender.messageTextColor);
         }
@@ -3021,8 +3022,8 @@ export function createQQApp({
         }
         const messageMarkers = {
             lastSelf,
-            unanswered: conversation.request?.phase !== 'failed'
-                && shouldShowUnansweredIndicator(data.items, data.items.indexOf(lastSelf))
+            unanswered: (conversation.request?.phase || 'idle') === 'idle'
+                && shouldShowUnansweredIndicator(data.items, data.items.indexOf(lastSelf), conversation.readMessageId)
                 ? lastSelf
                 : null,
         };

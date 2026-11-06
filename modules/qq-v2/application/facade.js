@@ -469,6 +469,7 @@ function cloneConversation(conversation, storyTime = '') {
         readOnly,
         muted,
         lastMessage: cloneMessagePreview(source.lastMessage),
+        readMessageId: asText(source.readMessageId, 256),
         injection: cloneInjection(source.injection),
         request: cloneRequestState(source.request),
         group,

@@ -1057,6 +1057,8 @@
     --yuzi-qq-bubble-content-gap: 4px;
     --yuzi-qq-system-message-padding-block: 4px;
     --yuzi-qq-quote-preview-gap: 4px;
+    --yuzi-qq-quoted-bubble-radius: 18px;
+    --yuzi-qq-message-quote-radius: 10px;
     --yuzi-qq-emoji-item-padding: 4px;
     --yuzi-qq-chat-header-padding-inline-start: 10px;
     --yuzi-qq-chat-header-padding-inline-end: 12px;
@@ -1171,6 +1173,9 @@
     --yuzi-qq-body-line-height: calc(21px * var(--yuzi-qq-readable-text-scale));
     --yuzi-qq-caption-size: calc(9px * var(--yuzi-qq-readable-text-scale));
     --yuzi-qq-caption-line-height: calc(13px * var(--yuzi-qq-readable-text-scale));
+    --yuzi-qq-message-quote-meta-size: calc(12px * var(--yuzi-qq-readable-text-scale));
+    --yuzi-qq-message-quote-content-size: calc(13px * var(--yuzi-qq-readable-text-scale));
+    --yuzi-qq-message-quote-line-height: 1.5;
     --yuzi-qq-nav-label-size: calc(11px * var(--yuzi-qq-readable-text-scale));
     --yuzi-qq-time-divider-size: calc(10px * var(--yuzi-qq-readable-text-scale));
     --yuzi-qq-composer-input-max-height: calc(160px * var(--yuzi-qq-readable-text-scale));

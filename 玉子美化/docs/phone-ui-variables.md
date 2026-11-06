@@ -355,3 +355,11 @@ Figma 原始底栏顺序不直接复用。生产 QQ 固定为 消息、联系人
 | `279:4753 / 278:1533` | 设置外观二级 | `.yuzi-qq-settings-detail-view`、`.yuzi-qq-settings-detail-sheet` | `--yuzi-qq-settings-detail-*` |
 | `279:4926 / 279:5019` | 设置选择与上传弹层 | `.yuzi-qq-dialog`、`.yuzi-qq-overlay` | `--yuzi-qq-dialog-*`、`--yuzi-qq-overlay` |
 | `407:641 / 407:1786` | 删除好友与左滑删除参考 | `.yuzi-qq-dialog`、`.yuzi-qq-swipe-row` | 仅映射结构和 role token，不作为生产图片嵌入 |
+
+### QQ 群聊引用气泡与已读状态
+
+群聊引用使用 `.yuzi-qq-message-bubble.yuzi-qq-quoted-message` 作为唯一外层气泡，内部依次放 `.yuzi-qq-quote-card.yuzi-qq-message-quote` 和 `.yuzi-qq-quoted-message-content`。引用区保留发送者、故事时间和原文，长内容自然换行；不显示右上箭头，不自动添加 @。输入区引用草稿继续使用 `.yuzi-qq-quote-preview` 与原取消按钮。文字、语音、图片、视频、转账和表情共用同一包裹结构；人物图片气泡和消息字色作用于外层，不在回复内容上重复绘制气泡。
+
+外层内边距与上下分隔复用 `--yuzi-qq-inline-gap`，回复内边距复用 `--yuzi-qq-bubble-content-gap`；外层和引用区圆角分别使用 `--yuzi-qq-quoted-bubble-radius`（18px）与 `--yuzi-qq-message-quote-radius`（10px）。引用文字使用 `--yuzi-qq-message-quote-meta-size`（12px）、`--yuzi-qq-message-quote-content-size`（13px）和 `--yuzi-qq-message-quote-line-height`（1.5），字号跟随全局可读缩放。引用底色使用 `--yuzi-qq-message-quote-surface` / `--yuzi-qq-message-quote-self-surface`，随 QQ 当前主题文字色叠加柔和底色，文字继承当前气泡字色。
+
+`.yuzi-qq-unanswered-indicator` 只由已提交 `read` 的 `readMessageId` 标记最后一条相关用户消息，并在会话空闲、其后没有新的非系统消息时显示“已读不回”。排队、生成、失败、取消、尚未请求或 `none` 不推断已读；私聊、群聊与陪聊共用此判断。

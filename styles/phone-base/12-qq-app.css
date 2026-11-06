@@ -735,23 +735,11 @@
     outline: none;
 }
 
-.yuzi-qq-message-quote,
 .yuzi-qq-quote-preview {
     min-inline-size: 0;
     border-inline-start: 3px solid var(--yuzi-qq-accent);
     color: var(--yuzi-qq-muted);
     background: color-mix(in srgb, var(--yuzi-qq-muted) 10%, transparent);
-}
-
-.yuzi-qq-message-quote {
-    max-inline-size: 100%;
-    padding: 0.38em 0.58em;
-    border-radius: 0 var(--yuzi-qq-square-radius) var(--yuzi-qq-square-radius) 0;
-    overflow: hidden;
-    font-size: var(--yuzi-qq-caption-size);
-    line-height: 1.35;
-    text-overflow: ellipsis;
-    white-space: nowrap;
 }
 
 .yuzi-qq-quote-preview {
@@ -5072,28 +5060,71 @@
     line-height: 1.35;
 }
 
-.yuzi-qq-quote-card-icon,
-.yuzi-qq-quote-card-close {
-    flex: 0 0 auto;
-    color: var(--yuzi-qq-icon);
-}
-
-.yuzi-qq-quote-card-icon {
-    inline-size: var(--yuzi-qq-tool-size);
-    text-align: center;
-}
-
 .yuzi-qq-quote-card-close {
     display: grid;
+    flex: 0 0 auto;
     inline-size: var(--yuzi-qq-tool-size);
     block-size: var(--yuzi-qq-tool-size);
     place-items: center;
     padding: 0;
     border-radius: var(--yuzi-phone-radius-pill);
+    color: var(--yuzi-qq-icon);
+}
+
+.yuzi-qq-quoted-message {
+    gap: var(--yuzi-qq-inline-gap);
+    padding: var(--yuzi-qq-inline-gap);
+    border-radius: var(--yuzi-qq-quoted-bubble-radius);
+}
+
+.yuzi-qq-message .yuzi-qq-quoted-message > .yuzi-qq-quoted-message-content {
+    min-inline-size: 0;
+    max-inline-size: 100%;
+    padding: var(--yuzi-qq-bubble-content-gap);
+    border-radius: 0;
+    color: inherit;
+    background: none;
+    box-shadow: none;
 }
 
 .yuzi-qq-message-quote {
     max-inline-size: 100%;
+    border-inline-start: 0;
+    border-radius: var(--yuzi-qq-message-quote-radius);
+    color: inherit;
+    background: var(--yuzi-qq-message-quote-surface);
+}
+
+.yuzi-qq-message.is-self .yuzi-qq-message-quote {
+    background: var(--yuzi-qq-message-quote-self-surface);
+}
+
+.yuzi-qq-message-quote .yuzi-qq-quote-card-copy {
+    gap: var(--yuzi-qq-quote-preview-gap);
+}
+
+.yuzi-qq-message-quote .yuzi-qq-quote-card-meta {
+    flex-wrap: wrap;
+    font-size: var(--yuzi-qq-message-quote-meta-size);
+    line-height: var(--yuzi-qq-message-quote-line-height);
+}
+
+.yuzi-qq-message-quote .yuzi-qq-quote-card-sender,
+.yuzi-qq-message-quote .yuzi-qq-quote-card-time,
+.yuzi-qq-message-quote .yuzi-qq-quote-card-content {
+    color: inherit;
+    font-weight: var(--yuzi-qq-body-weight);
+    overflow-wrap: anywhere;
+    white-space: normal;
+}
+
+.yuzi-qq-message-quote .yuzi-qq-quote-card-time {
+    flex-shrink: 1;
+}
+
+.yuzi-qq-message-quote .yuzi-qq-quote-card-content {
+    font-size: var(--yuzi-qq-message-quote-content-size);
+    line-height: var(--yuzi-qq-message-quote-line-height);
 }
 
 .yuzi-qq-quote-preview {

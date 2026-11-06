@@ -177,3 +177,9 @@ html[data-yuzi-phone-theme],
     --yuzi-settings-group-danger: var(--yuzi-theme-group-danger);
 
 }
+
+:root,
+.yuzi-qq-app {
+    --yuzi-qq-message-quote-surface: color-mix(in srgb, var(--yuzi-qq-text) 6%, transparent);
+    --yuzi-qq-message-quote-self-surface: color-mix(in srgb, var(--yuzi-qq-text) 8%, transparent);
+}
