@@ -236,7 +236,81 @@ async function main() {
     assert.strictEqual(readRows(signedDb, signatureSql)[0].pending_update_count, 0, '负年份故事日期写后必须 clean');
     signedDb.close();
 
-    console.log('[通过] 派生字段 SQL：三种表名环境、纪要两端关系合并、单端回退、签名收敛、历法边界与正负年份逐行写回');
+    const formatDb = new sqlite.DatabaseSync(':memory:');
+    seedChronicle(formatDb, { anchor: 'global_state', chronicle: 'chronicle' });
+    const formats = [
+        (day) => `2026-5-${day}`,
+        (day) => `2026-05-0${day}`,
+        (day) => `2026/5/${day}`,
+        (day) => `2026.5.${day}`,
+        (day) => `2026年5月${day}日`,
+        (day) => `2026-05-${day}`,
+    ];
+    const separators = ['~', '～', '〜', '至', '到', '—', '–', ' - '];
+    const formatInsert = formatDb.prepare('INSERT INTO chronicle VALUES (?, ?, ?)');
+    const formatSignature = formatDb.prepare(signatureSql);
+    const formatRows = formatDb.prepare('SELECT row_id, time_span, today_relation FROM chronicle ORDER BY row_id');
+    formats.forEach((anchorFormat) => {
+        formatDb.exec('DELETE FROM chronicle');
+        formatDb.prepare('UPDATE global_state SET cur_time = ?').run(`　${anchorFormat(6)} 12:00　`);
+        const cases = formats.flatMap((format) => separators.map((separator) => `${format(5)} 23:00${separator}${format(6)}T1:00:00`));
+        cases.forEach((span, index) => formatInsert.run(index + 1, span, '旧值'));
+        assert.strictEqual(formatSignature.get().invalid_count, 0, '日期写法和区间分隔符组合必须全部可解析');
+        assert.strictEqual(formatSignature.get().pending_update_count, cases.length, '兼容格式必须参与待更新检查');
+        formatDb.exec(updateSql);
+        assert.deepStrictEqual(formatRows.all().map((row) => ({ ...row })), cases.map((time_span, index) => ({
+            row_id: index + 1, time_span, today_relation: '昨天 ~ 今天',
+        })), '兼容输入必须按真实日期差写回，原始时间文本不得被改写');
+        assert.strictEqual(formatSignature.get().pending_update_count, 0, '兼容格式写入后签名必须收敛');
+        formatDb.exec(updateSql);
+        assert.strictEqual(readRows(formatDb, 'SELECT changes() AS count')[0].count, 0, '兼容格式不得重复写入');
+    });
+
+    const edgeCases = [
+        ['2026/11/1', '2026/10/31 23:45～2026/11/1 00:05', '昨天 ~ 今天'],
+        ['2027年1月1日', '2026年12月31日 至 2027年1月1日', '昨天 ~ 今天'],
+        ['2024-3-1', '2024-2-29—2024-3-1', '昨天 ~ 今天'],
+        ['2026-5-6', '2026-2-30 ~ 2026-5-6', '今天'],
+        ['2026-5-6', '2026-5-5 ~ 2026-13-1', '昨天'],
+        ['2026-5-6', '2026-5-6 1:2:3', '今天'],
+        ['2026-5-6', '2026-5-6', '今天'],
+        ...['1', '01', '001', '0001'].flatMap((year) => [
+            ['0001-5-6', `${year}-5-5 至 ${year}-5-6`, '昨天 ~ 今天'],
+            [`${year}-5-6`, '0001-5-6', '今天'],
+            [`-${year}-5-6`, '-0001-5-5 ～ -0001-5-6', '昨天 ~ 今天'],
+        ]),
+        ['26-5-6', '0026-5-6', '今天'],
+        ['0-5-6', '0000-5-6', '今天'],
+    ];
+    edgeCases.forEach(([anchor, span, expected]) => {
+        formatDb.exec('DELETE FROM chronicle');
+        formatDb.prepare('UPDATE global_state SET cur_time = ?').run(anchor);
+        formatInsert.run(1, span, '旧值');
+        formatDb.exec(updateSql);
+        assert.strictEqual(formatRows.get().today_relation, expected, `${anchor} / ${span} 必须保留年份含义、历法边界和单端回退`);
+        assert.strictEqual(formatSignature.get().pending_update_count, 0, '历法及年份兼容写入后必须收敛');
+    });
+
+    formatDb.exec('DELETE FROM chronicle');
+    formatDb.prepare('UPDATE global_state SET cur_time = ?').run('2026-5-6');
+    const invalidDates = ['2026-2-30', '2025-2-29', '2026-0-1', '2026-13-1', '2026-5-0', '2026-5-32',
+        '2026-005-6', '2026-5-006', '10000-5-6', '--1-5-6', '二〇二六年五月六日', '明天', '5/6/2026'];
+    invalidDates.forEach((span, index) => formatInsert.run(index + 1, span, '旧值'));
+    assert.strictEqual(formatSignature.get().invalid_count, invalidDates.length, '不存在的日期和含糊日期不得猜测或溢出到下个月');
+    assert.deepStrictEqual(readRows(formatDb, chronicle.buildChronicleInvalidTimeSpanDebugSql()),
+        invalidDates.map((time_span, index) => ({ row_id: index + 1, time_span })), '诊断查询必须与实际计算使用相同解析规则');
+    formatDb.exec(updateSql);
+    assert.ok(formatRows.all().every((row) => row.today_relation === '旧值'), '无效日期必须保留原值');
+    formatDb.exec('DELETE FROM chronicle');
+    formatInsert.run(1, '2026-5-6', '旧值');
+    invalidDates.forEach((anchor) => {
+        formatDb.prepare('UPDATE global_state SET cur_time = ?').run(anchor);
+        formatDb.exec(updateSql);
+        assert.strictEqual(formatRows.get().today_relation, '旧值', `无效剧情日期 ${anchor} 不得生成关系`);
+    });
+    formatDb.close();
+
+    console.log('[通过] 派生字段 SQL：表名重绑定、两端关系、签名收敛、288 组日期格式、年份补零、历法校验与无效输入回退');
 }
 
 main().catch((error) => {

@@ -163,24 +163,75 @@ function buildRelativeRelationCaseSql(diffExpression = 'diff_days') {
     END`;
 }
 
-// Chronicle table contract requires time_span to be "YYYY-MM-DD HH:MM ~ YYYY-MM-DD HH:MM",
-// with an optional leading minus on either year.
-// The SQL path intentionally supports that strict ISO-leading format only: relate both
-// endpoints to today, collapse equal labels, and fall back to the valid endpoint when
-// SQLite date(...) returns NULL for the other. Broader legacy
-// date-relation.js parsing (Chinese numerals / abstract dates) is outside this SQL batch
-// derivation boundary; non-ISO rows are treated as invalid inputs, skipped, and reported
-// by buildChronicleInvalidTimeSpanDebugSql().
+// Recommended: YYYY-MM-DD HH:MM ~ YYYY-MM-DD HH:MM. Parsing also accepts
+// unpadded month/day, / or . date separators, and Arabic-numeral 年/月/日 dates.
+// Years accept one to four digits, optionally negative, without guessing a century.
+// Ignore the time suffix. Abstract dates and
+// Chinese-numeral dates remain outside this numeric-date contract. Invalid calendar
+// dates return NULL instead of rolling into another month; endpoint fallback is shared
+// by the signature, update, and invalid-input queries.
 function buildLeadingIsoDateSql(expression) {
-    const trimmed = `TRIM(${expression})`;
-    return `date(SUBSTR(${trimmed}, 1, CASE WHEN SUBSTR(${trimmed}, 1, 1) = '-' THEN 11 ELSE 10 END))`;
+    const normalized = [['/', '-'], ['.', '-'], ['年', '-'], ['月', '-'], ['日', ' '], ['　', ' ']]
+        .reduce((sql, [from, to]) => `REPLACE(${sql}, '${from}', '${to}')`, `TRIM(${expression})`);
+    // OFFSET prevents SQLite from flattening these single-row parsing stages into
+    // repeatedly expanded expressions. It also works before AS MATERIALIZED existed.
+    return `(WITH
+date_text_input AS (
+    SELECT TRIM(${normalized}) AS date_text
+    LIMIT 1 OFFSET 0
+),
+date_year_split AS (
+    SELECT date_text, INSTR(SUBSTR(date_text, 2), '-') + 1 AS year_end
+    FROM date_text_input
+    LIMIT 1 OFFSET 0
+),
+date_month_split AS (
+    SELECT SUBSTR(date_text, 1, year_end - 1) AS year_text,
+        SUBSTR(date_text, year_end + 1) AS month_tail
+    FROM date_year_split
+    WHERE year_end > 1
+    LIMIT 1 OFFSET 0
+),
+date_day_split AS (
+    SELECT year_text,
+        SUBSTR(month_tail, 1, INSTR(month_tail, '-') - 1) AS month_text,
+        SUBSTR(month_tail, INSTR(month_tail, '-') + 1) AS day_tail
+    FROM date_month_split
+    WHERE INSTR(month_tail, '-') > 0
+    LIMIT 1 OFFSET 0
+),
+date_parts AS (
+    SELECT year_text, month_text,
+        SUBSTR(day_tail, 1, CASE WHEN SUBSTR(day_tail, 2, 1) GLOB '[0-9]' THEN 2 ELSE 1 END) AS day_text
+    FROM date_day_split
+    WHERE SUBSTR(day_tail, 1, 1) GLOB '[0-9]'
+        AND (SUBSTR(day_tail, 2, 1) NOT GLOB '[0-9]' OR SUBSTR(day_tail, 3, 1) NOT GLOB '[0-9]')
+    LIMIT 1 OFFSET 0
+),
+date_candidate AS (
+    SELECT CASE WHEN CAST(year_text AS INTEGER) < 0 THEN '-' ELSE '' END
+        || printf('%04d-%02d-%02d', ABS(CAST(year_text AS INTEGER)), CAST(month_text AS INTEGER), CAST(day_text AS INTEGER)) AS iso_date
+    FROM date_parts
+    WHERE LENGTH(LTRIM(year_text, '-')) BETWEEN 1 AND 4
+        AND LTRIM(year_text, '-') NOT GLOB '*[^0-9]*'
+        AND year_text NOT LIKE '--%'
+        AND LENGTH(month_text) BETWEEN 1 AND 2
+        AND month_text NOT GLOB '*[^0-9]*'
+        AND CAST(month_text AS INTEGER) BETWEEN 1 AND 12
+        AND CAST(day_text AS INTEGER) BETWEEN 1 AND 31
+    LIMIT 1 OFFSET 0
+)
+SELECT CASE WHEN date(iso_date, '+0 days') = iso_date THEN iso_date ELSE NULL END
+FROM date_candidate)`;
 }
 
 const TODAY_DATE_EXPRESSION = buildLeadingIsoDateSql('cur_time');
 const START_DATE_EXPRESSION = buildLeadingIsoDateSql('time_span');
+const NORMALIZED_TIME_SPAN = ['～', '〜', '至', '到', '—', '–', ' - ']
+    .reduce((sql, separator) => `REPLACE(${sql}, '${separator}', '~')`, 'time_span');
 const TARGET_DATE_EXPRESSION = `COALESCE(
     CASE
-        WHEN INSTR(time_span, '~') > 0 THEN ${buildLeadingIsoDateSql("SUBSTR(time_span, INSTR(time_span, '~') + 1)")}
+        WHEN INSTR(${NORMALIZED_TIME_SPAN}, '~') > 0 THEN ${buildLeadingIsoDateSql(`SUBSTR(${NORMALIZED_TIME_SPAN}, INSTR(${NORMALIZED_TIME_SPAN}, '~') + 1)`)}
         ELSE NULL
     END,
     ${START_DATE_EXPRESSION}

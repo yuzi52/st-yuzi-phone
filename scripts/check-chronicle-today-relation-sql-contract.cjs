@@ -95,22 +95,23 @@ async function main() {
     assertIncludes(pinyinDebugSql, 'FROM jiyaobiao', 'debug SQL 必须支持纪要表拼音目标');
     [
         'YYYY-MM-DD HH:MM ~ YYYY-MM-DD HH:MM',
-        'non-ISO rows are treated as invalid inputs',
-        'Broader legacy',
+        'unpadded month/day',
+        'Invalid calendar',
     ].forEach((needle) => {
-        assertIncludes(builderSource, needle, `SQL builder 源码必须明确严格 ISO time_span 产品边界：${needle}`);
+        assertIncludes(builderSource, needle, `SQL builder 源码必须明确数字日期兼容边界：${needle}`);
     });
-    const signedDateSql = (expression) => `date(SUBSTR(TRIM(${expression}), 1, CASE WHEN SUBSTR(TRIM(${expression}), 1, 1) = '-' THEN 11 ELSE 10 END))`;
     [
-        signedDateSql('cur_time'),
-        `WHEN INSTR(time_span, '~') > 0 THEN ${signedDateSql("SUBSTR(time_span, INSTR(time_span, '~') + 1)")}`,
-        signedDateSql('time_span'),
+        "printf('%04d-%02d-%02d'",
+        "date(iso_date, '+0 days') = iso_date",
+        "LENGTH(LTRIM(year_text, '-')) BETWEEN 1 AND 4",
+        "REPLACE(TRIM(cur_time), '/', '-')",
+        "REPLACE(TRIM(time_span), '/', '-')",
     ].forEach((needle) => {
-        assertIncludes(allSql, needle, `SQL builder 必须按有无负号截取 10 或 11 位日期：${needle}`);
+        assertIncludes(allSql, needle, `SQL builder 必须共用补零、负年份与真实日期校验：${needle}`);
     });
     [signatureSql, updateSql].forEach((sql) => {
         [
-            `${signedDateSql('time_span')} AS start_date`,
+            ') AS start_date',
             'endpoint_relations AS (',
             'julianday(COALESCE(start_date, target_date))',
             'WHEN start_relation = end_relation THEN end_relation',
