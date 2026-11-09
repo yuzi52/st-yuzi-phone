@@ -857,6 +857,8 @@
 }
 
 .yuzi-qq-retry-button {
+    display: inline-grid;
+    place-items: center;
     align-self: flex-end;
     inline-size: var(--yuzi-qq-tool-size);
     block-size: var(--yuzi-qq-tool-size);
@@ -1434,7 +1436,7 @@
     place-items: center;
     border-radius: var(--yuzi-phone-radius-pill);
     color: var(--yuzi-qq-icon);
-    font-size: var(--yuzi-qq-root-status-size);
+    font-size: var(--yuzi-phone-nav-icon-size);
 }
 
 /* The Figma tab widths are the 402px baseline; the live bar fills the phone. */
@@ -2831,7 +2833,7 @@
     font-size: var(--yuzi-qq-row-preview-size);
 }
 
-.yuzi-qq-anchored-menu-layer .yuzi-qq-dialog-menu-item > i {
+.yuzi-qq-anchored-menu-layer .yuzi-qq-dialog-menu-item > svg {
     flex: 0 0 var(--yuzi-qq-dialog-menu-icon-size);
     inline-size: var(--yuzi-qq-dialog-menu-icon-size);
     font-size: var(--yuzi-qq-dialog-menu-icon-size);
@@ -5162,7 +5164,7 @@
     font-size: var(--yuzi-qq-caption-size);
 }
 
-.yuzi-qq-app .yuzi-qq-message-quick-action > i {
+.yuzi-qq-app .yuzi-qq-message-quick-action > svg {
     font-size: calc(var(--yuzi-qq-tool-icon-size) * .8);
 }
 

@@ -1500,11 +1500,9 @@ export function createQQApp({
         return element;
     };
 
-    const createIcon = (name, className = '') => {
-        const icon = createElement('i', `fa-solid fa-${name}${className ? ` ${className}` : ''}`);
-        icon.setAttribute('aria-hidden', 'true');
-        return icon;
-    };
+    const createIcon = (name, className = '') => createQQFigmaIconElement(
+        name === 'plus' ? 'add' : name, document, className,
+    );
 
     const getCurrentContext = async () => {
         const result = await facade.query.currentContext?.();
@@ -1627,7 +1625,10 @@ export function createQQApp({
             const playing = Boolean(messageId) && voicePlayback.isPlaying(`voice:${messageId}`);
             bubble.classList.toggle('is-playing', playing);
             const icon = button?.querySelector?.('.yuzi-qq-voice-icon');
-            if (icon) icon.className = `fa-solid fa-${playing ? 'pause' : 'volume-high'} yuzi-qq-voice-icon`;
+            const iconName = playing ? 'pause' : 'volume-high';
+            if (icon && icon.getAttribute('data-qq-figma-icon') !== iconName) {
+                icon.replaceWith(createIcon(iconName, 'yuzi-qq-voice-icon'));
+            }
         }
     };
     voicePlayback.subscribe(syncVoiceBubbleStates);
@@ -2996,9 +2997,11 @@ export function createQQApp({
         body.setAttribute('data-qq-message-body', '');
         stack.append(body);
         if (conversation.request?.phase === 'failed' && own && messageMarkers.lastSelf?.messageId === message.messageId) {
-            stack.append(createButton('↻', 'yuzi-qq-retry-button', {
+            const retry = createButton('', 'yuzi-qq-retry-button', {
                 'aria-label': t("重试本批消息"), title: t("重试"), 'data-qq-retry': conversation.conversationId,
-            }));
+            });
+            retry.append(createIcon('rotate'));
+            stack.append(retry);
         }
         if (messageMarkers.unanswered === message) {
             const unanswered = createElement('span', 'yuzi-qq-unanswered-indicator');
@@ -4198,7 +4201,7 @@ export function createQQApp({
                     [sticker ? 'data-qq-sticker-library-item' : 'data-qq-image-library-item']: resourceId,
                 });
                 const tick = createElement('span', 'yuzi-qq-image-library-tick');
-                tick.textContent = '✓';
+                tick.append(createIcon('check'));
                 tick.setAttribute('aria-hidden', 'true');
                 item.append(tick);
                 let longPressed = false;
@@ -4849,7 +4852,7 @@ export function createQQApp({
             label.textContent = contactFormalName(conversation);
             const check = createElement('span', 'yuzi-qq-picker-check');
             check.setAttribute('aria-hidden', 'true');
-            check.textContent = '✓';
+            check.append(createIcon('check'));
             row.append(checkbox, portraits.render(conversation), label, check);
             members.append(row);
         });
@@ -6066,7 +6069,7 @@ export function createQQApp({
         closeConversationSwipe();
     };
 
-    const assistantUI = createAssistantUI({ facade, createElement, createButton, createDialogAvatars, showDialog, clearOverlay,
+    const assistantUI = createAssistantUI({ facade, createElement, createButton, createIcon, createDialogAvatars, showDialog, clearOverlay,
         openChat, render, makeSecondaryPage,
         profileEditor: {
             fieldRow: profileEditRow, assetRow: profileAssetRow, messageColorRow: profileMessageTextColorRow, voiceRow: profileVoiceRow,

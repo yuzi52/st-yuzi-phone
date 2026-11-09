@@ -1,6 +1,6 @@
-# 神·数据库（shujuku）外部 API 调用文档
+# 龙血玄黄·数据库（shujuku）外部 API 调用文档
 
-本文档详细说明了 `神·数据库` 插件对外暴露的 API 接口，供其他插件或扩展调用。
+本文档详细说明了 `龙血玄黄·数据库` 插件对外暴露的 API 接口，供其他插件或扩展调用。
 
 ## 访问 API
 
@@ -32,6 +32,10 @@ if (window.AutoCardUpdaterAPI) {
 - [手动更新表选择 API](#手动更新表选择-api)
 - [API 预设管理 API](#api-预设管理-api)
 - [AI 调用 API](#ai-调用-api)
+- [格林推演 API](#格林推演-api)
+- [智能续写 API](#智能续写-api)
+- [功能开关 API（桌宠 / 气泡 / 功能页）](#功能开关-api桌宠--气泡--功能页)
+- [桌宠与气泡外观 API](#桌宠与气泡外观-api)
 
 ---
 
@@ -93,7 +97,7 @@ const current = window.AutoCardUpdaterAPI.getCurrentPlotPreset();
 
 **返回值**: `boolean` - 切换是否成功
 
-**说明**: 
+**说明**:
 - 如果预设名称无效或未找到，返回 `false`
 - 切换成功后会自动保存设置
 - 如果设置面板已打开，UI 会自动同步更新
@@ -196,6 +200,22 @@ if (details) {
 const tableData = window.AutoCardUpdaterAPI.exportTableAsJson();
 console.log("表格数据:", JSON.stringify(tableData, null, 2));
 ```
+
+---
+
+### `getTableHistoryContext()`
+
+同步读取当前历史数据来源身份。聊天尚未就绪时返回 `null`；否则返回独立的轻量对象：
+
+```javascript
+const context = window.AutoCardUpdaterAPI.getTableHistoryContext();
+// { version: 1, chatId: 'chat-a', characterId: 0, groupId: null, isolationKey: '' }
+```
+
+- `isolationKey` 来自数据库实际使用的当前隔离标识；空字符串是合法的默认槽。
+- 不回放历史、不复制表格、不保存聊天、不发布运行时或通知前端。
+- 可供状态栏、历史浏览器等外部调用者区分缓存来源；正常表格对象重新发布不会单独改变该身份。
+- **来源身份不是内容修订。** 调用者仍须检查存储帧变化、swipe和自身布局／会话生命周期；非空结果也不保证历史基底完整，历史读取仍以导出接口结果为准。
 
 ---
 
@@ -308,7 +328,7 @@ await window.AutoCardUpdaterAPI.updateCell({
 - 只更新data中指定的列，其他列保持不变
 - 支持对象参数形式：`updateRow({ tableName, rowIndex, data, skipNotify })`
 - `skipNotify: true` 或 `silent: true` 会跳过外部表格更新回调通知，适合批量写入时避免前端回调风暴；不会跳过数据写入
-- `data.isImportMode: true` 或对象参数 `isImportMode: true` 会跳过聊天保存和纪要向量同步，保留旧版导入模式兼容
+- `data.isImportMode: true` 或对象参数 `isImportMode: true` 会跳过聊天保存和纪要向量同步，保留旧版导入模式兼容。这类只写运行时的改动会被登记为「未落盘变更」，在下一次不带该选项的写入、任何一次填表开始前、以及首楼初始基线建立前自动写回聊天楼层；重开聊天前若没有发生这些动作，改动仍会丢失
 - **表的最新楼层保存**：更新后会自动查找该表数据最后一次出现的楼层，并保存到该楼层
 - **世界书刷新**：保存后会自动触发世界书重新写入，确保前端能读取到最新数据
 - 如果找不到该表的楼层（新表格），会保存到最新AI楼层
@@ -883,9 +903,11 @@ Agent 世界书 API 通过世界书状态条目作为单事实源，提供控制
 | options.runTakeover | boolean | 否 | Skill 化后是否同步接管，默认执行。 |
 | options.presetName | string | 否 | 使用的 API 预设名称。 |
 | options.maxConcurrency | number | 否 | 并发处理数量。 |
+| options.maxEntries | number | 否 | 本批最多处理的候选条目数。 |
+| options.cursor | `{ bookName:string; uid:number\|string }` | 否 | 从上一次返回的 `skillify.nextCursor` 继续处理；游标条目必须仍在当前待处理范围内。 |
 | options.overwriteManual | boolean | 否 | 是否覆盖人工维护的 Skill 元数据。 |
 
-**返回值**: `Promise<Object>` - 成功时至少包含 `{ success:true, skillify }`；同步接管时还可能包含 `takeover` 与 `snapshot`。
+**返回值**: `Promise<Object>` - 成功时至少包含 `{ success:true, skillify }`。`skillify` 包含本批实际处理数 `totalCandidates`、待处理匹配总数 `totalMatched`、本批选择数 `selectedForRun`、剩余数 `remaining`、是否截断 `truncated` 和可用于下一批的 `nextCursor`；同步接管时还可能包含 `takeover` 与 `snapshot`。
 
 ---
 
@@ -903,9 +925,10 @@ Agent 世界书 API 通过世界书状态条目作为单事实源，提供控制
 | options.maxConcurrency | number | 否 | 并发处理数量。 |
 | options.maxAiRetries | number | 否 | 单条目 AI 最大重试次数。 |
 | options.maxEntries | number | 否 | 本次最多处理候选条目数。 |
+| options.cursor | `{ bookName:string; uid:number\|string }` | 否 | 从上一次 `skillify.nextCursor` 继续处理当前稳定候选序列。 |
 | options.overwriteManual | boolean | 否 | 是否覆盖人工维护的 Skill 元数据。 |
 
-**返回值**: `Promise<Object>` - 成功时至少包含 `{ success:true, skillify }`；同步接管时还可能包含 `takeover` 与 `snapshot`。
+**返回值**: `Promise<Object>` - 成功时至少包含 `{ success:true, skillify }`。`skillify` 返回 `totalCandidates`、`totalMatched`、`selectedForRun`、`remaining`、`truncated`、`nextCursor`、`updated`、`skipped`、`failed` 与逐条 `results`；同步接管时还可能包含 `takeover` 与 `snapshot`。
 
 **示例**:
 ```javascript
@@ -1294,7 +1317,7 @@ console.log(jsonString);
 
 已发布的只读 API 在解析或执行失败时仍返回 `null`。可调用 `getLastSqlApiError()` 获取最近一次只读失败的 `{ method, code, message, at }`；`code` 区分别名冲突、表不存在、列未解析、只读违规和其他 SQL 错误。运行时尚未发布时不会调用查询函数，因此也不会新增一次 `runtime_not_ready` 错误。只有本次 SQL 实际引用的表或列别名冲突才会归类为 `alias_conflict`；无关 schema 冲突不会掩盖实际的缺表或缺列错误。同步读取仅使用 runtime 已发布的 schema 快照；provider 发布前会验证 schema，未就绪 runtime 不会被读取路径懒初始化。
 
-`executeSqlMutation`、`executeSqlBatch` 以及 `executeSql` 的写入分支，也会在执行前重绑定能够唯一解析的表标识符。写入仍必须遵守既有写事务、目标表推断和参数约束；别名冲突时必须 fail-closed 返回失败，不能猜测目标表。
+写入 SQL 仍只接受既有写路径支持的表名形态；不要把只读查询的扩展表名兼容性误当成写入契约。
 
 ---
 
@@ -1386,7 +1409,7 @@ console.log(jsonString);
 
 切换指定行锁定状态。
 
-**返回值**: `boolean`，表示操作是否成功，不表示切换后的锁定状态。成功后通过 `getTableLockState(sheetKey)` 读取实际状态；失败或异常后不得自动再次切换。
+**返回值**: `boolean`
 
 ---
 
@@ -1394,7 +1417,7 @@ console.log(jsonString);
 
 切换指定列锁定状态。
 
-**返回值**: `boolean`，表示操作是否成功，不表示切换后的锁定状态。成功后通过 `getTableLockState(sheetKey)` 读取实际状态；失败或异常后不得自动再次切换。
+**返回值**: `boolean`
 
 ---
 
@@ -1402,9 +1425,7 @@ console.log(jsonString);
 
 切换指定单元格锁定状态。
 
-**返回值**: `boolean`，表示操作是否成功，不表示切换后的锁定状态。成功后通过 `getTableLockState(sheetKey)` 读取实际状态；失败或异常后不得自动再次切换。
-
-小手机内部 `data-api` 的三个同名封装统一返回 `{ ok, locked }`：只有操作成功且已读回有效锁状态时 `ok` 才为 `true`；失败或状态不可确认时返回 `{ ok: false, locked: null }`。界面先检查 `ok`，再用 `locked` 更新成功提示和编辑行为。
+**返回值**: `boolean`
 
 ---
 
@@ -1529,12 +1550,12 @@ const api = window.AutoCardUpdaterAPI;
 function createPresetSelector() {
     const presets = api.getPlotPresetNames();
     const current = api.getCurrentPlotPreset();
-    
+
     const select = document.createElement('select');
-    select.innerHTML = presets.map(name => 
+    select.innerHTML = presets.map(name =>
         `<option value="${name}" ${name === current ? 'selected' : ''}>${name}</option>`
     ).join('');
-    
+
     select.addEventListener('change', (e) => {
         const success = api.switchPlotPreset(e.target.value);
         if (!success) {
@@ -1542,7 +1563,7 @@ function createPresetSelector() {
             e.target.value = api.getCurrentPlotPreset();
         }
     });
-    
+
     return select;
 }
 ```
@@ -1572,7 +1593,7 @@ async function loadFromServer() {
         templateData,
         templatePresetName: '示例角色'
     });
-    
+
     // 导入剧情推进预设库
     const presetResponse = await fetch('/api/presets.json');
     const presetsData = await presetResponse.json();
@@ -1590,7 +1611,7 @@ const api = window.AutoCardUpdaterAPI;
 function backupPresets() {
     const allPresets = api.exportAllPlotPresets();
     const backup = JSON.stringify(allPresets, null, 2);
-    
+
     // 保存到 localStorage
     localStorage.setItem('plot_presets_backup', backup);
     console.log(`已备份 ${allPresets.length} 个预设`);
@@ -1603,7 +1624,7 @@ async function restorePresets() {
         console.log("未找到备份");
         return;
     }
-    
+
     const presets = JSON.parse(backup);
     const result = await api.importPlotPresetsFromData(presets, { overwrite: true });
     console.log(`已恢复 ${result.imported} 个预设`);
@@ -1844,6 +1865,204 @@ const analysis = await window.AutoCardUpdaterAPI.callAI(messages);
 
 ---
 
+## 格林推演 API
+
+命名空间：`window.AutoCardUpdaterAPI.worldSimulation`。读取方法返回深拷贝，修改返回值不会影响插件数据；写入走与格林推演设置页相同的校验与保存流程。当前聊天还没有格林推演资料（未打开过格林推演页完成初始化）时，读取返回 `null`，`updateSettings` 抛出错误。
+
+| 方法 | 说明 |
+|------|------|
+| `getSettings()` | 读取当前聊天的格林推演设置，没有资料时返回 `null` |
+| `updateSettings(patch)` | 按顶层键合并补丁后保存，返回保存后的设置。嵌套对象（如 `dynamics`、`workflow`、`projection`）整体替换，需要传完整对象；校验不通过时抛出错误 |
+| `getLedger()` | 读取账本（时序、局势刻度、伏线、人物、纪要、风声、场外信号等） |
+| `getTask()` | 读取当前任务，没有任务时返回 `null` |
+| `getUserRequirements()` | 读取用户要求 |
+| `setUserRequirements(requirements)` | 修改用户要求，返回 `Promise` |
+| `send(text)` | 给格林推演主 Agent 发送一条消息（等同在推演页对话框发送），返回 `Promise` |
+| `resume()` | 继续已停止的任务，返回 `Promise` |
+| `stop()` | 停止当前推演，返回 `Promise<boolean>` |
+| `isRunning()` | 当前是否有推演在运行 |
+
+**场外信号插入格式**：`settings.projection.template` 是写进正文的格式，`$WORLD_SIGNALS` 会替换成按【此地此刻】【风闻轶事】【世界暗流】分组的信号。模板必须恰好包含一次 `$WORLD_SIGNALS`、不超过 4000 字，且不能包含插件的起止注释标记（它们自动加在最外层）。插入正文后会自动重渲染该楼层。
+
+```javascript
+const sim = window.AutoCardUpdaterAPI.worldSimulation;
+const settings = sim.getSettings();
+if (settings) {
+    // 关闭自动推演，并把插入格式换成折叠块
+    await sim.updateSettings({
+        autoTriggerEnabled: false,
+        projection: { template: '<details><summary>与此同时</summary>\n$WORLD_SIGNALS\n</details>' },
+    });
+}
+const ledger = sim.getLedger();
+console.log(ledger?.guidance.signals);
+```
+
+---
+
+## 智能续写 API
+
+命名空间：`window.AutoCardUpdaterAPI.continuation`。读取返回深拷贝；写入走与智能续写页相同的保存流程（`orchestrator.replaceSettings`）。当前聊天还没有智能续写资料时，读取返回 `null`，`updateSettings` 抛出错误；任务运行中保存可能因忙碌被拒绝。
+
+| 方法 | 说明 |
+|------|------|
+| `getSettings()` | 读取当前聊天的智能续写设置，没有资料时返回 `null` |
+| `updateSettings(patch)` | 按顶层键合并补丁后保存，返回保存后的设置；嵌套对象整体替换 |
+| `getEnvelope()` | 读取完整的续写资料（设置、当前任务等），没有资料时返回 `null` |
+| `continueTask()` | 继续当前续写任务 |
+| `stop()` | 停止正在进行的生成 |
+
+```javascript
+const cont = window.AutoCardUpdaterAPI.continuation;
+await cont.updateSettings({ maxAutomaticStages: 5 });
+```
+
+---
+
+## 功能开关 API（桌宠 / 气泡 / 功能页）
+
+命名空间：`window.AutoCardUpdaterAPI.features`。开关的缺省值与仪表盘「高级设置」一致；修改桌宠与静默模式类开关后会立即通知桌宠和气泡刷新。用接口修改功能页开关后，已打开的界面需要重新打开才会更新显示。桌宠与气泡的图片、尺寸、配色、位置等外观见[桌宠与气泡外观 API](#桌宠与气泡外观-api)。
+
+| 方法 | 说明 |
+|------|------|
+| `keys()` | 列出可调的开关键名 |
+| `getAll()` | 读取全部开关当前值，返回 `{ 键名: boolean }` |
+| `set(key, value)` | 修改一个开关，`value` 必须是 `true` 或 `false`；返回修改后的全部开关。键名不支持或值不是布尔时抛出错误 |
+
+| 键名 | 含义 | 缺省 |
+|------|------|------|
+| `autoUpdateEnabled` | 自动填表 | 开 |
+| `silentModeEnabled` | 静默模式（不弹通知气泡） | 关 |
+| `desktopPetEnabled` | 桌宠 | 开 |
+| `deskPetJokesEnabled` | 桌宠讲笑话 | 开 |
+| `deskPetShowRealWork` | 桌宠与气泡显示真实任务进度 | 关 |
+| `continuationPageEnabled` | 智能续写页 | 开 |
+| `worldSimulationPageEnabled` | 格林推演总开关（含自动后台触发） | 关 |
+| `externalImportPageEnabled` | 外部导入页 | 开 |
+
+流式输出、内容替换、开发者选项、零 TK 占用这几项开关的联动逻辑在界面层，暂不通过 API 开放。
+
+```javascript
+const features = window.AutoCardUpdaterAPI.features;
+console.log(features.getAll());
+features.set('desktopPetEnabled', false);
+features.set('silentModeEnabled', true);
+```
+
+---
+
+## 桌宠与气泡外观 API
+
+命名空间：`window.AutoCardUpdaterAPI.deskPet`（桌宠）与 `window.AutoCardUpdaterAPI.noticeBubble`（通知气泡）。显示桌宠、讲笑话、静默模式等开关仍在 [`features`](#功能开关-api桌宠--气泡--功能页)。
+
+- **只存改过的项**：外观存在插件设置的 `deskPetAppearance`、`noticeBubbleAppearance` 两个字段里（随当前设置 profile），没改过的项一律跟随内置缺省值，缺省值与改造前写死的效果相同。
+- **补丁语义**：`updateAppearance(patch)` 里对象逐层合并、数组整体替换，某项传 `null` 表示恢复缺省；未知键、类型或范围不对直接抛错，整个补丁都不保存。
+- **立即生效**：保存成功后桌宠和气泡马上按新外观刷新，不用重开界面。设置还没加载完或写盘失败时抛错，内存里的值同时恢复原样。
+- **读取**：每次返回新对象，改返回值不影响插件。已存数据里无法使用的项按缺省显示，可用 `getIssues()` 查看，下一次写入时丢弃。
+
+两组共有的方法：
+
+| 方法 | 说明 |
+|------|------|
+| `getAppearance()` | 读取生效的外观（缺省值叠加改过的项） |
+| `getOverrides()` | 读取改过的项 |
+| `getDefaults()` | 读取内置缺省值 |
+| `getIssues()` | 列出已存数据里无法使用的项（字符串数组），正常时为空 |
+| `describe()` | 列出全部字段：`path`、`label`、`type`、`default`，以及 `min` / `max` / `integer` / `zeroAllowed` / `values` / `maxItems` / `maxLength` 等取值范围 |
+| `updateAppearance(patch)` | 校验后合并补丁并保存，返回生效的外观 |
+| `resetAppearance(keys?)` | 恢复缺省：不传恢复全部；可传 `'images'`、`'images.idle'` 或 `['size', 'motion.snoreAfterMs']` 这样的路径。返回生效的外观 |
+
+桌宠另有：
+
+| 方法 | 说明 |
+|------|------|
+| `imageKeys()` | 列出 27 个图片键名（24 个动作 + 3 张贴边探头） |
+| `getPosition()` | 读取保存的位置 `{ x, y, edge }`；没保存过返回 `null`（默认右下角） |
+| `setPosition({ x, y, edge? })` | `x`、`y` 是 0~1 的比例（0 最左 / 最上，1 最右 / 最下），保留 4 位小数；`edge` 为 `left` / `right` / `top` / `bottom` 时吸附到该边（贴边的那一轴以 `edge` 为准），省略或 `null` 表示自由停放。返回保存的位置 |
+| `resetPosition()` | 清除保存的位置，回到默认右下角，返回 `null` |
+
+### 桌宠字段（`deskPet`）
+
+| 字段 | 缺省 | 说明 |
+|------|------|------|
+| `images.<键名>` | `null` | 动作图片：`https://` / `http://` 链接、站内路径（如 `/user/images/pet.png`）或 `data:image/…`；`null` 为内置图。单张不超过 1 MiB 字符，全部合计不超过 4 MiB 字符（设置每次保存都整份写盘，大图请用链接） |
+| `size.wide` / `size.narrow` | 88 / 64 | 宽屏 / 窄屏（视口宽 ≤640px）尺寸，32~256 px |
+| `size.peekDepthRatio` / `size.peekOriginalDepthRatio` | 0.56 / 0.61 | 贴边缩进时露出部分占尺寸的比例（普通 / 稀有探头），0.2~1 |
+| `motion.enabled` | `true` | 动效开关：`false` 时不播呼吸、摇摆等动效，也不散步打滚（动作帧照常切换） |
+| `motion.idleActionMinMs` / `motion.idleActionSpreadMs` | 15000 / 5000 | 待机小动作的最短间隔与随机浮动（毫秒） |
+| `motion.idleActionWeights.*` | 见说明 | 待机小动作的抽取权重，0 表示不做：`blink` 眨眼 16、`doubleBlink` 连眨 8、`lookAround` 张望 14、`walk` 散步 18、`roll` 打滚 10、`eat` 吃零食 14、`yawn` 打哈欠 10、`glance` 侧看 10 |
+| `motion.snoreAfterMs` | 60000 | 无互动多久睡着（毫秒），0 表示不睡 |
+| `motion.tuckDelayMs` | 4000 | 吸附到屏幕边后多久缩进去（毫秒），0 表示不自动缩进（推进墙里仍会立刻缩进） |
+| `motion.peekRotateMs` / `motion.peekOriginalChance` | 30000 / 0.01 | 缩进期间重抽探头造型的间隔，与抽到稀有造型的概率（0~1） |
+| `motion.waveCooldownMs` | 30000 | 鼠标靠近打招呼的冷却（毫秒） |
+| `motion.reactionMs.*` | 见说明 | 互动反应时长（毫秒）：`shy` 1600、`tickle` 1600、`angry` 2200、`happy` 1100、`dizzy` 2400、`surprised` 1300、`wave` 1600、`huff` 1000、`pound` 1300、`knockdown` 2200 |
+| `jokes.mode` | `'append'` | `append` 追加到内置 130 条语录之后；`replace` 只用自定义语录（自定义为空时仍用内置） |
+| `jokes.heading` | `'你知道吗？'` | 语录气泡的标题，可留空 |
+| `jokes.items` | `[]` | 自定义语录，最多 2000 条、每条 ≤600 字，支持换行 |
+| `statusWords.mode` | `'append'` | 忙碌状态词（气泡显示「正在XX…」）的合成方式，同上；`replace` 时某组为空则该组仍用内置 |
+| `statusWords.groups.*` | `[]` | 按功能分组：`table` 填表、`plan` 剧情规划、`polish` 正文优化、`continuation` 智能续写、`simulation` 格林推演、`import` 外部导入、`index` 交火 / 索引 / 召回、`skill` Skill 整理、`generic` 其他；每组 ≤200 个、每个 ≤20 字 |
+
+图片键名：`idle` 待机、`blink` 眨眼、`look-left` / `look-right` 张望、`walk-a` / `walk-b` 散步两帧、`roll` 打滚、`eat-a` / `eat-b` 吃零食两帧、`yawn` 打哈欠、`snore` / `sit-snore` 睡觉、`working` 干活、`struggle` 被拎起来、`shy` 害羞、`tickle` 怕痒、`angry` 生气、`happy` 被摸、`dizzy` 晕、`surprised` 吓一跳、`wave` 打招呼、`huff` 哈气、`pound` 锤屏幕、`knockdown` 震倒；贴边探头 `peek`、`peek-original`（稀有）、`peek-sleepy`（睡着时）。
+
+- 自定义图按桌宠框原尺寸、等比缩放显示，建议用透明底的方图。内置图的挣扎、吓一跳、倒地三帧带体型补偿放大，自定义图不套用。
+- 探头图要求底边平切、头朝上，插件会按停靠边自动旋转；露出多少由 `size.peekDepthRatio` 决定。
+
+### 气泡字段（`noticeBubble`）
+
+| 字段 | 缺省 | 说明 |
+|------|------|------|
+| `colors.background` / `text` / `muted` / `border` | `#fffaf0` / `#3d3122` / `#7a6a52` / `#e9cf8a` | 底色、正文、次要文字（明细标题、关闭按钮）、边框与分隔线 |
+| `colors.info` / `success` / `warning` / `error` | `#d4a93a` / `#6f9a4d` / `#d08a2c` / `#c2503a` | 各类提示的强调色（标题、按钮边框） |
+| `colors.joke` / `jokeBackground` / `jokeHeading` | `#e6b93c` / `#fff6d8` / `#a47a12` | 语录气泡的强调色、底色、标题文字 |
+| `colors.danger` / `dangerText` | `#c2503a` / `#a33d29` | 危险按钮（如「停止」）的边框与悬停底色、文字 |
+| `fontSize` | 12 | 正文字号 10~24 px，标题与按钮随之缩放 |
+| `fontFamily` | 系统字体栈 | CSS `font-family`，只能含文字、数字、空格、逗号、引号、点、下划线和连字符 |
+| `borderRadius` | 12 | 圆角 0~32 px |
+| `size.minWidth` / `maxWidth` / `dockedMaxWidth` | 200 / 400 / 360 | 最小宽度、贴桌宠时最大宽度、无桌宠停靠时最大宽度（px）；`minWidth` 不能大于后两者 |
+| `size.detailMaxHeight` | 160 | 展开明细区的最大高度（px） |
+| `anchor.gap` | 12 | 贴桌宠时与桌宠的间距（px） |
+| `anchor.sides` | `['above', 'below', 'left', 'right']` | 贴桌宠时的方位优先顺序，放不下依次尝试；都放不下时用最后一个并夹进屏幕 |
+| `dock.corner` | `'top-right'` | 没有桌宠时停靠的角落：`top-right` / `top-left` / `bottom-right` / `bottom-left` |
+| `dock.offsetX` / `offsetY` | 18 / 62 | 停靠时距左右 / 上下边缘（px） |
+| `dock.narrowOffsetY` | 58 | 窄屏（视口宽 ≤640px）停靠时距上下边缘（px）；窄屏时水平居中 |
+| `carousel.slideMs` | 5000 | 每条停留时长（毫秒），1000~120000 |
+| `carousel.slidesPerJoke` | 2 | 每播几条消息插一条语录，0 表示不插播 |
+| `carousel.idleJokeMs` | 300000 | 空闲多久讲一条语录（毫秒），0 表示空闲时不讲 |
+
+颜色支持 `#rgb` / `#rrggbb` / `#rrggbbaa`、`rgb()` / `rgba()`、`hsl()` / `hsla()` 和颜色名；为防止改写其它样式，不接受 `url()`、`var()`、分号等写法。
+
+```javascript
+const pet = window.AutoCardUpdaterAPI.deskPet;
+const bubble = window.AutoCardUpdaterAPI.noticeBubble;
+
+// 换两张动作图、放大一点、不睡觉，再追加一条语录
+pet.updateAppearance({
+    images: {
+        idle: 'https://example.com/cat/idle.png',
+        working: '/user/images/cat-working.gif',
+    },
+    size: { wide: 112 },
+    motion: { snoreAfterMs: 0 },
+    jokes: { items: ['猫为什么不用电脑？因为怕鼠标。'] },
+});
+
+// 放到左侧中间并贴边
+pet.setPosition({ x: 0, y: 0.5, edge: 'left' });
+
+// 深色气泡，没有桌宠时停在左下角，每条停 8 秒
+bubble.updateAppearance({
+    colors: { background: '#24262b', text: '#f1f1f1', muted: '#a0a4ad', border: '#3a3d44' },
+    dock: { corner: 'bottom-left', offsetY: 24 },
+    carousel: { slideMs: 8000 },
+});
+
+// 只恢复待机图；或恢复全部
+pet.resetAppearance('images.idle');
+bubble.resetAppearance();
+```
+
+---
+
 ## 注意事项
 
 1. **API 可用性检查**: 在调用任何 API 方法前，请先检查 `window.AutoCardUpdaterAPI` 是否存在。
@@ -1863,6 +2082,8 @@ const analysis = await window.AutoCardUpdaterAPI.callAI(messages);
 8. **模板作用域**: `importTemplate()`、`exportTemplate()`、`resetTemplate()`、`switchTemplatePreset()`、`importTemplateFromData()` 都支持 `options.scope`。`global` 作用于当前 profile 的全局模板；`chat` 仅作用于当前聊天模板快照，不会改动全局模板库。
 9. **安全收敛 (v1.7)**: API 预设管理全部弃用，外部不可再通过 `getApiPresets` 等接口读取 apiKey / apiConfig 等敏感字段。请改用 `callAI(messages, { presetName, max_tokens })` 受限代理接口发起 AI 请求，外部仅提供消息和 token 上限，插件内部负责解析配置并代发请求。
 
+10. **命名空间 API (v1.8 / v1.9)**: `worldSimulation`、`continuation`、`features`、`deskPet`、`noticeBubble` 这几组方法在数据不存在、参数不合法或保存失败时会抛出错误（不同于旧接口返回 `false`），请用 `try/catch` 处理。
+
 
 ---
 
@@ -1878,3 +2099,26 @@ const analysis = await window.AutoCardUpdaterAPI.callAI(messages);
 | 1.5 | 补充模板双作用域相关文档：`importTemplate(options)`、`exportTemplate(options)`、`resetTemplate(options)`、`getTemplatePresetNames()`、`switchTemplatePreset()`、`injectTemplatePresetToCurrentChat()`、`importTemplateFromData(templateData, options)` |
 | 1.6 | 新增外部导入 Headless API 与 Agent 世界书 API 文档：`importTxtTextAndSplit(text, options)`、结构化 `injectImportedSelected(options)`、`getAgentWorldbookControl()`、`setAgentWorldbookMode(mode, options)`、`runAgentWorldbookSkillify(options)` 及兼容别名 |
 | 1.7 | **安全收敛**：弃用全部 API 预设管理公开接口（`getApiPresets / saveApiPreset / loadApiPreset / deleteApiPreset / getTableApiPreset / setTableApiPreset / getPlotApiPreset / setPlotApiPreset`）；`callAI` 升级为受限代理接口，仅允许 `presetName + max_tokens`，禁止外部传入 `apiConfig / apiKey / url / requestHeaders / bodyParams / model / temperature / stream` 等敏感字段 |
+| 1.8 | 新增命名空间 API：`worldSimulation`（格林推演设置、账本、任务、用户要求的读写，发送 / 继续 / 停止）、`continuation`（智能续写设置读写、续跑与停止）、`features`（桌宠、静默模式、自动填表与功能页开关）；格林推演设置新增 `projection.template` 场外信号插入格式 |
+| 1.9 | 新增桌宠与气泡外观 API：`deskPet`（动作图片、尺寸、动画节奏、语录与状态词、位置）、`noticeBubble`（配色、字号、字体、圆角、尺寸、摆放方位、停靠角落、轮播节奏），支持读取、按补丁修改、恢复缺省与字段说明 |
+
+
+## 公开写入：可选前端回读等待
+
+`executeSqlMutation`、`executeSqlBatch`、写入型 `executeSql`、对象参数形式的 `updateCell` / `updateRow` / `insertRow` / `deleteRow`，以及 `importTableAsJson` 的导入选项支持 `awaitFrontendReadback?: boolean`。
+
+默认保留通知后800ms的回读窗口。只有显式传入布尔值 `false` 时不等待该固定窗口；数据提交、持久化、世界书／运行时刷新和更新通知照常执行，原有失败结果不变。它不等同于 `skipNotify` 或 `skipChatSave`。
+
+```javascript
+await api.executeSqlBatch({
+  sql: 'UPDATE inventory SET quantity = 2 WHERE row_id = 1;',
+  awaitFrontendReadback: false,
+});
+await api.updateCell({
+  tableName: '背包物品表', rowIndex: 1, colIdentifier: '数量', value: 2,
+  awaitFrontendReadback: false,
+});
+await api.importTableAsJson(jsonString, { awaitFrontendReadback: false });
+```
+
+适用于不依赖前端刷新完成、或自行处理刷新反馈的调用者。函数返回时界面可能尚未完成更新；依赖DOM内容、截图或交互动画完成的流程应保留默认行为或等待自身完成信号。固定窗口本身也不是所有前端已完成的确认机制。

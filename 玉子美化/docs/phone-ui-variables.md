@@ -233,6 +233,8 @@ Dock 仍消费现有四个运行时入口；隐藏可视标签不等于删除名
 
 ## QQ Figma 应用
 
+QQ 内置功能图标统一使用本地空心 SVG，沿用原配色、图案语义、按钮热区和布局；语音播放／暂停、重试和选中勾等状态图标同样使用圆头细描边。头像、表情图片与人物装饰素材不变。图标保留既有功能 class，并提供 `svg[data-qq-figma-icon]` 标记；美化选择器应使用这些语义入口，菜单与消息操作栏的尺寸继续消费原 token。SVG 不接收点击，交互由原按钮承接；作者主题、素材声明、包格式与模拟接口不增加字段。
+
 QQ 前端只消费 `--yuzi-qq-*` 语义变量，不在组件样式中写入颜色、尺寸、间距、圆角、阴影、层级或动效常量。变量按以下职责分组，浅色默认值与 `[data-yuzi-phone-theme="dark"]` 下的深色覆盖一一对应：
 
 图片资料页的 `.yuzi-qq-image-library-grid` 根据手机内容区宽度排布：窄屏保留四列并允许缩小，宽屏将列宽固定为 `--yuzi-qq-image-library-grid-item-size`（默认 `72px`），空间足够时自动增列；网格整体居中，余量留在左右两侧，不再拉伸缩略图。`auto-fill` 保留空列，少量素材和末行不足时仍与前面的列对齐。六类资源及上传入口共用该规则，正方形缩略图、间距、圆角与深浅主题沿用现有样式。这是宿主内置布局调整，QQ 素材声明、包格式、示例、校验及纯模拟接口不变。
@@ -306,7 +308,7 @@ Figma 原始底栏顺序不直接复用。生产 QQ 固定为 消息、联系人
 | QQ 内屏 | --yuzi-qq-screen-width / --yuzi-qq-screen-height / --yuzi-qq-page-radius | 402px / 874px / 47px |
 | 外壳保留区 | --yuzi-qq-status-height；Home Indicator 不在 QQ 内渲染 | 62px；外壳负责 |
 | 根身份头 | --yuzi-qq-root-header-height / --yuzi-qq-root-header-padding-inline / --yuzi-qq-root-header-gap | 58px / 16px / 12px |
-| 根头像、状态、操作 | --yuzi-qq-root-identity-avatar-size / --yuzi-qq-root-status-dot-size / --yuzi-qq-root-action-size | 38px / 12px / 28px |
+| 根头像、状态、操作按钮与图标 | --yuzi-qq-root-identity-avatar-size / --yuzi-qq-root-status-dot-size / --yuzi-qq-root-action-size / --yuzi-phone-nav-icon-size | 38px / 12px / 28px / 24px；根级操作图标复用导航图标尺寸，不继承状态文字字号 |
 | 根标题与状态文本 | --yuzi-qq-root-title-size / --yuzi-qq-root-title-line-height；--yuzi-qq-root-status-size / --yuzi-qq-root-status-line-height | 17/24；11/15，均遵从可读文字比例 |
 | Tab | --yuzi-qq-tabbar-height / --yuzi-qq-nav-item-width / --yuzi-qq-tab-content-height / --yuzi-qq-nav-icon-size / --yuzi-qq-nav-item-gap | 83px / 82px / 49px / 26px / 1px |
 | 搜索带 | --yuzi-qq-list-search-sheet-height / --yuzi-qq-search-height / --yuzi-qq-search-radius | 60px / 36px / 12px |

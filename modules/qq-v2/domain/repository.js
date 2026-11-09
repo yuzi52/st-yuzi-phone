@@ -590,8 +590,9 @@ function normalizeImportedPrivateContact(input, index) {
 
 function activatePrivateContact(scope, conversation, person, input = {}) {
     const activated = conversation.status !== 'active';
+    const restoredFriendship = conversation.status === 'readonly';
     conversation.status = 'active';
-    if (activated) {
+    if (restoredFriendship) {
         appendSystemMessage(
             scope,
             conversation,

@@ -361,6 +361,10 @@ QQ 当前用户与 NPC 编辑资料页共用 `.yuzi-qq-profile-editor-list`，�
 
 ## QQ Figma 应用
 
+QQ 内置功能图标统一复用 `modules/qq-v2/ui/figma-icons.js` 的本地 SVG 工厂，使用 `24×24` 画布、`1.8` 圆头描边、`fill="none"` 与 `currentColor`；消息气泡为空心，联系人、助手、设置和既有工具图案沿用原形状。菜单、资料、图库、发送／终止、语音播放／暂停、重试、关闭与选中勾共用此入口，状态切换同样替换为本地 SVG，不重新写入实心图标字体。表情的眼睛保留小圆点，头像、表情图片和人物装饰继续按原素材显示。
+
+图标保留既有功能 class，并以 `svg[data-qq-figma-icon]` 标记；作者可通过这些语义选择器调整外观，菜单与消息操作栏的图标尺寸继续消费各自 token。SVG 不接收点击，交互由原按钮承接。此调整不改变配色、按钮热区、布局或作者包格式。
+
 QQ 前端只消费 `--yuzi-qq-*` 语义变量，不在组件样式中写入颜色、尺寸、间距、圆角、阴影、层级或动效常量。变量按以下职责分组，浅色默认值与 `[data-yuzi-phone-theme="dark"]` 下的深色覆盖一一对应：
 
 | 变量组 | 覆盖内容 |
@@ -433,7 +437,7 @@ Figma 原始底栏顺序不直接复用。生产 QQ 固定为 消息、联系人
 | QQ 内屏 | --yuzi-qq-screen-width / --yuzi-qq-screen-height / --yuzi-qq-page-radius | 402px / 874px / 47px |
 | 外壳保留区 | --yuzi-qq-status-height；Home Indicator 不在 QQ 内渲染 | 62px；外壳负责 |
 | 根身份头 | --yuzi-qq-root-header-height / --yuzi-qq-root-header-padding-inline / --yuzi-qq-root-header-gap | 58px / 16px / 12px |
-| 根头像、状态、操作 | --yuzi-qq-root-identity-avatar-size / --yuzi-qq-root-status-dot-size / --yuzi-qq-root-action-size | 38px / 12px / 28px |
+| 根头像、状态、操作按钮与图标 | --yuzi-qq-root-identity-avatar-size / --yuzi-qq-root-status-dot-size / --yuzi-qq-root-action-size / --yuzi-phone-nav-icon-size | 38px / 12px / 28px / 24px；根级操作图标复用导航图标尺寸，不继承状态文字字号 |
 | 根标题与状态文本 | --yuzi-qq-root-title-size / --yuzi-qq-root-title-line-height；--yuzi-qq-root-status-size / --yuzi-qq-root-status-line-height | 17/24；11/15，均遵从可读文字比例 |
 | Tab | --yuzi-qq-tabbar-height / --yuzi-qq-nav-item-width / --yuzi-qq-tab-content-height / --yuzi-qq-nav-icon-size / --yuzi-qq-nav-item-gap | 83px / 82px / 49px / 26px / 1px |
 | 搜索带 | --yuzi-qq-list-search-sheet-height / --yuzi-qq-search-height / --yuzi-qq-search-radius | 60px / 36px / 12px |

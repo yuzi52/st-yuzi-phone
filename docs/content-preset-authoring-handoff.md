@@ -20,6 +20,8 @@
 
 ## 当前接入路径
 
+QQ 内置功能图标的空心化属于宿主展示调整，功能 class、图标语义与按钮行为沿用原合同；作者样式可使用既有功能 class 或 `svg[data-qq-figma-icon]`，不依赖实心图标字体节点。工作台 `docs/phone-ui-variables.md` 同步此选择器与状态图标说明；主题配色、人物素材、公开声明、包格式、示例、校验与纯模拟接口保持原合同，不新增图标库依赖或模拟器。
+
 页面 `context.actions` 公开 generateImage、readImage、saveImage、deleteImage、getImageGenerationState、subscribeImageGeneration。上传和生图共用稳定图片归属；清空后写入持久空记录，旧上传不能回退复活，底层文件不做破坏性删除。image-actions 把声明和当前行交给共享生图宿主；页面不调用内部 imageRuntime。图片的稳定归属仍由宿主处理。
 
 画布可选 `promptSuffix` 保存已确认的构图要求与用户自定义补充；先拼表格描述，再附加它，随后沿用主设置的提示词处理。字段组合和附加描述都在制作期展示给用户确认。“1∶1”文字不等于接口具有宽高参数。空值或省略不改变旧画布。

@@ -1,7 +1,7 @@
 import { t } from '../../i18n/index.js';
 
 // 只拥有人物选择与人设编辑；会话列表、消息、媒体和请求仍由 QQ App 拥有。
-export function createAssistantUI({ facade, createElement: el, createButton: button, createDialogAvatars,
+export function createAssistantUI({ facade, createElement: el, createButton: button, createIcon, createDialogAvatars,
     showDialog, clearOverlay, openChat, render, makeSecondaryPage, profileEditor, isCurrent, report }) {
     const drafts = new Map();
     const check = result => {
@@ -63,7 +63,8 @@ export function createAssistantUI({ facade, createElement: el, createButton: but
                 });
                 row.append(select);
                 if (!character.isBuiltIn) {
-                    const remove = button('×', 'yuzi-qq-icon-button', { 'aria-label': t`删除人物${character.formalName}` });
+                    const remove = button('', 'yuzi-qq-icon-button', { 'aria-label': t`删除人物${character.formalName}` });
+                    remove.append(createIcon('xmark'));
                     remove.addEventListener('click', () => confirm(t("删除人物"), t`删除“${character.formalName}”及其在所有酒馆聊天中的陪聊记录？此操作不可撤销。`, async () => {
                         check(await facade.intent.deleteAssistantCharacter({ characterId: character.characterId }));
                         drafts.delete(character.characterId); clearOverlay(); await render();
