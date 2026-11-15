@@ -100,14 +100,6 @@ export function createViewerRuntime(options = {}) {
     };
 
     const viewerRuntimeScope = createRuntimeScope(`table-viewer:${sheetKey || 'unknown'}`);
-    const viewerEventManager = {
-        add: (...args) => viewerRuntimeScope.addEventListener(...args),
-        remove: () => {},
-        registerCleanup: (...args) => viewerRuntimeScope.registerCleanup(...args),
-        observeMutation: (...args) => viewerRuntimeScope.observeMutation(...args),
-        observeDisconnection: (...args) => viewerRuntimeScope.observeDisconnection(...args),
-        dispose: () => viewerRuntimeScope.dispose(),
-    };
     let cleanupObserver = null;
     let viewerDisposed = false;
     let suppressExternalTableUpdateDepth = 0;
@@ -208,26 +200,15 @@ export function createViewerRuntime(options = {}) {
         return true;
     };
 
-    const startViewerSession = (options = {}) => {
-        const {
-            setViewingSheet = true,
-            resetVersion = true,
-            bindDraft = true,
-            observeRemoval = true,
-        } = options;
-
-        if (setViewingSheet && typeof resolvedRuntimeDeps.acquireCurrentViewingSheet === 'function') {
+    const startViewerSession = () => {
+        if (typeof resolvedRuntimeDeps.acquireCurrentViewingSheet === 'function') {
             viewingSheetOwner = resolvedRuntimeDeps.acquireCurrentViewingSheet(sheetKey);
         }
-        if (resetVersion && typeof resolvedRuntimeDeps.resetDataVersion === 'function') {
+        if (typeof resolvedRuntimeDeps.resetDataVersion === 'function') {
             resolvedRuntimeDeps.resetDataVersion();
         }
-        if (bindDraft) {
-            bindDraftPreview();
-        }
-        if (observeRemoval) {
-            observeContainerRemoval();
-        }
+        bindDraftPreview();
+        observeContainerRemoval();
 
         return true;
     };
@@ -236,7 +217,6 @@ export function createViewerRuntime(options = {}) {
 
     runtimeApi = {
         addRowModalId: String(addRowModalId || 'phone-add-row-modal'),
-        viewerEventManager,
         dispose,
         observeContainerRemoval,
         bindExternalTableUpdate,

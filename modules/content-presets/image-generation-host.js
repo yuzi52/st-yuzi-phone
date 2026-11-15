@@ -8,6 +8,8 @@ import { buildActiveContentPresetImageGenerationDirectory } from './image-genera
 import { createContentPresetImageActions } from './image-actions.js';
 import { getContentPresetIndexSnapshot } from './index-state.js';
 import { listPresetRecords } from './repository.js';
+import { getContentPresetGeneration } from './mutation-coordinator.js';
+import { getTableImageSessionSignal } from '../image-generation/table-image-session.js';
 
 function text(value) { return String(value ?? '').trim(); }
 function asMap(value) { return value instanceof Map ? value : new Map(Object.entries(value || {})); }
@@ -76,6 +78,8 @@ export function createContentPresetImageGenerationHost(options = {}) {
         isImageGenerationEnabled,
         isTableEnabled,
         subscribeSettings,
+        getSessionSignal: options.getSessionSignal || getTableImageSessionSignal,
+        getSourceGeneration: sheetKey => getContentPresetGeneration(source.originSheetKey || sheetKey),
         imageGenerationService,
     });
 

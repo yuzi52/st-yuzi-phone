@@ -25,8 +25,13 @@ export interface ImageGenerationActions {
   readImage(canvasName: string, rowValues: Record<string, unknown>): Promise<ImageResult>;
   getImageGenerationState(canvasName: string, rowValues?: Record<string, unknown>): Promise<{
     available: boolean; status: ImageResult['status']; canvasName: string; sheetKey?: string; reason?: string;
+    /** 指定当前行且可用时提供；与是否允许发起生图分开，重挂载后仍可查询。 */
+    generating?: boolean;
   }>;
-  subscribeImageGeneration(listener: (detail: unknown) => void): () => void;
+  subscribeImageGeneration(listener: (detail: {
+    key?: string; reason?: string; canvasName?: string; generating?: boolean;
+    status?: 'started' | ImageResult['status'];
+  }) => void): () => void;
 }
 /** 只在声明对应能力时提供；基础页面上下文的apiVersion仍为1。 */
 export interface InlineDisplayTableSnapshot {

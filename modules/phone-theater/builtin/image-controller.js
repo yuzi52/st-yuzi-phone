@@ -14,10 +14,32 @@ export function createBuiltinImageController(options) {
     };
     const sourceInput = (canvas, record) => {
         const snapshot = options.getSnapshot();
+        const getSnapshot = options.getSnapshot;
+        const getChatScope = options.getChatScope;
         return { canvas, rowValues: record.fields, candidateRows: snapshot.records.map(row => row.fields), chatScope,
-            requestContext: { isStillCurrent: () => active() && options.getSnapshot().records.some(row => canvas.stableIdentityFields.every(field => row.fields[field] === record.fields[field]) && canvas.promptFields.every(field => row.fields[field] === record.fields[field])) },
+            requestContext: { isStillCurrent: () => {
+                if (getChatScope() !== chatScope) return false;
+                const matches = getSnapshot().records.filter(row => canvas.stableIdentityFields.every(field => row.fields[field] === record.fields[field]));
+                return matches.length === 1 && canvas.promptFields.every(field => matches[0].fields[field] === record.fields[field]);
+            } },
         };
     };
+    function notifyFailure(result) {
+        if (!result || result.ok || result.status === 'stale') return;
+        options.notify?.(result.reason === 'identity-duplicate' ? '记录标识重复，无法安全关联图片' : '图片生成失败，已保留原图：' + (result.reason || result.status || '未知错误'));
+    }
+    async function refreshState(state) {
+        const revision = ++state.revision;
+        state.busy = service.getState(state.input).busy;
+        repaint(state);
+        try {
+            const saved = await service.read(state.input);
+            if (active() && revision === state.revision) {
+                state.imagePath = saved?.imagePath || '';
+                repaint(state);
+            }
+        } catch { /* A failed read must retain the displayed image. */ }
+    }
     function paint(frame, binding, generationEnabled) {
         const { state, button, description, image, canvas } = binding;
         const imagePath=binding.validIdentity ? state.imagePath : '';
@@ -77,9 +99,10 @@ export function createBuiltinImageController(options) {
             }
             const identityValues = canvas.stableIdentityFields.map(field => record.fields[field]);
             const validIdentity = identityCounts.get(JSON.stringify(identityValues)) === 1;
-            const key = JSON.stringify([canvas.canvas, ...identityValues]);
+            const input = { canvas, rowValues: record.fields, chatScope };
+            const key = service.getState(input).key;
             let state = states.get(key);
-            if (!state) { state = { busy: false, imagePath: '', revision: 0 }; states.set(key, state); }
+            if (!state) { state = { input, busy: false, imagePath: '', revision: 0, submitted: false }; states.set(key, state); }
             const description = document.createElement('span'); description.className = 'yuzi-phone-theater-image-note';
             const imageDescription=canvas.promptFields.filter(field => field !== '发帖账号名').map(field => record.fields[field]).filter(Boolean).join('\n');
             description.textContent = sceneId === 'forum' ? record.fields['分区/版面名'] || '图文主图' : imageDescription;
@@ -94,11 +117,11 @@ export function createBuiltinImageController(options) {
             } else frame.replaceChildren(image, description, button);
             const binding = { state, button, description, image, canvas, stamp, validIdentity, dispose:()=>{frameController.abort();signal.removeEventListener('abort',abortFrame);if(canvas.canvas === 'background'){button.remove();image.remove();}} };
             frames.set(frame, binding);
-            if (validIdentity && !state.readRequested) { state.readRequested=true; void service.read({ canvas, rowValues: record.fields, chatScope }).then(saved => { if (active() && state.revision === 0) { state.imagePath=saved?.imagePath || ''; repaint(state); } }).catch(() => {}); }
+            if (validIdentity && state.revision === 0) void refreshState(state);
             button.addEventListener('click', async event => {
                 event.preventDefault(); event.stopPropagation();
                 if (!active() || !enabled() || state.busy || !validIdentity) return;
-                state.revision += 1; state.busy=true; repaint(state);
+                state.submitted = true;
                 try {
                     const requestCanvas = {...canvas};
                     if (canvas.canvas === 'background') {
@@ -106,11 +129,9 @@ export function createBuiltinImageController(options) {
                         if (rect.width > 0 && rect.height > 0) requestCanvas.promptSuffix='画布尺寸为 ' + Math.round(rect.width) + '×' + Math.round(rect.height) + '，宽高比为 ' + Math.round(rect.width) + ':' + Math.round(rect.height) + '，主体完整呈现。';
                     }
                     const result=await service.generate(sourceInput(requestCanvas, record));
-                    if (!active()) return;
-                    if (result.ok) state.imagePath=result.imagePath;
-                    else options.notify?.(result.reason === 'identity-duplicate' ? '记录标识重复，无法安全关联图片' : '图片生成失败，已保留原图：' + (result.reason || result.status || '未知错误'));
+                    if (active()) notifyFailure(result);
                 } catch(error) { if(active()) options.notify?.(error.message || '图片生成失败'); }
-                finally { state.busy=false; if(active()) repaint(state); }
+                finally { state.submitted=false; }
             }, {signal:frameSignal});
             image.tabIndex=0; image.setAttribute('role','button');
             const view = event => { event.stopPropagation(); if(active() && state.imagePath) options.showImage?.(state.imagePath, imageDescription); };
@@ -120,7 +141,14 @@ export function createBuiltinImageController(options) {
         });
         repaint();
     }
-    function dispose() { disposed=true; for(const binding of frames.values())binding.dispose(); frames.clear(); states.clear(); }
+    const unsubscribe = service.subscribe(detail => {
+        if (!active()) return;
+        const state = states.get(detail.target.key);
+        if (!state) return;
+        if (!state.submitted) notifyFailure(detail.result);
+        void refreshState(state);
+    });
+    function dispose() { disposed=true; unsubscribe(); for(const binding of frames.values())binding.dispose(); frames.clear(); states.clear(); }
     signal.addEventListener('abort', dispose, {once:true});
     return { mount, updateSettings: () => repaint(), dispose };
 }

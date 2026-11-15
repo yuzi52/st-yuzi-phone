@@ -81,6 +81,10 @@ function findFunctionBodyStart(source, signatureIndex, name) {
     for (index += 1; index < source.length; index += 1) {
         const char = source[index];
         if (/\s/.test(char)) continue;
+        if (source.startsWith('=>', index)) {
+            index += 1;
+            continue;
+        }
         assert(char === '{', `${name} 参数列表后未找到函数体`);
         return index;
     }

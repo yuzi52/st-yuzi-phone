@@ -130,6 +130,10 @@ export function createImageGenerationOrchestrator(options = {}) {
             }
         }
 
+        if (input.signal?.aborted) {
+            return failedResult('cancelled', { code: 'image-generation-cancelled' }, naturalPrompt, prompt);
+        }
+
         const generationInput = {
             prompt,
             width: input.width ?? null,

@@ -90,67 +90,6 @@ export function buildSettingsBadgeHtml(text, tone = 'soft') {
     return `<span class="phone-settings-badge${resolvedTone ? ` is-${escapeHtmlAttr(resolvedTone)}` : ''}">${escapeHtml(safeText)}</span>`;
 }
 
-export function buildSettingsHeroHtml({ eyebrow = '', title = '', description = '', chips = [], statsHtml = '', asideHtml = '' }) {
-    const chipsHtml = Array.isArray(chips)
-        ? chips.map((item) => {
-            if (!item) return '';
-            if (typeof item === 'string') return buildSettingsChipHtml(item, 'neutral');
-            return buildSettingsChipHtml(item.text, item.tone || 'neutral');
-        }).join('')
-        : '';
-
-    return `
-        <section class="phone-settings-hero">
-            <div class="phone-settings-hero-main">
-                ${eyebrow ? `<span class="phone-settings-hero-eyebrow">${escapeHtml(eyebrow)}</span>` : ''}
-                <h2 class="phone-settings-hero-title">${escapeHtml(title)}</h2>
-                ${description ? `<p class="phone-settings-hero-description">${escapeHtml(description)}</p>` : ''}
-                ${chipsHtml ? `<div class="phone-settings-hero-chips">${chipsHtml}</div>` : ''}
-                ${statsHtml || asideHtml ? `<div class="phone-settings-hero-extend">${statsHtml || ''}${asideHtml || ''}</div>` : ''}
-            </div>
-        </section>
-    `;
-}
-
-export function buildSettingsStatGridHtml(items = []) {
-    const validItems = Array.isArray(items)
-        ? items.filter((item) => item && (item.label || item.value || item.note))
-        : [];
-
-    if (validItems.length === 0) return '';
-
-    return `
-        <div class="phone-settings-stat-grid">
-            ${validItems.map((item) => `
-                <div class="phone-settings-stat-card">
-                    <span class="phone-settings-stat-label">${escapeHtml(item.label || '')}</span>
-                    <strong class="phone-settings-stat-value">${escapeHtml(item.value || '')}</strong>
-                    ${item.note ? `<span class="phone-settings-stat-note">${escapeHtml(item.note)}</span>` : ''}
-                </div>
-            `).join('')}
-        </div>
-    `;
-}
-
-export function buildSettingsSummaryListHtml(items = []) {
-    const validItems = Array.isArray(items)
-        ? items.filter((item) => item && (item.label || item.value))
-        : [];
-
-    if (validItems.length === 0) return '';
-
-    return `
-        <div class="phone-settings-summary-list">
-            ${validItems.map((item) => `
-                <div class="phone-settings-summary-item">
-                    <span class="phone-settings-summary-label">${escapeHtml(item.label || '')}</span>
-                    <span class="phone-settings-summary-value">${escapeHtml(item.value || '')}</span>
-                </div>
-            `).join('')}
-        </div>
-    `;
-}
-
 export function buildSettingsSectionHtml({ id = '', title = '', desc = '', actionsHtml = '', bodyHtml = '', extraClass = '' }) {
     const resolvedId = String(id || '').trim();
     const resolvedExtraClass = String(extraClass || '').trim();

@@ -2,14 +2,12 @@
 const normalize = value => String(value ?? '').normalize('NFKC').trim();
 const answer = (ok, status, extra = {}) => Object.freeze({ ok, status, ...extra });
 const SCENARIOS = new Set(['generated', 'failed', 'disabled', 'unavailable']);
-export function createPreviewImageActions({ declaration, getState, signal, images = new Map(), onLog = () => {}, delayMs = 350 } = {}) {
+export function createPreviewImageActions({ declaration, getState, signal, taskSignal = signal, images = new Map(), pending = new Map(), changes = new Set(), onLog = () => {}, delayMs = 350 } = {}) {
   let scenario = 'generated';
   const listeners = new Set();
-  const pending = new Set();
-  const cleanups = new Set();
   const canvases = declaration?.imageGeneration?.canvases || [];
-  function resolve(name, row, requireIdentity = true, requireEnabled = true) {
-    if (signal.aborted) return { error: answer(false, 'stale', { reason: 'instance-inactive' }) };
+  function resolve(name, row, requireIdentity = true, requireEnabled = true, detached = false) {
+    if (taskSignal.aborted || (!detached && signal.aborted)) return { error: answer(false, 'stale', { reason: 'instance-inactive' }) };
     const canvas = canvases.find(value => value.canvas === name);
     if (!canvas) return { error: answer(false, 'invalid-input', { reason: 'canvas-not-found' }) };
     // 模拟“未选生图接口或表开关关闭”；不读取智慧姬／柏宝绘，也不提供真实接口切换。
@@ -29,25 +27,38 @@ export function createPreviewImageActions({ declaration, getState, signal, image
   }
   function wait() {
     return new Promise(resolveWait => {
-      const finish = () => { clearTimeout(timer); signal.removeEventListener('abort', finish); cleanups.delete(finish); resolveWait(); };
+      const finish = () => { clearTimeout(timer); taskSignal.removeEventListener('abort', finish); resolveWait(); };
       const timer = setTimeout(finish, delayMs);
-      cleanups.add(finish);
-      signal.addEventListener('abort', finish, { once: true });
+      if (taskSignal.aborted) finish();
+      else taskSignal.addEventListener('abort', finish, { once: true });
     });
+  }
+  async function run(target, operation, work) {
+    if (pending.has(target.key)) return answer(false, 'busy', { reason: 'generation-in-progress' });
+    const token = { operation };
+    pending.set(target.key, token);
+    const notify = result => {
+      const detail = { key: 'imageGeneration', reason: 'task', canvasName: target.canvas.canvas,
+        generating: pending.get(target.key)?.operation === 'generate', status: result?.status || 'started' };
+      for (const listener of [...changes]) { try { listener(detail); } catch {} }
+    };
+    notify();
+    let result;
+    try { result = await work(); return result; }
+    finally { if (pending.get(target.key) === token) { pending.delete(target.key); notify(result); } }
   }
   const actions = Object.freeze({
     async generateImage(name, row) {
+      row = row && !Array.isArray(row) && typeof row === 'object' ? { ...row } : row;
       const target = resolve(name, row);
       if (target.error) return target.error;
-      if (pending.has(target.key)) return answer(false, 'busy', { reason: 'generation-in-progress' });
-      pending.add(target.key);
-      const previousImagePath = images.get(target.key)?.imagePath || '';
-      const requestedScenario = scenario;
-      const prompt = [...target.canvas.promptFields.map(field => field + '：' + String(row[field] ?? '').trim()), target.canvas.promptSuffix || ''].filter(Boolean).join('\n');
-      onLog({ level: 'info', message: '仅测试生图：不会联网或消耗额度', details: { canvas: name, prompt } });
-      try {
+      return run(target, 'generate', async () => {
+        const previousImagePath = images.get(target.key)?.imagePath || '';
+        const requestedScenario = scenario;
+        const prompt = [...target.canvas.promptFields.map(field => field + '：' + String(row[field] ?? '').trim()), target.canvas.promptSuffix || ''].filter(Boolean).join('\n');
+        onLog({ level: 'info', message: '仅测试生图：不会联网或消耗额度', details: { canvas: name, prompt } });
         await wait();
-        const current = resolve(name, row);
+        const current = resolve(name, row, true, false, true);
         if (current.error) return current.error;
         if (current.key !== target.key) return answer(false, 'stale', { reason: 'target-changed' });
         if (requestedScenario === 'failed') return answer(false, 'failed', { reason: 'image-generation-failed', previousImagePath });
@@ -57,15 +68,13 @@ export function createPreviewImageActions({ declaration, getState, signal, image
         const record = Object.freeze({ imagePath, revision });
         images.set(target.key, record);
         return answer(true, 'generated', { imagePath, previousImagePath, record });
-      } finally { pending.delete(target.key); }
+      });
     },
     async saveImage(name, row, image) {
       const target = resolve(name, row, true, false);
       if (target.error) return target.error;
       if (!(image instanceof Blob) || !['image/png', 'image/jpeg', 'image/webp', 'image/gif'].includes(image.type) || !image.size || image.size > 8 * 1024 * 1024) return answer(false, 'invalid-input', { reason: 'invalid-image' });
-      if (pending.has(target.key)) return answer(false, 'busy', { reason: 'generation-in-progress' });
-      pending.add(target.key);
-      try {
+      return run(target, 'save', async () => {
         const bytes = new Uint8Array(await image.arrayBuffer());
         const current = resolve(name, row, true, false);
         if (current.error) return current.error;
@@ -76,15 +85,16 @@ export function createPreviewImageActions({ declaration, getState, signal, image
         const record = Object.freeze({ imagePath: 'data:' + image.type + ';base64,' + btoa(binary), revision: (images.get(target.key)?.revision || 0) + 1 });
         images.set(target.key, record);
         return answer(true, 'saved', { imagePath: record.imagePath, record });
-      } finally { pending.delete(target.key); }
+      });
     },
     async deleteImage(name, row) {
       const target = resolve(name, row, true, false);
       if (target.error) return target.error;
-      if (pending.has(target.key)) return answer(false, 'busy', { reason: 'generation-in-progress' });
-      if (scenario === 'failed') return answer(false, 'failed', { reason: 'image-storage-failed' });
-      images.set(target.key, Object.freeze({ imagePath: '', revision: (images.get(target.key)?.revision || 0) + 1 }));
-      return answer(true, 'deleted');
+      return run(target, 'delete', async () => {
+        if (scenario === 'failed') return answer(false, 'failed', { reason: 'image-storage-failed' });
+        images.set(target.key, Object.freeze({ imagePath: '', revision: (images.get(target.key)?.revision || 0) + 1 }));
+        return answer(true, 'deleted');
+      });
     },
     async readImage(name, row) {
       const target = resolve(name, row, true, false);
@@ -95,15 +105,18 @@ export function createPreviewImageActions({ declaration, getState, signal, image
     async getImageGenerationState(name, row) {
       const target = resolve(name, row, row !== undefined);
       return target.error ? Object.freeze({ available: false, ...target.error, canvasName: name })
-        : Object.freeze({ available: true, status: 'ready', canvasName: name, sheetKey: target.state.sheetKey });
+        : Object.freeze({ available: true, status: 'ready', canvasName: name, sheetKey: target.state.sheetKey,
+          ...(row !== undefined ? { generating: pending.get(target.key)?.operation === 'generate' } : {}) });
     },
     subscribeImageGeneration(listener) {
       if (signal.aborted || typeof listener !== 'function') return () => {};
-      listeners.add(listener);
-      return () => listeners.delete(listener);
+      const notify = detail => { if (!signal.aborted) listener(detail); };
+      listeners.add(notify);
+      changes.add(notify);
+      return () => { listeners.delete(notify); changes.delete(notify); };
     },
   });
-  signal.addEventListener('abort', () => { listeners.clear(); for (const cleanup of [...cleanups]) cleanup(); }, { once: true });
+  signal.addEventListener('abort', () => { for (const listener of listeners) changes.delete(listener); listeners.clear(); }, { once: true });
   return {
     actions: canvases.length ? actions : {},
     setScenario(value) {

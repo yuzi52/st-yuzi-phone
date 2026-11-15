@@ -1,7 +1,4 @@
-import {
-    createTableContentReplacementPage,
-    renderTableContentReplacementPage as renderTableContentReplacementPageImpl,
-} from '../pages/table-content-replacement.js';
+import { createTableContentReplacementPage } from '../pages/table-content-replacement.js';
 import { buildTableContentReplacementPageContext } from './page-context-builders.js';
 
 export function createTableContentReplacementPageRenderers(rendererScope = {}) {
@@ -21,9 +18,6 @@ export function createTableContentReplacementPageRenderers(rendererScope = {}) {
                     return createTableContentReplacementPage(tableContentReplacementContext);
                 },
             },
-        },
-        renderTableContentReplacementPage() {
-            renderTableContentReplacementPageImpl(tableContentReplacementContext);
         },
     };
 }

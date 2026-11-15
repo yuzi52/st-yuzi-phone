@@ -605,7 +605,7 @@ CSS 层读取这些 data attributes 和 CSS 变量，见 [`styles/05-phone-gener
 - [`renderSettings()`](../modules/settings-app/render.js:102)：设置 App 总入口。
 - [`createSettingsAppState()`](../modules/settings-app/state-machine.js:18)：集中定义设置页 state。
 - [`createPageRuntimeManager()`](../modules/settings-app/page-runtime.js:30)：管理每个 mode 的页面 runtime。
-- [`createSettingsPageRenderers()`](../modules/settings-app/page-renderers.js:120)：组合 personalization、preset、editor 三类渲染器。
+- [`createSettingsPageRenderers()`](../modules/settings-app/page-renderers.js)：组合 personalization、preset、editor、table content replacement 四组页面定义，只暴露 `pages` 注册表。
 
 #### 6.3.1 Settings App 渲染主循环
 
@@ -613,11 +613,11 @@ CSS 层读取这些 data attributes 和 CSS 变量，见 [`styles/05-phone-gener
 
 页面切换时，设置 App 采用“页面对象 + page runtime”的生命周期模型：
 
-1. [`render()`](../modules/settings-app/render.js:182) 读取 [`state.mode`](../modules/settings-app/state-machine.js:21)。
+1. [`render()`](../modules/settings-app/render.js) 读取 `state.mode`，只从 `pages[mode]` 注册表选择页面；未知 mode 或模板工坊关闭时的 `beautify` 归到 `home`，同时更新 state，不再维护旧函数分发分支。
 2. 若当前页面不能原地更新，则 [`disposeCurrentPageSession()`](../modules/settings-app/render.js:122) 先调用旧页面的 [`dispose()`](../modules/settings-app/render.js:124)，再释放旧 page runtime。
-3. [`createCurrentPageRuntime()`](../modules/settings-app/page-runtime.js:41) 为新 mode 创建新的 runtime scope。
-4. 页面定义通过 [`createPage()`](../modules/settings-app/page-renderers/preset-renderers.js:24) / [`createPage()`](../modules/settings-app/page-renderers/editor-renderers.js:19) / [`createPage()`](../modules/settings-app/page-renderers/personalization-renderers.js:43) 返回页面对象。
-5. 页面对象可提供 [`mount()`](../modules/settings-app/render.js:119)、[`update()`](../modules/settings-app/render.js:119)、[`dispose()`](../modules/settings-app/render.js:119) 三类生命周期入口。
+3. 不能原地更新时，调用已登记页面的 `createPage()` 创建页面对象；可以原地更新时保留原页面对象，只释放旧 page runtime。
+4. [`createCurrentPageRuntime()`](../modules/settings-app/page-runtime.js:41) 为当前 mode 创建新的 runtime scope。
+5. 页面对象必须提供 `mount()`，可以提供 `update()`、`dispose()`；中央循环调用新页面的 `mount()` 或保留页面的 `update()`。
 
 #### 设置 → 输入快捷键
 
@@ -670,11 +670,12 @@ CSS 层读取这些 data attributes 和 CSS 变量，见 [`styles/05-phone-gener
 
 #### 6.3.5 Renderer 分组与依赖注入
 
-[`createSettingsPageRenderers()`](../modules/settings-app/page-renderers.js:120) 先通过 [`validateSettingsRendererDeps()`](../modules/settings-app/page-renderers.js:21) 校验依赖，再构造 services 与 page contexts。页面分为三组：
+[`createSettingsPageRenderers()`](../modules/settings-app/page-renderers.js) 先通过 [`validateSettingsRendererDeps()`](../modules/settings-app/page-renderers.js) 校验依赖，再构造 services 与 page contexts。页面分为四组：
 
 - Personalization：[`createPersonalizationPageRenderers()`](../modules/settings-app/page-renderers/personalization-renderers.js:16)，包含 home、appearance、button style 和 worldbook reading。
 - Preset：[`createPresetPageRenderers()`](../modules/settings-app/page-renderers/preset-renderers.js:11)，包含 API 预设、AI 指令预设。
 - Editor：[`createEditorPageRenderers()`](../modules/settings-app/page-renderers/editor-renderers.js:17)，包含 beautify。
+- Table content replacement：[`createTableContentReplacementPageRenderers()`](../modules/settings-app/page-renderers/table-content-replacement-renderers.js)，包含表格内容词汇替换。
 
 [`createSettingsPageContexts()`](../modules/settings-app/page-renderers/page-context-builders.js:153) 是页面上下文聚合入口。各子 context 只暴露页面需要的 service 子集，例如 [`buildApiPresetsPageContextFromServices()`](../modules/settings-app/page-renderers/page-context-builders.js:137) 与 [`buildAiInstructionPresetsPageContextFromServices()`](../modules/settings-app/page-renderers/page-context-builders.js:128) 只暴露 QQ v2 预设服务，worldbook reading context 则只暴露 [`WorldbookReadingCatalog`](../modules/worldbook-reading/catalog.js)。旧数据库配置和“API 与世界书”工作台仍没有对应 context。
 
@@ -683,7 +684,7 @@ CSS 层读取这些 data attributes 和 CSS 变量，见 [`styles/05-phone-gener
 - 新增设置页面 mode 时，需要同步 state、page renderer、layout builder、入口导航和 context builder。
 - 页面内部事件要通过 [`pageRuntime.addEventListener()`](../modules/settings-app/page-runtime.js:100) 或 [`pageRuntime.registerCleanup()`](../modules/settings-app/page-runtime.js:115) 注册。
 - 页面 renderer 不直接 import 顶层 phone-core service；应通过 [`page-context-builders.js`](../modules/settings-app/page-renderers/page-context-builders.js:1) 注入所需能力。
-- 兼容型页面可以保留旧函数式 renderer 出口，但新增页面应优先提供页面对象生命周期。
+- 页面内部可以保留函数式渲染实现；接入中央循环时统一登记 `createPage()`，不在 renderer 聚合层重复暴露 `renderXPage()` 转发入口。
 - “读取世界书”搜索只局部替换条目与状态区，不替换正在输入的搜索框；每次条目 DOM 替换前必须释放旧 checkbox listener。页面 lifecycle epoch 与 load generation 必须分开，刷新不得使建立中的 `WORLDINFO_UPDATED` 订阅失效。
 - 扩展设置面板由 [`createPhoneSettingsPanel()`](../modules/settings-panel.js:37) 创建前清理旧 listener，卸载时通过 [`destroyPhoneSettingsPanel()`](../modules/settings-panel.js:31) 移除面板与事件绑定，避免重复初始化后旧闭包继续响应。
 - 设置持久化 flush 只承诺清理本扩展的 debounce/maxWait/pending ctx 并触发宿主 [`saveSettingsDebounced()`](../modules/settings/persistence.js:51)；当前文档和日志不得写成“同步落盘”或“立即持久化”。该计时器边界由 [`scripts/check-settings-flush-timer-behavior.cjs`](../scripts/check-settings-flush-timer-behavior.cjs) 守护。
@@ -916,6 +917,8 @@ Theater 是“把表格数据投影成场景页面”的子系统。它不是 Ta
 广场、日记及论坛导航复用 `phone-core/navigation-ui.js` 的顶部几何，但论坛列表保持“左右箭头＋发现／关注”的单行导航，详情作者靠左；直播不增加独立标题栏。小日记标题栏使用主题实色背景且不进行背景模糊。字体库覆盖只扩展到内置作用域。图片控件在 detached 路由准备阶段也必须绘制初始状态，不能等待用户进入详情后才同步开关。
 
 页面只读快照保留物理行索引；图片控件复用[共用表格图片宿主](../modules/image-generation/table-image-host.js)，分别管理按钮、提示词字段与稳定图片归属。头像、外观、设置订阅、页面销毁和旧结果失效均由运行时适配，不散落到路由核心。具体字段、布局、存储和测试入口见[内置小剧场美化说明](reference/builtin-theater-beautify.md)。
+
+表格图片的在途记录、逐目标查询和变化通知由公共图片模块统一持有，页面销毁只释放显示订阅。`table-image-session.js` 使用独立于路由的聊天级 signal，由后台生命周期的切换聊天／停用入口统一撤销；请求在异步准备、取得归属凭据和提交结果时复核，因此 A→B→A 也不恢复旧任务。默认页重新挂载后查询忙碌态，按目标通知重读已保存图片并丢弃过期读取。作者沿用现有查询／订阅动作，指定行且可用时读取 `generating`；上传、清空仍保留页面有效性检查。共享 orchestrator 与底层接口继续并发，QQ 生图归属不改，最终视觉验收由用户完成。
 
 #### 6.6.1 scene registry 与路由
 

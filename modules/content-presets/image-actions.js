@@ -96,6 +96,7 @@ export function createContentPresetImageActions(options = {}) {
         : async () => true;
     const isTableEnabled = typeof options.isTableEnabled === 'function' ? options.isTableEnabled : async () => false;
     const subscribeSettings = typeof options.subscribeSettings === 'function' ? options.subscribeSettings : () => NOOP;
+    const getSourceGeneration = options.getSourceGeneration || (() => 0);
     const service = options.imageGenerationService;
     if (!service || typeof service.generate !== 'function' || typeof service.read !== 'function') {
         throw new TypeError(t("内容预设生图动作需要 generate/read 服务"));
@@ -140,8 +141,9 @@ export function createContentPresetImageActions(options = {}) {
     }
 
     async function isStillCurrent(context, target) {
-        if (!isCurrent() || text(getChatScope()) !== text(target?.chatScope)) return false;
+        if ((!context.allowDetached && !isCurrent()) || text(getChatScope()) !== text(target?.chatScope)) return false;
         if (!await isSourceActive({ source, declaration, context })) return false;
+        if (context.sourceGeneration !== undefined && getSourceGeneration(context.sheetKey) !== context.sourceGeneration) return false;
         const canvas = canvasByName(declaration, context?.canvasName);
         const table = canvas ? tableForCanvas(getRawData() || {}, canvas) : null;
         return !!table
@@ -150,9 +152,14 @@ export function createContentPresetImageActions(options = {}) {
     }
 
     async function generateImage(canvasName, rowValues) {
+        const signal = options.getSessionSignal?.();
+        rowValues = rowValues && !Array.isArray(rowValues) && typeof rowValues === 'object' ? { ...rowValues } : rowValues;
         const context = await resolve(canvasName, rowValues);
         if (!context.ok) return context.result;
+        if (signal?.aborted) return result(false, 'stale', { reason: 'ticket-invalid' });
+        const sourceGeneration = getSourceGeneration(context.sheetKey);
         return service.generate({
+            ...(signal ? { signal } : {}),
             canvas: context.physicalCanvas,
             chatScope: context.chatScope,
             rowValues: context.rowValues,
@@ -165,6 +172,9 @@ export function createContentPresetImageActions(options = {}) {
                 isStillCurrent: target => isStillCurrent({
                     canvasName: text(canvasName),
                     rowValues: context.rowValues,
+                    sheetKey: context.sheetKey,
+                    sourceGeneration,
+                    allowDetached: true,
                 }, target),
             }),
         });
@@ -213,27 +223,38 @@ export function createContentPresetImageActions(options = {}) {
             status: 'ready',
             canvasName: text(canvasName),
             sheetKey: context.sheetKey,
+            ...(rowValues !== undefined ? { generating: service.getState?.({ canvas: context.physicalCanvas, chatScope: context.chatScope, rowValues })?.generating === true } : {}),
         });
     }
 
     function subscribeImageGeneration(listener) {
         if (typeof listener !== 'function') return NOOP;
         let active = true;
-        let unsubscribe = NOOP;
+        const unsubscribers = [];
+        const notify = detail => {
+            if (active && isCurrent()) {
+                try { listener(detail || {}); } catch {}
+            }
+        };
         try {
-            const remove = subscribeSettings(detail => {
-                if (active && isCurrent()) {
-                    try { listener(detail || {}); } catch {}
-                }
+            const remove = subscribeSettings(notify);
+            if (typeof remove === 'function') unsubscribers.push(remove);
+        } catch { /* Task notifications remain useful without settings notifications. */ }
+        try {
+            const remove = service.subscribe?.(detail => {
+                if (!active || !isCurrent() || text(getChatScope()) !== detail.target.chatScope) return;
+                const canvas = declaration.imageGeneration?.canvases?.find(candidate => text(candidate.canvas) === detail.target.canvas
+                    && tableForCanvas(getRawData() || {}, candidate, { includeRows: false })?.sheetKey === detail.target.physicalTable);
+                if (canvas) notify({ key: 'imageGeneration', reason: 'task', canvasName: text(canvas.canvas), generating: detail.generating, status: detail.result?.status || 'started' });
             });
-            if (typeof remove === 'function') unsubscribe = remove;
-        } catch {
-            return NOOP;
-        }
+            if (typeof remove === 'function') unsubscribers.push(remove);
+        } catch { /* Older injected hosts can still provide settings notifications. */ }
         return () => {
             if (!active) return;
             active = false;
-            try { unsubscribe(); } catch {}
+            for (const unsubscribe of unsubscribers) {
+                try { unsubscribe(); } catch {}
+            }
         };
     }
 

@@ -1,6 +1,7 @@
 import { startBottomVisualization, stopBottomVisualization, suspendBottomVisualization, resumeBottomVisualization } from '../bottom-visualization/index.js';
 import { Logger } from '../error-handler.js';
 import { clearQQSkinCache } from '../content-presets/qq-skin.js';
+import { invalidateTableImageSession, startTableImageSession } from '../image-generation/table-image-session.js';
 import { subscribeTableUpdate } from './callbacks.js';
 import {
     startChronicleTodayRelationInjection,
@@ -303,6 +304,7 @@ function handleTableUpdateSignal(pending) {
 }
 
 export function startPhoneBackgroundServices(reason = 'enabled') {
+    startTableImageSession();
     runtime.enabled = true;
     callLifecycleDependency(deps.startBottomVisualization, 'bottom-visualization.start');
     callIsolatedTableUpdateReviewLifecycle(
@@ -326,6 +328,7 @@ export function startPhoneBackgroundServices(reason = 'enabled') {
 }
 
 export function stopPhoneBackgroundServices(reason = 'disabled') {
+    invalidateTableImageSession(true);
     runtime.enabled = false;
     callLifecycleDependency(deps.stopBottomVisualization, 'bottom-visualization.stop');
     runtime.generation += 1;
@@ -347,6 +350,7 @@ export function stopPhoneBackgroundServices(reason = 'disabled') {
 
 export function handlePhoneBackgroundChatChanged(chatId = null) {
     if (!runtime.enabled) return false;
+    invalidateTableImageSession();
     callLifecycleDependency(deps.suspendBottomVisualization, 'bottom-visualization.suspend');
 
     runtime.generation += 1;

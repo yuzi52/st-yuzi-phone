@@ -1,8 +1,5 @@
-import { createApiPresetsPage, renderApiPresetsPage as renderApiPresetsPageImpl } from '../pages/api-presets.js';
-import {
-    createAiInstructionPresetsPage,
-    renderAiInstructionPresetsPage as renderAiInstructionPresetsPageImpl,
-} from '../pages/ai-instruction-presets.js';
+import { createApiPresetsPage } from '../pages/api-presets.js';
+import { createAiInstructionPresetsPage } from '../pages/ai-instruction-presets.js';
 import {
     buildAiInstructionPresetsPageContext,
     buildApiPresetsPageContext,
@@ -30,12 +27,6 @@ export function createPresetPageRenderers(rendererScope = {}) {
                     return createAiInstructionPresetsPage(aiInstructionPresetsContext);
                 },
             },
-        },
-        renderApiPresetsPage() {
-            renderApiPresetsPageImpl(apiPresetsContext);
-        },
-        renderAiInstructionPresetsPage() {
-            renderAiInstructionPresetsPageImpl(aiInstructionPresetsContext);
         },
     };
 }

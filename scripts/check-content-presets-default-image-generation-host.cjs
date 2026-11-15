@@ -204,6 +204,7 @@ async function main() {
         status: 'ready',
         canvasName: '封面',
         sheetKey: 'sheet_square',
+        generating: false,
     }, '默认宿主链在生成前必须确认页面来源、表和稳定标识仍有效');
 
     const first = await pageActions.generateImage('封面', rowValues());
@@ -214,7 +215,8 @@ async function main() {
         description: '标题：第一帖\n图片描述：雨夜咖啡店\n1∶1正方形构图；用户补充：柔和光线',
         scanDescription: true,
     }], '默认链必须先复用 QQ 的人物扫描与自然提示词组合');
-    assert.deepEqual(translated, [{
+    assert.ok(translated[0].signal instanceof AbortSignal, '提示词转换使用聊天级取消信号');
+    assert.deepEqual(translated.map(({ signal: _signal, ...input }) => input), [{
         prompt: '角色解析后的自然提示词',
         apiPresetId: 'api-character',
         imageGenerationPresetId: 'preset-character',
@@ -283,9 +285,8 @@ async function main() {
         path: 'user/images/yuzi-phone-generated/post-1-late.png',
     });
     const late = await latePending;
-    assert.equal(late.ok, false);
-    assert.equal(late.status, 'stale');
-    assert.equal(late.reason, 'ownership-changed', '实例失效后的晚到结果不得覆盖稳定图片归属');
+    assert.equal(late.ok, true);
+    assert.equal(late.status, 'generated', '离开页面不影响当前聊天已发出的生图任务');
 
     const afterLate = await rehydratedHost.createPageActions({
         item: pageItem,
@@ -294,7 +295,7 @@ async function main() {
         sheetKey: 'sheet_square',
         isCurrent: () => true,
     }).readImage('封面', rowValues());
-    assert.equal(afterLate.imagePath, 'user/images/yuzi-phone-generated/post-1.png', '晚到结果不得覆盖旧图');
+    assert.equal(afterLate.imagePath, 'user/images/yuzi-phone-generated/post-1-late.png', '重新进入页面读取后台保存的图片');
 
 
     // New author mutations share persistence with generation, without invoking it.

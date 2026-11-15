@@ -126,6 +126,53 @@ export function createTableDisplayImageGenerationService(options = {}) {
     }
 
     const inFlight = new Map();
+    const listeners = new Set();
+    const staleResult = () => ({ ok: false, status: 'stale', reason: 'ticket-invalid' });
+
+    function publish(target, result) {
+        const request = inFlight.get(target.key);
+        const detail = Object.freeze({
+            target,
+            busy: Boolean(request),
+            generating: request?.operation === 'generate',
+            ...(result ? { result: Object.freeze({ ...result }) } : {}),
+        });
+        for (const listener of [...listeners]) {
+            try { listener(detail); } catch { /* A view cannot interrupt another view or saving. */ }
+        }
+    }
+
+    function finishRequest(request, result) {
+        if (inFlight.get(request.target.key) !== request) return;
+        inFlight.delete(request.target.key);
+        request.signal?.removeEventListener('abort', request.cancel);
+        if (result?.ok !== true) ownershipService.invalidate(request.target);
+        publish(request.target, result);
+    }
+
+    async function runOperation(context, operation, signal, work) {
+        if (inFlight.has(context.target.key)) {
+            return { ok: false, status: 'busy', reason: 'generation-in-progress' };
+        }
+        signal ||= options.getSessionSignal?.();
+        if (signal?.aborted) return staleResult();
+        const request = { target: context.target, operation, signal };
+        request.cancel = () => finishRequest(request, staleResult());
+        const isCurrent = () => inFlight.get(context.target.key) === request && !signal?.aborted;
+        inFlight.set(context.target.key, request);
+        signal?.addEventListener('abort', request.cancel, { once: true });
+        publish(context.target);
+        let result;
+        try {
+            result = await work({ isCurrent, signal });
+            return result;
+        } catch {
+            result = { ok: false, status: 'failed', reason: operation === 'generate' ? 'image-generation-failed' : 'image-storage-failed' };
+            return result;
+        } finally {
+            finishRequest(request, result);
+        }
+    }
 
     async function composeNaturalPrompt(input, context) {
         const supplied = plainText(input.naturalPrompt);
@@ -161,25 +208,23 @@ export function createTableDisplayImageGenerationService(options = {}) {
         });
         if (!validation.ok) return invalidTargetResult(validation.reason);
 
-        if (inFlight.has(context.target.key)) {
-            return { ok: false, status: 'busy', reason: 'generation-in-progress' };
-        }
-        const requestToken = Object.freeze({ chatScope: context.target.chatScope });
-        inFlight.set(context.target.key, requestToken);
-        try {
+        return runOperation(context, 'generate', input.signal, async ({ isCurrent, signal }) => {
             let enabled;
             try {
                 enabled = await isTableEnabled({ chatScope: context.target.chatScope, tableName: context.canvas.tableName, canvas: input.canvas });
             } catch { enabled = false; }
+            if (!isCurrent()) return staleResult();
             if (enabled !== true) return { ok: false, status: 'disabled', reason: 'table-disabled' };
             const prompt = await composeNaturalPrompt(input, context);
+            if (!isCurrent()) return staleResult();
             if (!prompt.ok) return { ok: false, status: 'invalid-input', reason: prompt.reason };
-            if (inFlight.get(context.target.key) !== requestToken) return { ok: false, status: 'stale', reason: 'ticket-invalid' };
             const started = await ownershipService.beginReplacement({
                 target: context.target,
                 identityCandidates: context.identityCandidates,
+                isCurrent,
             });
             if (!started.ok) return started;
+            if (!isCurrent()) return staleResult();
 
             let generation;
             try {
@@ -187,6 +232,7 @@ export function createTableDisplayImageGenerationService(options = {}) {
                     ...(input.generation && typeof input.generation === 'object' ? input.generation : {}),
                     naturalPrompt: prompt.naturalPrompt,
                     folder: GENERATED_IMAGE_FOLDER,
+                    ...(signal ? { signal } : {}),
                 });
             } catch (_error) {
                 generation = {
@@ -195,6 +241,7 @@ export function createTableDisplayImageGenerationService(options = {}) {
                     error: { code: 'image-generation-failed' },
                 };
             }
+            if (!isCurrent()) return { ...staleResult(), previousImagePath: started.previousImagePath };
             const imagePath = plainText(generation?.path);
             if (generation?.ok !== true || !imagePath) {
                 return failureResult(generation, started.previousImagePath);
@@ -203,14 +250,14 @@ export function createTableDisplayImageGenerationService(options = {}) {
             const committed = await ownershipService.commitReplacement({
                 ticket: started.ticket,
                 imagePath,
-                recheckOwnership: target => isCurrentTarget({
+                recheckOwnership: async target => isCurrent() && await isCurrentTarget({
                     target,
                     canvas: input.canvas,
                     chatScope: context.target.chatScope,
                     rowValues: input.rowValues,
                     candidateRows: input.candidateRows,
                     requestContext: input.requestContext,
-                }),
+                }) && isCurrent(),
             });
             if (!committed.ok) {
                 return { ...committed, previousImagePath: started.previousImagePath };
@@ -223,11 +270,7 @@ export function createTableDisplayImageGenerationService(options = {}) {
                 previousImagePath: committed.previousImagePath,
                 record: committed.record,
             };
-        } finally {
-            if (inFlight.get(context.target.key) === requestToken) {
-                inFlight.delete(context.target.key);
-            }
-        }
+        });
     }
 
     // Upload and clear share exactly the same stable target and lock as generation.
@@ -237,13 +280,11 @@ export function createTableDisplayImageGenerationService(options = {}) {
         if (!context.ok) return invalidTargetResult(context.reason);
         const validation = validateStableImageOwnershipTarget({ target: context.target, identityCandidates: context.identityCandidates });
         if (!validation.ok) return invalidTargetResult(validation.reason);
-        if (inFlight.has(context.target.key)) return { ok: false, status: 'busy', reason: 'generation-in-progress' };
         if (!clear && typeof options.storeImage !== 'function') return { ok: false, status: 'unavailable', reason: 'image-storage-unavailable' };
-        const requestToken = Object.freeze({ chatScope: context.target.chatScope });
-        inFlight.set(context.target.key, requestToken);
-        try {
-            const started = await ownershipService.beginReplacement({ target: context.target, identityCandidates: context.identityCandidates });
+        return runOperation(context, clear ? 'delete' : 'save', input.signal, async ({ isCurrent }) => {
+            const started = await ownershipService.beginReplacement({ target: context.target, identityCandidates: context.identityCandidates, isCurrent });
             if (!started.ok) return started;
+            if (!isCurrent()) return staleResult();
             let imagePath = '';
             if (!clear) {
                 const stored = await options.storeImage(input.image);
@@ -252,15 +293,11 @@ export function createTableDisplayImageGenerationService(options = {}) {
             }
             const committed = await ownershipService.commitReplacement({
                 ticket: started.ticket, imagePath, clear,
-                recheckOwnership: target => isCurrentTarget({ target, canvas: input.canvas, chatScope: context.target.chatScope, rowValues: input.rowValues, requestContext: input.requestContext }),
+                recheckOwnership: async target => isCurrent() && await isCurrentTarget({ target, canvas: input.canvas, chatScope: context.target.chatScope, rowValues: input.rowValues, requestContext: input.requestContext }) && isCurrent(),
             });
             if (!committed.ok) return { ...committed, previousImagePath: started.previousImagePath };
             return { ok: true, status: clear ? 'deleted' : 'saved', imagePath, previousImagePath: committed.previousImagePath, record: committed.record };
-        } catch {
-            return { ok: false, status: 'failed', reason: 'image-storage-failed' };
-        } finally {
-            if (inFlight.get(context.target.key) === requestToken) inFlight.delete(context.target.key);
-        }
+        });
     }
 
     async function read(input = {}) {
@@ -271,15 +308,16 @@ export function createTableDisplayImageGenerationService(options = {}) {
     function invalidate(input = {}) {
         const context = targetContext(input);
         if (!context.ok) return false;
-        inFlight.delete(context.target.key);
-        ownershipService.invalidate(context.target);
+        const request = inFlight.get(context.target.key);
+        if (request) request.cancel();
+        else ownershipService.invalidate(context.target);
         return true;
     }
 
     function invalidateChatScope(chatScope) {
         const scope = plainText(chatScope);
-        for (const [key, requestToken] of inFlight) {
-            if (requestToken.chatScope === scope) inFlight.delete(key);
+        for (const request of [...inFlight.values()]) {
+            if (request.target.chatScope === scope) request.cancel();
         }
         ownershipService.invalidateChatScope(scope);
     }
@@ -289,6 +327,16 @@ export function createTableDisplayImageGenerationService(options = {}) {
         save: input => replaceImage(input),
         delete: input => replaceImage(input, true),
         read,
+        getState(input = {}) {
+            const context = targetContext(input);
+            const request = context.ok ? inFlight.get(context.target.key) : null;
+            return Object.freeze({ key: context.ok ? context.target.key : '', busy: Boolean(request), generating: request?.operation === 'generate' });
+        },
+        subscribe(listener) {
+            if (typeof listener !== 'function') return () => {};
+            listeners.add(listener);
+            return () => listeners.delete(listener);
+        },
         invalidate,
         invalidateChatScope,
     });

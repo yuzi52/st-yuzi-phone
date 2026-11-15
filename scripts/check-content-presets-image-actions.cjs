@@ -74,6 +74,7 @@ async function main() {
         status: 'ready',
         canvasName: '封面',
         sheetKey: 'sheet_square',
+        generating: false,
     }, '作者 mount 必须能在不触发生图时读取当前画布的可用状态');
 
     const generated = await actions.generateImage('封面', {

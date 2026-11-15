@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const { extractFunctionBody } = require('./helpers/source-functions.cjs');
 
 const root = path.resolve(__dirname, '..');
 const sourcePath = path.join(root, 'modules/table-viewer/detail-edit-controller.js');
@@ -9,23 +10,6 @@ function assert(condition, message) {
     if (!condition) {
         throw new Error(message);
     }
-}
-
-function extractFunctionBody(name, pattern) {
-    const match = pattern.exec(source);
-    assert(match, `未找到 ${name} 函数`);
-
-    let index = match.index + match[0].length;
-    let depth = 1;
-    while (index < source.length && depth > 0) {
-        const char = source[index];
-        if (char === '{') depth += 1;
-        if (char === '}') depth -= 1;
-        index += 1;
-    }
-
-    assert(depth === 0, `${name} 函数体括号不平衡`);
-    return source.slice(match.index, index);
 }
 
 function assertOrdered(haystack, tokens, label) {
@@ -43,6 +27,7 @@ assert(!source.includes('saveTableData'), '详情保存禁止调用整库保存�
 assert(!source.includes('getTableData'), '详情保存不应重新读取整库快照作为写入基准');
 
 const saveBody = extractFunctionBody(
+    source,
     'handleSaveRow',
     /async\s+function\s+handleSaveRow\s*\([^)]*\)\s*{/,
 );

@@ -113,7 +113,7 @@ async function main() {
     assertDoesNotInclude(promptPage, '../../qq/data/', 'AI 页面');
     assertDoesNotInclude(promptPage, '__new__', 'AI 预设下拉框');
     assert.match(settingsRender, /qqV2PresetSettingsService/, '设置渲染入口必须注入 QQ v2 Facade 预设服务');
-    assert.match(settingsRender, /api_presets/, '设置渲染入口必须注册 API 预设页');
+    assert.match(settingsRender, /pageRenderers\.pages\[nextMode\]/, '设置渲染入口必须从页面注册表分发');
     assertDoesNotInclude(settingsRender, "mode === 'database'", '设置渲染入口');
     assertDoesNotInclude(settingsRender, 'dataConfig:', '设置渲染入口');
     assert.match(pageContexts, /qqV2Presets/, '设置页面 context 必须传递 QQ v2 Facade 预设服务');

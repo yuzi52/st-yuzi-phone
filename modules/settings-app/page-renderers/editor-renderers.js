@@ -1,7 +1,4 @@
-import {
-    createBeautifyTemplatePage,
-    renderBeautifyTemplatePage as renderBeautifyTemplatePagePage,
-} from '../pages/beautify.js';
+import { createBeautifyTemplatePage } from '../pages/beautify.js';
 import { buildBeautifyTemplatePageContext } from './page-context-builders.js';
 
 export function createEditorPageRenderers(rendererScope = {}) {
@@ -20,9 +17,6 @@ export function createEditorPageRenderers(rendererScope = {}) {
                     return createBeautifyTemplatePage(beautifyTemplateContext);
                 },
             },
-        },
-        renderBeautifyTemplatePage() {
-            renderBeautifyTemplatePagePage(beautifyTemplateContext);
         },
     };
 }

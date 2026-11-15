@@ -189,6 +189,9 @@ export function createStableImageOwnershipService(options = {}) {
         if (!validation.ok) return invalidTargetResult(validation.reason);
 
         const previous = await read(validation.target);
+        if (typeof input.isCurrent === 'function' && !input.isCurrent()) {
+            return { ok: false, status: 'stale', reason: 'ticket-invalid' };
+        }
         const ticket = Object.freeze({
             key: validation.target.key,
             id: `${++nextTicketId}`,

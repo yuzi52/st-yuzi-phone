@@ -167,34 +167,12 @@ export function renderSettings(container) {
         pageRuntime,
     );
 
-    const renderLegacyPageByMode = (mode) => {
-        if (mode === 'appearance') {
-            pageRenderers.renderAppearancePage();
-        } else if (mode === 'api_presets') {
-            pageRenderers.renderApiPresetsPage();
-        } else if (mode === 'beautify') {
-            if (isContentPresetFullPageRuntimeEnabled()) pageRenderers.renderBeautifyTemplatePage();
-            else pageRenderers.renderHomePage();
-        } else if (mode === 'button_style') {
-            pageRenderers.renderButtonStylePage();
-        } else if (mode === 'ai_instruction_presets') {
-            pageRenderers.renderAiInstructionPresetsPage();
-        } else if (mode === 'table_content_replacement') {
-            pageRenderers.renderTableContentReplacementPage();
-        } else if (mode === 'fullscreen_overlay') {
-            pageRenderers.renderFullscreenOverlayPage();
-        } else {
-            pageRenderers.renderHomePage();
-        }
-    };
-
     const render = () => {
         if (disposed) return;
-        state.mode = normalizeSettingsMode(state.mode, isContentPresetFullPageRuntimeEnabled());
-        const nextMode = String(state.mode || 'home');
-        const pageDefinition = pageRenderers?.pages && typeof pageRenderers.pages === 'object'
-            ? pageRenderers.pages[nextMode]
-            : null;
+        const requestedMode = String(normalizeSettingsMode(state.mode, isContentPresetFullPageRuntimeEnabled()) || 'home');
+        const nextMode = Object.hasOwn(pageRenderers.pages, requestedMode) ? requestedMode : 'home';
+        state.mode = nextMode;
+        const pageDefinition = pageRenderers.pages[nextMode];
         const currentPage = currentPageSession?.mode === nextMode
             ? currentPageSession.page
             : null;
@@ -206,9 +184,7 @@ export function renderSettings(container) {
             disposeCurrentPageSession();
             currentPageSession = {
                 mode: nextMode,
-                page: pageDefinition && typeof pageDefinition.createPage === 'function'
-                    ? pageDefinition.createPage()
-                    : null,
+                page: pageDefinition.createPage(),
             };
         } else {
             disposeCurrentPageRuntime();
@@ -216,13 +192,9 @@ export function renderSettings(container) {
 
         createCurrentPageRuntime(nextMode);
 
-        const activePage = currentPageSession?.page;
+        const activePage = currentPageSession.page;
         const lifecycleMethod = canUpdateInPlace ? 'update' : 'mount';
-        if (activePage && typeof activePage[lifecycleMethod] === 'function') {
-            activePage[lifecycleMethod]();
-        } else {
-            renderLegacyPageByMode(nextMode);
-        }
+        activePage[lifecycleMethod]();
 
         // 设置 App 内部子视图会反复 innerHTML 重渲染，需要每次重绑滚动守卫。
         bindPhoneScrollGuards(container);

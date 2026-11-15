@@ -81,26 +81,5 @@ export function consumePhoneRouteRefreshPending(targetState = state) {
 
 export function resetPhoneCoreState() {
     activitySubscribers.clear();
-    const next = createInitialState();
-    state.currentRoute = next.currentRoute;
-    state.routeHistory = next.routeHistory;
-    state.phoneContainer = next.phoneContainer;
-    state.onRouteChangeCallbacks = next.onRouteChangeCallbacks;
-    state.isPhoneUiInitialized = next.isPhoneUiInitialized;
-    state.isPhoneActive = next.isPhoneActive;
-    state.pendingRouteRefresh = next.pendingRouteRefresh;
-    state.pendingRouteRefreshReason = next.pendingRouteRefreshReason;
-    state.isDestroying = next.isDestroying;
-    state.statusClockTimerId = next.statusClockTimerId;
-    state.shellInteractionTimerId = next.shellInteractionTimerId;
-    state.shellAppControls = next.shellAppControls;
-    state.shellAppControlsRouteCleanup = next.shellAppControlsRouteCleanup;
-    state.routeRenderRegistered = next.routeRenderRegistered;
-    state.routeRenderCleanup = next.routeRenderCleanup;
-    state.routeRenderToken = next.routeRenderToken;
-    state.idleApiDebugCancel = next.idleApiDebugCancel;
-    state.currentViewingSheetKey = next.currentViewingSheetKey;
-    state.lastDataVersion = next.lastDataVersion;
-    state.registeredTableUpdateCallback = next.registeredTableUpdateCallback;
-    state.registeredTableFillStartCallback = next.registeredTableFillStartCallback;
+    Object.assign(state, createInitialState());
 }

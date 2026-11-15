@@ -167,10 +167,10 @@ export function createSettingsPageRenderers(deps = {}) {
         pageContexts,
     };
 
-    const { pages: personalizationPages = {}, ...personalizationRenderers } = createPersonalizationPageRenderers(rendererScope);
-    const { pages: presetPages = {}, ...presetRenderers } = createPresetPageRenderers(rendererScope);
-    const { pages: editorPages = {}, ...editorRenderers } = createEditorPageRenderers(rendererScope);
-    const { pages: tableContentReplacementPages = {}, ...tableContentReplacementRenderers } = createTableContentReplacementPageRenderers(rendererScope);
+    const { pages: personalizationPages } = createPersonalizationPageRenderers(rendererScope);
+    const { pages: presetPages } = createPresetPageRenderers(rendererScope);
+    const { pages: editorPages } = createEditorPageRenderers(rendererScope);
+    const { pages: tableContentReplacementPages } = createTableContentReplacementPageRenderers(rendererScope);
 
     return {
         pages: {
@@ -179,9 +179,5 @@ export function createSettingsPageRenderers(deps = {}) {
             ...editorPages,
             ...tableContentReplacementPages,
         },
-        ...personalizationRenderers,
-        ...presetRenderers,
-        ...editorRenderers,
-        ...tableContentReplacementRenderers,
     };
 }

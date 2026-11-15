@@ -42,9 +42,10 @@ try {
   runtime.updateState({ ...initialState, version: 3 });
   const late = a.generateImage('avatar', row);
   await runtime.unmount();
-  assert.equal((await late).status, 'stale');
   context = await runtime.mountModule({ mount() {} });
-  assert.equal((await context.actions.readImage('avatar', row)).imagePath, generated.imagePath);
+  const background = await late;
+  assert.equal(background.status, 'generated');
+  assert.equal((await context.actions.readImage('avatar', row)).imagePath, background.imagePath);
   assert.equal((await a.generateImage('avatar', row)).status, 'stale');
 
   runtime.setImageScenario('disabled');

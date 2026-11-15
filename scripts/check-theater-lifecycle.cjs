@@ -1,5 +1,6 @@
 const fs = require('fs');
 const path = require('path');
+const { extractFunctionBody } = require('./helpers/source-functions.cjs');
 
 const root = path.resolve(__dirname, '..');
 const files = {
@@ -16,23 +17,6 @@ function assert(condition, message) {
     if (!condition) {
         throw new Error(message);
     }
-}
-
-function extractFunctionBody(source, name, pattern) {
-    const match = pattern.exec(source);
-    assert(match, `未找到 ${name}`);
-
-    let index = match.index + match[0].length;
-    let depth = 1;
-    while (index < source.length && depth > 0) {
-        const char = source[index];
-        if (char === '{') depth += 1;
-        if (char === '}') depth -= 1;
-        index += 1;
-    }
-
-    assert(depth === 0, `${name} 函数体括号不平衡`);
-    return source.slice(match.index, index);
 }
 
 function assertOrdered(haystack, tokens, label) {

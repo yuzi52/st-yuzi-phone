@@ -96,6 +96,9 @@ export function createRuntimeV1({
   let mountGeneration = 0;
   let currentMount = null;
   const previewImages = new Map();
+  const previewImageTasks = new Map();
+  const imageChanges = new Set();
+  const imageSession = new AbortController();
   let imageScenario = 'generated';
   let imageMock = null;
   const setImageScenario = value => { imageMock?.setScenario(value); imageScenario = value; };
@@ -278,7 +281,8 @@ export function createRuntimeV1({
     const controller = new AbortController();
     const mountSubscriptions = [];
     const presetAssets = createPresetAssets(controller.signal);
-    imageMock = createPreviewImageActions({ declaration, getState, signal: controller.signal, images: previewImages, onLog: entry => log(entry.level, entry.message, entry.details) });
+    imageMock = createPreviewImageActions({ declaration, getState, signal: controller.signal, taskSignal: imageSession.signal,
+      images: previewImages, pending: previewImageTasks, changes: imageChanges, onLog: entry => log(entry.level, entry.message, entry.details) });
     imageMock.setScenario(imageScenario);
     const context = Object.freeze({
       apiVersion: 1,
@@ -340,6 +344,7 @@ export function createRuntimeV1({
   const destroy = async () => {
     if (destroyed) return;
     destroyed = true;
+    imageSession.abort();
     await unmount();
     subscriptions.clear();
     for (const url of objectUrls.values()) urlApi?.revokeObjectURL?.(url);
@@ -347,6 +352,8 @@ export function createRuntimeV1({
     revokePresetAssetUrls();
     presetAssetBlobs.clear();
     previewImages.clear();
+    previewImageTasks.clear();
+    imageChanges.clear();
     pendingActions.clear();
     log('info', 'Runtime 已清理');
   };

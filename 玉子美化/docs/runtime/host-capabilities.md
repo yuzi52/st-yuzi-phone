@@ -51,8 +51,8 @@
 | `saveImage(canvasName, rowValues, image)` | 保存用户上传的Blob，PNG/JPEG/WebP/GIF且大于0、不超过8MiB；成功为saved，带imagePath。不发起生图。 |
 | `deleteImage(canvasName, rowValues)` | 清空该画布的稳定图片归属，成功为deleted；重开后仍为空。不会删除可能共享的底层图片文件。 |
 | `readImage(canvasName, rowValues)` | 参数相同；有图返回 `{ok:true,status:'ready',imagePath,record}`，无图为 `{ok:true,status:'empty',cleared:false}`；曾主动清空则cleared为true，禁止回退到旧头像槽。 |
-| `getImageGenerationState(canvasName, rowValues?)` | 检查是否可用；有 `available`、`status`、`canvasName`，可用时有 `sheetKey`。省略行只检查画布/表/开关，不证明某行身份有效。 |
-| `subscribeImageGeneration(listener)` | 设置变化时通知；不立即补发，也不是生成进度。返回退订函数，页面清理必须调用。 |
+| `getImageGenerationState(canvasName, rowValues?)` | 检查是否可用；有 `available`、`status`、`canvasName`，可用时有 `sheetKey`。指定行且可用时另有 `generating`，表示该图片位置是否仍在生成；它不改变 `available` 的含义。省略行只检查画布/表/开关，不证明某行身份有效，也不返回逐图任务状态。 |
+| `subscribeImageGeneration(listener)` | 设置变化以及图片任务开始、完成、失败、失效时通知；不立即补发，也不提供百分比进度。任务通知带 `reason:'task'`、`canvasName`、`generating` 和 `status`（开始为 `started`，结束沿用图片结果状态），只通知当前聊天及本页面声明的画布。返回退订函数，页面清理必须调用。 |
 
 `rowValues` 是 `{"人物编号":"hero", "性别":"女", ...}`，不是行数组，也不是一整张表。通过 getState() 的 headers 与当前行组装。稳定字段要非空且唯一，重新排序不应改变人物身份。
 
@@ -64,10 +64,14 @@
 | unavailable | 当前不可用，不发起其他途径的请求。 |
 | invalid-input / invalid-target | 画布声明不符、目标字段缺失或身份不唯一，提示不能确定生成对象。 |
 | busy | 同一目标已在生成，不重复提交。 |
-| stale | 页面、聊天、绑定或人物已失效，不把迟到结果贴给新的对象。 |
+| stale | 聊天、绑定或人物已失效，不把迟到结果贴给新的对象；失效页面也不能再发起新动作。 |
 | failed | 生成失败，保留旧图，允许用户手动重试。 |
 
 生图开关只影响生成与生图可用性查询；读取、上传、清空仍可操作，并继续核对当前页面、聊天与目标身份。不要在一次读取失败时清空已展示的头像。对Promise异常也要catch，按钮在finally恢复。生成中应锁定当前请求的身份，结果返回后重新核对，不能只看组件还在不在。
+
+已经发出的生图任务属于当前酒馆聊天；切表、返回手机首页、收起手机或卸载该页面，都允许任务继续并保存到原稳定图片位置。切换酒馆聊天或停用扩展使未完成任务失效，即使后来切回原聊天也不恢复旧任务。已经保存的图片仍然保留；任务状态只存在于本次网页运行期间。
+
+页面挂载时先订阅，再查询当前行的 `generating` 和 `readImage`；收到通知后重新查询相关画布及当前显示行。生成中禁用重复点击并保留旧图，完成后重读图片，失败后恢复按钮。读取图片不以 `available` 为前提。页面清理只退订和清理 DOM，旧 Promise 回调仍须检查页面 signal 和当前身份；后台保存由宿主处理。已有包直接获得离页保存，重新进入时的加载显示由页面消费这份状态，参考随包头像示例。
 
 生成图由宿主按聊天、物理表、稳定字段和画布管理。不要把临时Blob URL写入表格，不绕过宿主保存。`presetAssets` 是旧手动上传资源槽，`presetAssets.delete()` 不会清空宿主生图记录。新页面用saveImage/deleteImage统一管理上传与生图；可在readImage返回empty且cleared为false时回退旧上传槽。有新图片或cleared为true时必须以管理记录为准，防止旧图复活。删除清空归属而非物理文件，以免误删其他引用。
 

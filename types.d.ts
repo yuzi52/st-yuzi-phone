@@ -1510,16 +1510,6 @@ export type SettingsPageRegistry = Record<SettingsPageMode, SettingsPageDefiniti
 
 export interface SettingsPageRenderers {
     pages: SettingsPageRegistry;
-    renderHomePage(): void;
-    renderAppearancePage(): void;
-    renderApiPresetsPage(): void;
-    renderButtonStylePage(): void;
-    renderBeautifyTemplatePage(): void;
-    renderAiInstructionPresetsPage(): void;
-    renderWorldbookReadingPage(): void;
-    renderImageGenerationPage(): void;
-    renderTableContentReplacementPage(): void;
-    renderFullscreenOverlayPage(): void;
 }
 
 /**

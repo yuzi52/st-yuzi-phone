@@ -759,98 +759,6 @@
     gap: 16px;
 }
 
-.phone-settings-hero {
-    display: none;
-}
-
-.phone-settings-hero::after {
-    content: '';
-    position: absolute;
-    inset: auto -20% -45% auto;
-    width: 180px;
-    height: 180px;
-    border-radius: 50%;
-    background: color-mix(in srgb, var(--yuzi-settings-accent, #5B7A6A) 6%, transparent);
-    filter: blur(12px);
-    pointer-events: none;
-}
-
-.phone-settings-hero-main {
-    position: relative;
-    z-index: 1;
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-}
-
-.phone-settings-hero-eyebrow {
-    font-size: 11px;
-    line-height: 1;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: var(--yuzi-settings-text-secondary, #7A7772);
-}
-
-.phone-settings-hero-title {
-    margin: 0;
-    font-size: 22px;
-    line-height: 1.2;
-    font-weight: 700;
-    color: var(--yuzi-settings-text-primary, #3A3731);
-}
-
-.phone-settings-hero-description {
-    margin: 0;
-    font-size: 13px;
-    line-height: 1.6;
-    color: var(--yuzi-settings-text-secondary, #7A7772);
-}
-
-.phone-settings-hero-chips {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-}
-
-.phone-settings-hero-extend {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-}
-
-.phone-settings-stat-grid {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 10px;
-}
-
-.phone-settings-stat-card {
-    display: flex;
-    flex-direction: column;
-    gap: 3px;
-    padding: 10px;
-    border-radius: 4px;
-    background: var(--yuzi-settings-surface-soft, rgba(245, 243, 239, 0.6));
-    border: 1px solid color-mix(in srgb, var(--yuzi-settings-text-primary, #3A3731) 6%, transparent);
-}
-
-.phone-settings-stat-label {
-    font-size: 10px;
-    color: var(--yuzi-settings-text-secondary, #7A7772);
-    letter-spacing: 0.04em;
-}
-
-.phone-settings-stat-value {
-    font-size: 16px;
-    line-height: 1.1;
-    color: var(--yuzi-settings-text-primary, #3A3731);
-}
-
-.phone-settings-stat-note {
-    font-size: 10px;
-    color: var(--yuzi-settings-text-secondary, #7A7772);
-}
-
 .phone-settings-chip,
 .phone-settings-badge {
     display: inline-flex;
@@ -1037,41 +945,6 @@
 
 .phone-settings-inline-status-text {
     color: inherit;
-}
-
-.phone-settings-summary-list {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-}
-
-.phone-settings-summary-item {
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-start;
-    gap: 12px;
-    padding: 8px 0;
-    border-radius: 0;
-    background: transparent;
-    border: none;
-    border-bottom: 1px solid color-mix(in srgb, var(--yuzi-settings-text-primary, #3A3731) 4%, transparent);
-}
-
-.phone-settings-summary-item:last-child {
-    border-bottom: none;
-}
-
-.phone-settings-summary-label {
-    font-size: 12px;
-    color: var(--yuzi-settings-text-secondary, #7A7772);
-}
-
-.phone-settings-summary-value {
-    flex: 1;
-    text-align: right;
-    font-size: 12px;
-    line-height: 1.55;
-    color: var(--yuzi-settings-text-primary, #3A3731);
 }
 
 .phone-settings-home-list {
@@ -1690,7 +1563,6 @@
 }
 
 @media screen and (max-width: 480px) {
-    .phone-settings-stat-grid,
     .phone-settings-layout-grid {
         grid-template-columns: 1fr;
     }

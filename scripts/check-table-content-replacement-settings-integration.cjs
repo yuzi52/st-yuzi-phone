@@ -34,12 +34,17 @@ async function main() {
     assert.match(frame, /buildTableContentReplacementPageHtml,/u);
     assert.match(render, /createTableContentReplacementSettingsService/u);
     assert.match(render, /rerenderTableContentReplacementKeepScroll/u);
-    assert.match(render, /mode === 'table_content_replacement'/u);
+    assert.match(render, /pageRenderers\.pages\[nextMode\]/u);
     assert.match(contexts, /tableContentReplacementSettingsService/u);
     assert.match(contexts, /navigateBack: services\.navigation\.navigateBack/u);
     assert.match(contexts, /tableContentReplacement:/u);
     assert.match(renderers, /createTableContentReplacementPageRenderers/u);
     assert.match(personalization, /table_content_replacement/u);
+    const { createTableContentReplacementPageRenderers } = await importModule('modules/settings-app/page-renderers/table-content-replacement-renderers.js');
+    const replacementPage = createTableContentReplacementPageRenderers().pages.table_content_replacement.createPage();
+    for (const method of ['mount', 'update', 'dispose']) {
+        assert.equal(typeof replacementPage[method], 'function', `表格内容词汇替换注册页必须提供 ${method} 生命周期`);
+    }
     assert.match(state, /tableContentReplacementScrollTop/u);
     assert.match(types, /'table_content_replacement'/u);
     assert.match(types, /tableContentReplacement:\s*TableContentReplacementSettings/u);

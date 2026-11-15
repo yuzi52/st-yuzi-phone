@@ -44,7 +44,7 @@ async function main() {
     assert.match(render, /createFullscreenOverlaySettingsService/u);
     assert.match(render, /rerenderFullscreenOverlayKeepScroll/u);
     assert.match(render, /fullscreenOverlay:\s*fullscreenOverlaySettingsService/u);
-    assert.match(render, /mode === 'fullscreen_overlay'/u);
+    assert.match(render, /pageRenderers\.pages\[nextMode\]/u);
 
     assert.match(contexts, /fullscreenOverlay:\s*ensureObject\(deps\.fullscreenOverlay\)/u);
     assert.match(contexts, /rerenderFullscreenOverlayKeepScroll:\s*services\.scroll\.rerenderFullscreenOverlayKeepScroll/u);
@@ -60,9 +60,14 @@ async function main() {
     );
 
     assert.match(personalization, /createFullscreenOverlayPage/u);
-    assert.match(personalization, /renderFullscreenOverlayPage/u);
     assert.match(personalization, /fullscreen_overlay:\s*\{/u);
     assert.match(personalization, /return createFullscreenOverlayPage\(fullscreenOverlayContext\)/u);
+
+    const { createPersonalizationPageRenderers } = await importModule('modules/settings-app/page-renderers/personalization-renderers.js');
+    const overlayPage = createPersonalizationPageRenderers().pages.fullscreen_overlay.createPage();
+    for (const method of ['mount', 'update', 'dispose']) {
+        assert.equal(typeof overlayPage[method], 'function', `弹幕设置注册页必须提供 ${method} 生命周期`);
+    }
 
     const { buildSettingsHomePageHtml } = await importModule('modules/settings-app/layout/page-builders.js');
     for (const contentPresetFullPageRuntimeEnabled of [true, false]) {

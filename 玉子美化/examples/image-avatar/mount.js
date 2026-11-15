@@ -31,16 +31,17 @@ export function mount(context) {
     try {
       const state = await actions.getImageGenerationState('avatar', values);
       if (!current(values, token)) return;
-      button.disabled = busy || !state.available;
+      button.disabled = busy || state.generating === true || !state.available;
       if (!state.available) {
         message.textContent = state.status === 'disabled'
           ? '当前未启用生图：请在小手机主设置选择生图接口，并开启此表的生图按钮。'
           : '当前无法生图：' + state.status;
-        return;
-      }
-      if (busy) return;
+      } else message.textContent = busy || state.generating ? '正在生成…' : '';
       const result = await actions.readImage('avatar', values);
-      if (current(values, token) && result.ok && result.imagePath) showImage(result.imagePath);
+      if (current(values, token) && result.ok) {
+        if (result.imagePath) showImage(result.imagePath);
+        else if (result.cleared) { image.hidden = true; image.removeAttribute('src'); }
+      }
     } catch { if (current(values, token)) message.textContent = '读取失败，保留原图。'; }
   };
   const generate = async () => {

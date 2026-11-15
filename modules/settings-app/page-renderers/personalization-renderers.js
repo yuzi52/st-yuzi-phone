@@ -2,21 +2,12 @@ import { createInputShortcutsPage } from '../pages/input-shortcuts.js';
 import { createLogsPage } from '../pages/logs.js';
 import { createTtsPage } from '../pages/tts.js';
 import { createBodyDialoguePage } from '../pages/body-dialogue.js';
-import { createAppearancePage, renderAppearancePage as renderAppearancePagePage } from '../pages/appearance.js';
-import { createButtonStylePage, renderButtonStylePage as renderButtonStylePagePage } from '../pages/button-style.js';
-import { createHomePage, renderHomePage as renderHomePagePage } from '../pages/home.js';
-import {
-    createWorldbookReadingPage,
-    renderWorldbookReadingPage as renderWorldbookReadingPagePage,
-} from '../pages/worldbook-reading.js';
-import {
-    createImageGenerationPage,
-    renderImageGenerationPage as renderImageGenerationPagePage,
-} from '../pages/image-generation.js';
-import {
-    createFullscreenOverlayPage,
-    renderFullscreenOverlayPage as renderFullscreenOverlayPagePage,
-} from '../pages/fullscreen-overlay.js';
+import { createAppearancePage } from '../pages/appearance.js';
+import { createButtonStylePage } from '../pages/button-style.js';
+import { createHomePage } from '../pages/home.js';
+import { createWorldbookReadingPage } from '../pages/worldbook-reading.js';
+import { createImageGenerationPage } from '../pages/image-generation.js';
+import { createFullscreenOverlayPage } from '../pages/fullscreen-overlay.js';
 import {
     buildAppearancePageContext,
     buildButtonStylePageContext,
@@ -50,30 +41,6 @@ export function createPersonalizationPageRenderers(rendererScope = {}) {
     const worldbookReadingContext = pageContexts.worldbookReading || buildWorldbookReadingPageContext(deps);
     const imageGenerationContext = pageContexts.imageGeneration || buildImageGenerationPageContext(deps);
     const fullscreenOverlayContext = pageContexts.fullscreenOverlay || buildFullscreenOverlayPageContext(deps);
-
-    const renderHomePage = () => {
-        renderHomePagePage(homeContext);
-    };
-
-    const renderAppearancePage = () => {
-        renderAppearancePagePage(appearanceContext);
-    };
-
-    const renderButtonStylePage = () => {
-        renderButtonStylePagePage(buttonStyleContext);
-    };
-
-    const renderWorldbookReadingPage = () => {
-        renderWorldbookReadingPagePage(worldbookReadingContext);
-    };
-
-    const renderImageGenerationPage = () => {
-        renderImageGenerationPagePage(imageGenerationContext);
-    };
-
-    const renderFullscreenOverlayPage = () => {
-        renderFullscreenOverlayPagePage(fullscreenOverlayContext);
-    };
 
     return {
         pages: {
@@ -114,11 +81,5 @@ export function createPersonalizationPageRenderers(rendererScope = {}) {
                 },
             },
         },
-        renderHomePage,
-        renderAppearancePage,
-        renderButtonStylePage,
-        renderWorldbookReadingPage,
-        renderImageGenerationPage,
-        renderFullscreenOverlayPage,
     };
 }

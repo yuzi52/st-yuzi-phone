@@ -6,6 +6,7 @@ import { sharedPhoneImageGenerationRuntime } from './runtime.js';
 import { createStableImageOwnershipRepository } from './stable-image-ownership-repository.js';
 import { createStableImageOwnershipService } from './stable-image-ownership.js';
 import { createTableDisplayImageGenerationService } from './table-display-image-generation-service.js';
+import { getTableImageSessionSignal } from './table-image-session.js';
 import { getQQV2Facade } from '../qq-v2/runtime/default-runtime.js';
 
 const OWNERSHIP_DB_NAME = 'yuzi-phone-table-image-ownership';
@@ -147,6 +148,7 @@ export function createDefaultTableImageService(options) {
     });
 
     return createTableDisplayImageGenerationService({
+        getSessionSignal: options.getSessionSignal || getTableImageSessionSignal,
         async storeImage(image) {
             if (!(image instanceof Blob) || !['image/png', 'image/jpeg', 'image/webp', 'image/gif'].includes(image.type) || image.size === 0 || image.size > 8 * 1024 * 1024) {
                 return { ok: false, status: 'invalid-input', reason: 'invalid-image' };
